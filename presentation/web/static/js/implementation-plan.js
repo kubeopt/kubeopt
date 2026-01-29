@@ -14,7 +14,7 @@ window.ImplementationPlan = (function() {
      * Initialize implementation plan module
      */
     function init() {
-        console.log('Initializing Implementation Plan module...');
+        window.logger.debug('Initializing Implementation Plan module...');
         // Add marked.js for markdown rendering if not available
         loadMarkedJS();
     }
@@ -26,7 +26,7 @@ window.ImplementationPlan = (function() {
         if (!window.marked) {
             const script = document.createElement('script');
             script.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
-            script.onload = () => console.log('Marked.js library loaded');
+            script.onload = () => window.logger.debug('Marked.js library loaded');
             document.head.appendChild(script);
         }
     }
@@ -39,12 +39,12 @@ window.ImplementationPlan = (function() {
         const container = document.getElementById(containerId);
         
         if (!container) {
-            console.error('Implementation plan container not found:', containerId);
+            window.logger.error('Implementation plan container not found:', containerId);
             return;
         }
         
         if (!clusterId) {
-            console.warn('No cluster ID available for implementation plan');
+            window.logger.warning('No cluster ID available for implementation plan');
             showErrorState('No cluster selected');
             return;
         }
@@ -61,7 +61,7 @@ window.ImplementationPlan = (function() {
             }
             
         } catch (error) {
-            console.error('Error loading implementation plan:', error);
+            window.logger.error('Error loading implementation plan:', error);
             showErrorState(error.message || 'Failed to load implementation plan');
         }
     }
@@ -72,7 +72,7 @@ window.ImplementationPlan = (function() {
     async function generatePlan() {
         const clusterId = window.AppState?.currentClusterId;
         if (!clusterId) {
-            console.warn('No cluster ID available for plan generation');
+            window.logger.warning('No cluster ID available for plan generation');
             return;
         }
         
@@ -89,7 +89,7 @@ window.ImplementationPlan = (function() {
             }
             
         } catch (error) {
-            console.error('Error generating implementation plan:', error);
+            window.logger.error('Error generating implementation plan:', error);
             showErrorState('Failed to generate implementation plan: ' + error.message);
             
             if (window.showToast) {
@@ -215,7 +215,7 @@ window.ImplementationPlan = (function() {
     function renderPlan(planData) {
         const container = document.getElementById(containerId);
         if (!container) {
-            console.error('Container not found in renderPlan:', containerId);
+            window.logger.error('Container not found in renderPlan:', containerId);
             return;
         }
         
@@ -386,7 +386,7 @@ window.ImplementationPlan = (function() {
                             copyBtn.style.background = 'var(--primary-color)';
                         }, 2000);
                     } catch (error) {
-                        console.error('Failed to copy code:', error);
+                        window.logger.error('Failed to copy code:', error);
                     }
                 });
                 

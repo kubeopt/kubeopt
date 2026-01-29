@@ -14,7 +14,7 @@ window.Alerts = (function() {
      * Initialize alerts module
      */
     function init() {
-        console.log('Initializing Alerts module...');
+        window.logger.debug('Initializing Alerts module...');
     }
     
     /**
@@ -24,7 +24,7 @@ window.Alerts = (function() {
         const container = document.getElementById(containerId);
         
         if (!container) {
-            console.error('Alerts container not found:', containerId);
+            window.logger.error('Alerts container not found:', containerId);
             return;
         }
         
@@ -33,7 +33,7 @@ window.Alerts = (function() {
             
             // Get current cluster ID for cluster-specific alerts
             const clusterId = getCurrentClusterId();
-            console.log('Loading alerts for cluster:', clusterId);
+            window.logger.debug('Loading alerts for cluster:', clusterId);
             
             const alertsData = await window.API.getAlerts(clusterId);
             
@@ -45,7 +45,7 @@ window.Alerts = (function() {
             }
             
         } catch (error) {
-            console.error('Error loading alerts:', error);
+            window.logger.error('Error loading alerts:', error);
             showErrorState(error.message || 'Failed to load alerts');
         }
     }
@@ -247,7 +247,7 @@ window.Alerts = (function() {
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
             
             // Debug: Log the data being sent
-            console.log('🔍 Alert data being sent to API:', alertData);
+            window.logger.debug('🔍 Alert data being sent to API:', alertData);
             
             // Call API
             const result = await window.API.createAlert(alertData);
@@ -269,7 +269,7 @@ window.Alerts = (function() {
             }
             
         } catch (error) {
-            console.error('Error creating alert:', error);
+            window.logger.error('Error creating alert:', error);
             if (window.showToast) {
                 window.showToast(`Failed to create alert: ${error.message}`, 'error');
             }
@@ -491,7 +491,7 @@ window.Alerts = (function() {
             }
             
         } catch (error) {
-            console.error(`Error toggling alert status:`, error);
+            window.logger.error(`Error toggling alert status:`, error);
             if (window.showToast) {
                 window.showToast(`Failed to update alert: ${error.message}`, 'error');
             }
@@ -504,7 +504,7 @@ window.Alerts = (function() {
     function showAlertDetails(alertId) {
         if (!alertId) return;
         
-        console.log('Show alert details for:', alertId);
+        window.logger.debug('Show alert details for:', alertId);
         
         if (window.showToast) {
             window.showToast('Alert details view coming soon!', 'info');
@@ -562,45 +562,45 @@ window.Alerts = (function() {
     async function editAlert(alertId) {
         if (!alertId) return;
         
-        console.log('Edit alert:', alertId);
+        window.logger.debug('Edit alert:', alertId);
         
         try {
-            console.log('🔍 Debug edit alert:');
-            console.log('- Looking for alertId:', alertId, typeof alertId);
-            console.log('- Current cached alerts:', currentAlerts);
+            window.logger.debug('🔍 Debug edit alert:');
+            window.logger.debug('- Looking for alertId:', alertId, typeof alertId);
+            window.logger.debug('- Current cached alerts:', currentAlerts);
             
             // Use cached alerts instead of refetching
             if (!currentAlerts || !currentAlerts.alerts) {
-                console.log('No cached alerts, refetching...');
+                window.logger.debug('No cached alerts, refetching...');
                 const clusterId = getCurrentClusterId();
                 currentAlerts = await window.API.getAlerts(clusterId);
             }
             
             const alerts = currentAlerts.alerts || [];
-            console.log('- Available alerts:', alerts.map(a => ({id: a.id, type: typeof a.id})));
+            window.logger.debug('- Available alerts:', alerts.map(a => ({id: a.id, type: typeof a.id})));
             
             // Try flexible comparison to handle type mismatches
             const currentAlert = alerts.find(alert => {
-                console.log(`Comparing alert.id: ${alert.id} (${typeof alert.id}) with alertId: ${alertId} (${typeof alertId})`);
+                window.logger.debug(`Comparing alert.id: ${alert.id} (${typeof alert.id}) with alertId: ${alertId} (${typeof alertId})`);
                 return alert.id == alertId; // Use loose equality to handle string/number differences
             });
             
             if (!currentAlert) {
-                console.error('❌ Alert not found with ID:', alertId);
-                console.error('Available alert IDs:', alerts.map(a => a.id));
+                window.logger.error('❌ Alert not found with ID:', alertId);
+                window.logger.error('Available alert IDs:', alerts.map(a => a.id));
                 if (window.showToast) {
                     window.showToast(`Alert not found (ID: ${alertId})`, 'error');
                 }
                 return;
             }
             
-            console.log('✅ Found alert:', currentAlert);
+            window.logger.debug('✅ Found alert:', currentAlert);
             
             // Show modal with pre-populated data
             showEditAlertModal(currentAlert);
             
         } catch (error) {
-            console.error('Error loading alert for editing:', error);
+            window.logger.error('Error loading alert for editing:', error);
             if (window.showToast) {
                 window.showToast('Failed to load alert data', 'error');
             }
@@ -766,7 +766,7 @@ window.Alerts = (function() {
                 }
             }
             
-            console.log('🔍 Alert data being sent to API for update:', alertData);
+            window.logger.debug('🔍 Alert data being sent to API for update:', alertData);
             
             // Call API to update alert
             const result = await window.API.updateAlert(alertId, alertData);
@@ -788,7 +788,7 @@ window.Alerts = (function() {
             }
             
         } catch (error) {
-            console.error('Error updating alert:', error);
+            window.logger.error('Error updating alert:', error);
             if (window.showToast) {
                 window.showToast(`Failed to update alert: ${error.message}`, 'error');
             }
@@ -810,8 +810,8 @@ window.Alerts = (function() {
         // Find the alert data using flexible comparison
         const alert = currentAlerts?.alerts?.find(a => a.id == alertId);
         if (!alert) {
-            console.error('Alert not found for deletion:', alertId);
-            console.log('Available alerts:', currentAlerts?.alerts?.map(a => ({id: a.id, type: typeof a.id})));
+            window.logger.error('Alert not found for deletion:', alertId);
+            window.logger.debug('Available alerts:', currentAlerts?.alerts?.map(a => ({id: a.id, type: typeof a.id})));
             if (window.showToast) {
                 window.showToast('Alert not found', 'error');
             }
@@ -897,7 +897,7 @@ window.Alerts = (function() {
             }
             
         } catch (error) {
-            console.error('Error deleting alert:', error);
+            window.logger.error('Error deleting alert:', error);
             if (window.showToast) {
                 window.showToast(`Failed to delete alert: ${error.message}`, 'error');
             }

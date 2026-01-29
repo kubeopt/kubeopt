@@ -111,8 +111,8 @@ window.ChartManager = (function() {
                     }];
                 }
                 
-                console.log('Cost trend chart datasets:', chartDatasets.map(d => d.label));
-                console.log('Backend trendData structure:', {
+                window.logger.debug('Cost trend chart datasets:', chartDatasets.map(d => d.label));
+                window.logger.debug('Backend trendData structure:', {
                     hasLabels: !!labels.length,
                     hasDatasets: !!datasets.length,
                     hasValues: !!data.values,
@@ -1316,7 +1316,7 @@ window.ChartManager = (function() {
         if (charts[canvasId]) {
             charts[canvasId].destroy();
             delete charts[canvasId];
-            console.log(`Chart destroyed: ${canvasId}`);
+            window.logger.debug(`Chart destroyed: ${canvasId}`);
         }
     }
     
@@ -1325,13 +1325,13 @@ window.ChartManager = (function() {
      */
     function createChart(canvasId, data) {
         if (!chartConfigs[canvasId]) {
-            console.warn(`No configuration found for chart: ${canvasId}`);
+            window.logger.warning(`No configuration found for chart: ${canvasId}`);
             return null;
         }
         
         const canvas = document.getElementById(canvasId);
         if (!canvas) {
-            console.log(`Canvas not found, storing data for later: ${canvasId}`);
+            window.logger.debug(`Canvas not found, storing data for later: ${canvasId}`);
             pendingChartData[canvasId] = data;
             return null;
         }
@@ -1348,14 +1348,14 @@ window.ChartManager = (function() {
             chart._originalData = data;
             
             charts[canvasId] = chart;
-            console.log(`Chart created: ${canvasId}`);
+            window.logger.debug(`Chart created: ${canvasId}`);
             
             // Clear pending data
             delete pendingChartData[canvasId];
             
             return chart;
         } catch (error) {
-            console.error(`Failed to create chart ${canvasId}:`, error);
+            window.logger.error(`Failed to create chart ${canvasId}:`, error);
             return null;
         }
     }
@@ -1365,7 +1365,7 @@ window.ChartManager = (function() {
      */
     function updateChart(canvasId, data) {
         if (!data) {
-            console.warn(`No data provided for chart: ${canvasId}`);
+            window.logger.warning(`No data provided for chart: ${canvasId}`);
             return;
         }
         
@@ -1382,11 +1382,11 @@ window.ChartManager = (function() {
      * Initialize all pending charts (called when view changes)
      */
     function initializePendingCharts() {
-        console.log('Checking for pending charts...');
+        window.logger.debug('Checking for pending charts...');
         
         Object.keys(pendingChartData).forEach(canvasId => {
             if (canvasExists(canvasId)) {
-                console.log(`Creating pending chart: ${canvasId}`);
+                window.logger.debug(`Creating pending chart: ${canvasId}`);
                 createChart(canvasId, pendingChartData[canvasId]);
             }
         });
@@ -1397,11 +1397,11 @@ window.ChartManager = (function() {
      */
     function updateAllCharts(chartData) {
         if (!chartData) {
-            console.warn('No chart data provided');
+            window.logger.warning('No chart data provided');
             return;
         }
         
-        console.log('Updating all charts with new data', chartData);
+        window.logger.debug('Updating all charts with new data', chartData);
         
         // Map backend data to charts based on original implementation
         
@@ -1411,12 +1411,12 @@ window.ChartManager = (function() {
         }
         
         // 2. Cost Trend Chart (Line) - Use backend trendData exactly like backup code
-        console.log('Checking for trendData in chartData:', !!chartData.trendData);
+        window.logger.debug('Checking for trendData in chartData:', !!chartData.trendData);
         if (chartData.trendData && chartData.trendData.labels && chartData.trendData.datasets) {
-            console.log('Using backend trendData:', chartData.trendData);
+            window.logger.debug('Using backend trendData:', chartData.trendData);
             updateChart('cost-trend-chart', chartData.trendData);
         } else if (chartData.trendData && chartData.trendData.labels && chartData.trendData.values) {
-            console.log('Converting old format trendData:', chartData.trendData);
+            window.logger.debug('Converting old format trendData:', chartData.trendData);
             const convertedData = {
                 labels: chartData.trendData.labels,
                 datasets: [{
@@ -1426,7 +1426,7 @@ window.ChartManager = (function() {
             };
             updateChart('cost-trend-chart', convertedData);
         } else {
-            console.warn('No trendData available from backend - Cost Trend chart will show placeholder');
+            window.logger.warning('No trendData available from backend - Cost Trend chart will show placeholder');
             const placeholderData = {
                 labels: ['No Data Available'],
                 datasets: [{
@@ -1449,7 +1449,7 @@ window.ChartManager = (function() {
         
         // 4. Node Utilization Chart (Bar)
         if (chartData.nodeUtilization) {
-            console.log('Updating node utilization chart with data:', chartData.nodeUtilization);
+            window.logger.debug('Updating node utilization chart with data:', chartData.nodeUtilization);
             updateChart('node-utilization-chart', chartData.nodeUtilization);
         }
         
@@ -1502,7 +1502,7 @@ window.ChartManager = (function() {
                     estimated_savings_pct: wasteMetrics.estimated_monthly_savings_pct || 0
                 }
             };
-            console.log('Updating utilization chart with enhanced waste metrics:', utilizationData);
+            window.logger.debug('Updating utilization chart with enhanced waste metrics:', utilizationData);
             updateChart('utilization-chart', utilizationData);
         } else if (chartData.cpuWorkloadMetrics) {
             // Use workload metrics with new structure
@@ -1511,7 +1511,7 @@ window.ChartManager = (function() {
                 cpu: [chartData.cpuWorkloadMetrics.max_cpu_utilization || 0],
                 memory: [chartData.cpuWorkloadMetrics.max_memory_utilization || chartData.cpuWorkloadMetrics.memory_utilization || 0]
             };
-            console.log('Updating utilization chart with CPU workload metrics:', utilizationData);
+            window.logger.debug('Updating utilization chart with CPU workload metrics:', utilizationData);
             updateChart('utilization-chart', utilizationData);
         }
         
@@ -1539,7 +1539,7 @@ window.ChartManager = (function() {
                 labels: workloadEntries.map(w => w.name),
                 values: workloadEntries.map(w => w.cost)
             };
-            console.log('Updating workload cost chart with data:', workloadData);
+            window.logger.debug('Updating workload cost chart with data:', workloadData);
             updateChart('workload-cost-chart', workloadData);
         } else if (chartData.hpaComparison && chartData.hpaComparison.existing_hpas) {
             // Generate from HPA data  
@@ -1547,7 +1547,7 @@ window.ChartManager = (function() {
                 labels: chartData.hpaComparison.existing_hpas.map(h => h.name).slice(0, 10),
                 values: chartData.hpaComparison.existing_hpas.map(() => Math.random() * 500 + 50).slice(0, 10)
             };
-            console.log('Fallback: Updating workload cost chart with HPA data:', workloadData);
+            window.logger.debug('Fallback: Updating workload cost chart with HPA data:', workloadData);
             updateChart('workload-cost-chart', workloadData);
         }
     }
@@ -1570,16 +1570,16 @@ window.ChartManager = (function() {
      * Resize all charts
      */
     function resizeAllCharts() {
-        console.log('Resizing all charts...');
+        window.logger.debug('Resizing all charts...');
         
         Object.keys(charts).forEach(canvasId => {
             const chart = charts[canvasId];
             if (chart && typeof chart.resize === 'function') {
                 try {
                     chart.resize();
-                    console.log(`Resized chart: ${canvasId}`);
+                    window.logger.debug(`Resized chart: ${canvasId}`);
                 } catch (error) {
-                    console.error(`Failed to resize chart ${canvasId}:`, error);
+                    window.logger.error(`Failed to resize chart ${canvasId}:`, error);
                 }
             }
         });
@@ -1599,7 +1599,7 @@ window.ChartManager = (function() {
      * Handle theme change - recreate all charts with new theme colors
      */
     function handleThemeChange() {
-        console.log('Theme changed, recreating charts...');
+        window.logger.debug('Theme changed, recreating charts...');
         
         // Store current chart data before destroying charts
         const currentChartData = {};
@@ -1650,7 +1650,7 @@ window.ChartManager = (function() {
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Chart Manager initialized');
+    window.logger.debug('Chart Manager initialized');
     
     // Check for pending charts after a short delay
     setTimeout(() => {
@@ -1661,7 +1661,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
             if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
-                console.log('Theme change detected, updating charts...');
+                window.logger.debug('Theme change detected, updating charts...');
                 window.ChartManager.handleThemeChange();
             }
         });

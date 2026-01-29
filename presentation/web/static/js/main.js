@@ -7,7 +7,7 @@
  * Initialize the application
  */
 function initApp() {
-    console.log('🚀 Initializing AKS Cost Optimizer...');
+    window.logger.info('🚀 Initializing AKS Cost Optimizer...');
     
     try {
         // Initialize cluster context first
@@ -26,26 +26,26 @@ function initApp() {
         }
         
         if (window.ChartsModule) {
-            console.log('Charts module available');
+            window.logger.debug('Charts module available');
         }
         
         if (window.ImplementationPlan) {
             window.ImplementationPlan.init();
-            console.log('Implementation plan module initialized');
+            window.logger.debug('Implementation plan module initialized');
         }
         
         if (window.Alerts) {
             window.Alerts.init();
-            console.log('Alerts module initialized');
+            window.logger.debug('Alerts module initialized');
         }
         
-        console.log('✅ Application initialized successfully');
+        window.logger.info('✅ Application initialized successfully');
         
         // Start global auto-refresh for all pages
         window.startGlobalAutoRefresh();
         
     } catch (error) {
-        console.error('❌ Error initializing application:', error);
+        window.logger.error('❌ Error initializing application:', error);
         if (window.UI && window.UI.showToast) {
             window.UI.showToast('Application failed to initialize', 'error');
         }
@@ -56,7 +56,7 @@ function initApp() {
  * Clean up application resources
  */
 function cleanup() {
-    console.log('🧹 Cleaning up application...');
+    window.logger.debug('🧹 Cleaning up application...');
     
     // Stop global auto-refresh
     window.stopGlobalAutoRefresh();
@@ -74,7 +74,7 @@ function cleanup() {
         });
     }
     
-    console.log('✅ Application cleanup complete');
+    window.logger.debug('✅ Application cleanup complete');
 }
 
 /**
@@ -82,12 +82,12 @@ function cleanup() {
  */
 function handleVisibilityChange() {
     if (document.hidden) {
-        console.log('⏸️ Page hidden, pausing auto-refresh');
+        window.logger.debug('⏸️ Page hidden, pausing auto-refresh');
         if (window.Dashboard) {
             window.Dashboard.stopAutoRefresh();
         }
     } else {
-        console.log('▶️ Page visible, resuming operations');
+        window.logger.debug('▶️ Page visible, resuming operations');
         if (window.Dashboard) {
             window.Dashboard.refresh();
         }
@@ -149,10 +149,10 @@ window.refreshEverything = async function(silent = false) {
             window.showToast('✅ Page refreshed successfully', 'success');
         }
         
-        console.log('🔄 Auto-refresh completed');
+        window.logger.debug('🔄 Auto-refresh completed');
         
     } catch (error) {
-        console.error('Refresh failed:', error);
+        window.logger.error('Refresh failed:', error);
         if (!silent && window.showToast) {
             window.showToast('❌ Refresh failed', 'error');
         }
@@ -170,14 +170,14 @@ window.startGlobalAutoRefresh = function() {
         window.refreshEverything(true); // silent = true for auto-refresh
     }, 300000); // Every 5 minutes
     
-    console.log('🔄 Global auto-refresh started (every 5 minutes)');
+    window.logger.info('🔄 Global auto-refresh started (every 5 minutes)');
 };
 
 window.stopGlobalAutoRefresh = function() {
     if (window.globalAutoRefreshInterval) {
         clearInterval(window.globalAutoRefreshInterval);
         window.globalAutoRefreshInterval = null;
-        console.log('⏹️ Global auto-refresh stopped');
+        window.logger.debug('⏹️ Global auto-refresh stopped');
     }
 };
 
