@@ -1,0 +1,15 @@
+[build]
+builder = "dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+
+[env]
+PORT = "5010"
+FLASK_ENV = "production"
+PRODUCTION_MODE = "true"
+PYTHONUNBUFFERED = "1"
+PYTHONPATH = "/app"
+DATABASE_PATH = "/app/data/aks_optimizer.db"
+AZURE_CONFIG_DIR = "/app/.azure"

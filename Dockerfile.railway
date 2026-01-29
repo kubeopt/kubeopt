@@ -1,0 +1,78 @@
+# Railway-optimized Dockerfile for KubeOpt
+FROM python:3.11-slim AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create install directory
+RUN mkdir -p /install
+
+# Copy requirements and install
+COPY requirements/requirements.txt .
+
+# Install packages with Railway optimization
+RUN pip install --no-cache-dir --target=/install \
+    --prefer-binary \
+    --no-warn-script-location \
+    --upgrade pip setuptools wheel \
+    -r requirements.txt
+
+# Add gunicorn for production server
+RUN pip install --no-cache-dir --target=/install gunicorn==21.2.0
+
+# Production stage
+FROM python:3.11-slim
+
+# Install runtime dependencies including curl for healthchecks
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy Python packages from builder
+COPY --from=builder /install /usr/local/lib/python3.11/site-packages
+
+# Create app user
+RUN groupadd -g 1000 appuser && \
+    useradd -r -u 1000 -g appuser -s /bin/bash -m appuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy application code
+COPY --chown=appuser:appuser . .
+
+# Create necessary directories
+RUN mkdir -p \
+    /app/data \
+    /app/logs \
+    /app/.azure \
+    /app/infrastructure/persistence/database \
+    /app/infrastructure/persistence/cache \
+    /app/machine_learning/data \
+    && chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Environment variables for Railway
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    FLASK_ENV=production \
+    DATABASE_PATH=/app/data/aks_optimizer.db \
+    AZURE_CONFIG_DIR=/app/.azure \
+    PORT=5010
+
+# Expose port
+EXPOSE $PORT
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:$PORT/health || exit 1
+
+# Start with gunicorn for production
+CMD gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 300 --worker-class sync --access-logfile - --error-logfile - wsgi:app

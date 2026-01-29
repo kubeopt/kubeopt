@@ -179,6 +179,63 @@ az role assignment create \
 
 ## Organization-Wide Access Setup
 
+### Multi-Subscription Architecture Overview
+
+**⚠️ IMPORTANT**: For organizations with multiple Azure subscriptions (dev, UAT, staging, DR, prod), you need **only ONE service principal** that can access all subscriptions within the same Azure AD tenant.
+
+#### Service Principal Scope Across Subscriptions
+
+According to Microsoft documentation: *"If you have multiple Azure Subscriptions in one Azure AD tenant you may use your single Service Principal across all of your Azure Subscriptions."*
+
+```
+Organization A (Single Azure AD Tenant)
+├── Dev Subscription 1 ────┐
+├── Dev Subscription 2 ────┤
+├── UAT Subscription 1 ────┤
+├── UAT Subscription 2 ────┤    → Single KubeOpt Service Principal
+├── Stage Subscription ────┤      (Role assigned to each subscription)
+├── DR Subscription ───────┤
+└── Prod Subscription ─────┘
+```
+
+#### Benefits of Single Service Principal Approach
+
+**✅ Operational Benefits:**
+- **Single authentication** - easier credential management
+- **Consistent permissions** across all environments
+- **Simplified onboarding** - create one SP, assign to all subscriptions
+- **One secret to rotate** instead of multiple per subscription
+
+**✅ Security Benefits:**
+- **Least privilege** - only Reader + AKS User roles required
+- **Scoped per subscription** - can revoke access selectively
+- **Audit trail** - clear ownership and tracking
+- **Standard enterprise pattern** - used by monitoring tools like Datadog, New Relic
+
+**✅ Architectural Benefits:**
+- **Centralized configuration** in KubeOpt application
+- **Easy troubleshooting** - single identity to debug
+- **Scalable** - automatically works with new subscriptions
+
+#### Implementation Strategy
+
+**Step 1: Create Single Service Principal (One Time)**
+```bash
+# Organization creates ONE service principal for all subscriptions
+az ad sp create-for-rbac --name "kubeopt-analyzer" --skip-assignment
+
+# Output: 
+# {
+#   "appId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+#   "displayName": "kubeopt-analyzer", 
+#   "password": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+#   "tenant": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# }
+```
+
+**Step 2: Apply Permissions Per Subscription**
+Use the automation script below to assign roles to each subscription systematically.
+
 ### For Multiple Subscriptions
 Create a script to apply permissions across all subscriptions:
 
@@ -593,13 +650,301 @@ tail -f logs/app.log | grep -i azure
    - Restrict service principal access to specific IP ranges if possible
    - Use private endpoints for sensitive resources
 
+## OIDC Workload Identity Authentication (Modern Alternative)
+
+### Overview
+
+Azure Workload Identity provides a more secure, credential-free authentication method using OpenID Connect (OIDC) federation. This eliminates the need to store and manage service principal secrets in your KubeOpt application.
+
+### How OIDC Workload Identity Works
+
+```
+┌─────────────────┐    OIDC Token     ┌─────────────────┐    Azure AD    ┌─────────────────┐
+│  KubeOpt Pod    │ ──────────────── │ AKS OIDC Issuer │ ────────────── │ Managed Identity│
+│                 │                  │                 │                │                 │
+└─────────────────┘                  └─────────────────┘                └─────────────────┘
+        │                                     │                                     │
+        │ ServiceAccount                      │ Validates Token                     │ Access to Azure
+        │ with annotations                    │ & Issues AAD Token                  │ Resources
+        │                                     │                                     │
+```
+
+### Benefits Over Service Principal
+
+**✅ Enhanced Security:**
+- No secrets to manage or rotate
+- Short-lived tokens (1 hour default)
+- Automatic token refresh
+- No credential storage in cluster
+
+**✅ Simplified Management:**
+- No client secret expiration concerns
+- Azure-managed authentication flow
+- Built-in with AKS (no additional infrastructure)
+
+**✅ Compliance & Audit:**
+- Better audit trail through Azure AD
+- No secrets in logs or environment variables
+- Meets zero-trust security requirements
+
+### Setup Instructions
+
+#### 1. Enable OIDC and Workload Identity on AKS
+
+**For New Clusters:**
+```bash
+az aks create \
+  --resource-group "rg-kubeopt-aks-weu" \
+  --name "aks-kubeopt-weu" \
+  --enable-oidc-issuer \
+  --enable-workload-identity \
+  --generate-ssh-keys
+```
+
+**For Existing Clusters:**
+```bash
+# Update existing cluster
+az aks update \
+  --resource-group "rg-kubeopt-aks-weu" \
+  --name "aks-kubeopt-weu" \
+  --enable-oidc-issuer \
+  --enable-workload-identity
+```
+
+#### 2. Create User-Assigned Managed Identity
+
+```bash
+# Create managed identity
+az identity create \
+  --name "kubeopt-workload-identity" \
+  --resource-group "rg-kubeopt-aks-weu" \
+  --location westeurope
+
+# Get client ID
+CLIENT_ID=$(az identity show \
+  --resource-group "rg-kubeopt-aks-weu" \
+  --name "kubeopt-workload-identity" \
+  --query 'clientId' -o tsv)
+```
+
+#### 3. Assign Azure RBAC Permissions
+
+```bash
+# Get subscription ID
+SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+# Assign required roles to managed identity
+az role assignment create \
+  --assignee $CLIENT_ID \
+  --role "Reader" \
+  --scope "/subscriptions/$SUBSCRIPTION_ID"
+
+az role assignment create \
+  --assignee $CLIENT_ID \
+  --role "Azure Kubernetes Service RBAC Reader" \
+  --scope "/subscriptions/$SUBSCRIPTION_ID"
+
+az role assignment create \
+  --assignee $CLIENT_ID \
+  --role "Cost Management Reader" \
+  --scope "/subscriptions/$SUBSCRIPTION_ID"
+```
+
+#### 4. Create Federated Identity Credential
+
+```bash
+# Get AKS OIDC issuer URL
+AKS_OIDC_ISSUER=$(az aks show \
+  --resource-group "rg-kubeopt-aks-weu" \
+  --name "aks-kubeopt-weu" \
+  --query "oidcIssuerProfile.issuerUrl" -o tsv)
+
+# Create federated credential
+az identity federated-credential create \
+  --name "kubeopt-federated-identity" \
+  --identity-name "kubeopt-workload-identity" \
+  --resource-group "rg-kubeopt-aks-weu" \
+  --issuer "$AKS_OIDC_ISSUER" \
+  --subject "system:serviceaccount:default:kubeopt-workload-identity" \
+  --audience api://AzureADTokenExchange
+```
+
+#### 5. Deploy Kubernetes Resources
+
+**ServiceAccount with Workload Identity:**
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubeopt-workload-identity
+  namespace: default
+  annotations:
+    azure.workload.identity/client-id: "CLIENT_ID_HERE"
+```
+
+**Pod with Workload Identity:**
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubeopt-analyzer
+spec:
+  template:
+    metadata:
+      labels:
+        azure.workload.identity/use: "true"  # Required label
+    spec:
+      serviceAccountName: kubeopt-workload-identity
+      containers:
+      - name: kubeopt
+        image: your-kubeopt-image
+        env:
+        - name: AZURE_CLIENT_ID  # Auto-injected by webhook
+        - name: AZURE_TENANT_ID  # Auto-injected by webhook
+```
+
+#### 6. Application Configuration
+
+**Update KubeOpt Configuration:**
+```python
+# In your KubeOpt application, use DefaultAzureCredential
+from azure.identity import DefaultAzureCredential
+from azure.mgmt.containerservice import ContainerServiceClient
+
+# This automatically uses workload identity when running in AKS
+credential = DefaultAzureCredential()
+client = ContainerServiceClient(credential, subscription_id)
+```
+
+### Multi-Subscription Setup with OIDC
+
+For organizations with multiple subscriptions, create one managed identity per subscription or use cross-subscription access:
+
+```bash
+#!/bin/bash
+# setup-workload-identity-multi-sub.sh
+
+MANAGED_IDENTITY_NAME="kubeopt-workload-identity"
+RESOURCE_GROUP="rg-kubeopt-aks-weu"
+SUBSCRIPTIONS=(
+    "subscription-id-1"
+    "subscription-id-2"
+    "subscription-id-3"
+)
+
+for SUB_ID in "${SUBSCRIPTIONS[@]}"; do
+    echo "Configuring subscription: $SUB_ID"
+    az account set --subscription $SUB_ID
+    
+    # Get managed identity client ID
+    CLIENT_ID=$(az identity show \
+        --resource-group $RESOURCE_GROUP \
+        --name $MANAGED_IDENTITY_NAME \
+        --query 'clientId' -o tsv)
+    
+    # Assign permissions
+    az role assignment create --assignee $CLIENT_ID --role "Reader" --scope "/subscriptions/$SUB_ID"
+    az role assignment create --assignee $CLIENT_ID --role "Azure Kubernetes Service RBAC Reader" --scope "/subscriptions/$SUB_ID"
+    az role assignment create --assignee $CLIENT_ID --role "Cost Management Reader" --scope "/subscriptions/$SUB_ID"
+done
+```
+
+### Migration from Service Principal to OIDC
+
+**Step 1: Parallel Setup**
+- Deploy workload identity alongside existing service principal
+- Test authentication and permissions
+- Verify all functionality works
+
+**Step 2: Update Application Code**
+```python
+# Before (Service Principal)
+from azure.identity import ClientSecretCredential
+credential = ClientSecretCredential(tenant_id, client_id, client_secret)
+
+# After (Workload Identity)
+from azure.identity import DefaultAzureCredential
+credential = DefaultAzureCredential()  # Automatically uses workload identity
+```
+
+**Step 3: Remove Service Principal**
+- Delete client secrets
+- Remove service principal role assignments
+- Clean up environment variables
+
+### Troubleshooting OIDC Workload Identity
+
+#### Common Issues:
+
+**1. Token Exchange Failures:**
+```bash
+# Check federated credential configuration
+az identity federated-credential list \
+  --identity-name "kubeopt-workload-identity" \
+  --resource-group "rg-kubeopt-aks-weu"
+```
+
+**2. ServiceAccount Token Issues:**
+```bash
+# Verify ServiceAccount annotation
+kubectl describe serviceaccount kubeopt-workload-identity
+
+# Check if webhook is injecting environment variables
+kubectl describe pod <kubeopt-pod-name>
+```
+
+**3. RBAC Permission Issues:**
+```bash
+# Test managed identity permissions
+az role assignment list --assignee $CLIENT_ID --output table
+```
+
+### Performance and Limitations
+
+**Token Refresh:**
+- Tokens refresh automatically every 1 hour
+- No application restart required
+- Built-in retry mechanisms
+
+**Rate Limits:**
+- AAD token endpoint: 10,000 requests/minute per tenant
+- OIDC issuer: No published limits (managed by Azure)
+
+### Security Best Practices
+
+1. **Least Privilege Access:** Only assign minimum required roles
+2. **Subject Validation:** Use specific ServiceAccount subjects, not wildcards
+3. **Audit Regularly:** Monitor federated credential usage
+4. **Network Security:** Use private endpoints where possible
+5. **Token Monitoring:** Set up alerts for authentication failures
+
+### Automation Script
+
+Use the provided automation script at `/Users/srini/coderepos/nivaya/kubeopt-aks-infra/azure/enable-workload-identity.sh` to set up workload identity:
+
+```bash
+# Make script executable
+chmod +x azure/enable-workload-identity.sh
+
+# Run setup
+./azure/enable-workload-identity.sh
+```
+
+This script will:
+- Enable OIDC and workload identity on your AKS cluster
+- Create managed identity with proper permissions  
+- Set up federated credentials
+- Provide next steps for Kubernetes deployment
+
 ## Additional Resources
 
 - [Azure Service Principal Documentation](https://docs.microsoft.com/en-us/azure/active-directory/develop/app-objects-and-service-principals)
 - [Azure RBAC Documentation](https://docs.microsoft.com/en-us/azure/role-based-access-control/)
 - [AKS RBAC Integration](https://docs.microsoft.com/en-us/azure/aks/azure-ad-rbac)
 - [Azure Cost Management API](https://docs.microsoft.com/en-us/rest/api/cost-management/)
+- [Azure Workload Identity Documentation](https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview)
+- [OIDC Federation Best Practices](https://learn.microsoft.com/en-us/azure/aks/workload-identity-deploy-cluster)
 
 ---
 
-**Note**: This setup provides organization-wide access to AKS clusters and cost data. Adjust permissions based on your security requirements and organizational policies.
+**Note**: This setup provides organization-wide access to AKS clusters and cost data. OIDC Workload Identity is the recommended modern approach for secure, credential-free authentication. Adjust permissions based on your security requirements and organizational policies.
