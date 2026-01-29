@@ -299,13 +299,13 @@ class KubernetesDataCache:
             "hpa_cpu": '''echo "DEPRECATED: CPU data now in hpa_essential"''',
             
             # BATCH 6: PVC essentials for storage costs  
-            "pvc_essential": '''kubectl get pvc --all-namespaces -o custom-columns='NAMESPACE:.metadata.namespace,NAME:.metadata.name,STATUS:.status.phase,SIZE:.spec.resources.requests.storage,STORAGECLASS:.spec.storageClassName' --no-headers''',
+            "pvc_essential": '''kubectl get pvc --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,STATUS:.status.phase,SIZE:.spec.resources.requests.storage,STORAGECLASS:.spec.storageClassName" --no-headers 2>/dev/null || echo ""''',
             
             # BATCH 7: Extended workloads (replicasets, statefulsets, daemonsets, jobs)
-            "workloads_extended": '''kubectl get replicasets,statefulsets,daemonsets,jobs --all-namespaces -o custom-columns='KIND:.kind,NAMESPACE:.metadata.namespace,NAME:.metadata.name,DESIRED:.spec.replicas,CURRENT:.status.replicas,READY:.status.readyReplicas' --no-headers 2>/dev/null || echo ""''',
+            "workloads_extended": '''kubectl get replicasets,statefulsets,daemonsets,jobs --all-namespaces -o custom-columns="KIND:.kind,NAMESPACE:.metadata.namespace,NAME:.metadata.name,DESIRED:.spec.replicas,CURRENT:.status.replicas,READY:.status.readyReplicas" --no-headers 2>/dev/null || echo ""''',
             
             # BATCH 8: Storage resources - use shorter columns to prevent truncation
-            "storage_complete": '''kubectl get pv,storageclass -o custom-columns='KIND:.kind,NAME:.metadata.name,SIZE:.spec.capacity.storage,STATUS:.status.phase,CLASS:.spec.storageClassName' --no-headers 2>/dev/null || echo ""''',
+            "storage_complete": '''kubectl get pv,storageclass -o custom-columns="KIND:.kind,NAME:.metadata.name,SIZE:.spec.capacity.storage,STATUS:.status.phase,CLASS:.spec.storageClassName" --no-headers 2>/dev/null || echo ""''',
             
             # BATCH 9: Critical events (last 100 warnings/errors)
             "events_critical": '''kubectl get events --all-namespaces --field-selector type!=Normal -o custom-columns='NAMESPACE:.metadata.namespace,TYPE:.type,REASON:.reason,MESSAGE:.message,COUNT:.count,LAST:.lastTimestamp' --no-headers 2>/dev/null | head -100 || echo ""''',
@@ -509,8 +509,8 @@ class KubernetesDataCache:
         # First, check if we can use Azure Metric Collector for high-impact queries
         if self.azure_collector:
             try:
-                # Replace kubectl top nodes (35-40% load reduction)
-                if 'kubectl top nodes' in cmd:
+                # Replace kubectl top nodes (35-40% load reduction) - TEMPORARILY DISABLED
+                if False and 'kubectl top nodes' in cmd:
                     logger.info(f"🔄 {self.cluster_name}: Using Azure Monitor instead of kubectl top nodes")
                     result = self.azure_collector.get_node_metrics()
                     # Convert to kubectl top nodes format
@@ -916,8 +916,8 @@ class KubernetesDataCache:
                 batch_results.update(retry_results)
                 
                 if still_failed:
-                    # Filter out non-critical metrics batches that can fail without stopping analysis
-                    non_critical_batches = {"metrics_nodes", "metrics_pods"}
+                    # Filter out non-critical batches that can fail without stopping analysis
+                    non_critical_batches = {"metrics_nodes", "metrics_pods", "pvc_essential", "storage_complete"}
                     critical_failures = {k: v for k, v in still_failed.items() if k not in non_critical_batches}
                     
                     if critical_failures:
@@ -987,6 +987,10 @@ class KubernetesDataCache:
                     # Empty events_critical is success for healthy clusters with no warnings/errors
                     results[key] = ""  # Empty string is valid output
                     logger.info(f"✅ {self.cluster_name}: Batch '{key}' succeeded (no critical events - healthy cluster)")
+                elif key in ["pvc_essential", "storage_complete", "pvcs", "storage_utilization"]:
+                    # Empty storage data is valid for clusters without persistent storage
+                    results[key] = ""  # Empty string is valid output
+                    logger.info(f"✅ {self.cluster_name}: Batch '{key}' succeeded (no storage resources found)")
                 elif key in ["metrics_nodes", "metrics_pods"]:
                     # On first attempt, mark as failed to trigger retry
                     if attempt == 1:

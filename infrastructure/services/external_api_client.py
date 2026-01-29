@@ -3,11 +3,12 @@
 External API Client
 ===================
 Handles communication with external License and Plan Generation APIs.
-Supports both local development and production environments with enhanced security.
+Supports both local development and production environments with JWT-based security.
 """
 
 import os
 import json
+import jwt
 import time
 import hmac
 import base64
@@ -28,7 +29,7 @@ class ExternalAPIClient:
     """Client for external KubeOpt APIs with enhanced security"""
     
     def __init__(self):
-        """Initialize API client with configurable endpoints and security"""
+        """Initialize API client with configurable endpoints and JWT-based security"""
         # Get API URLs from environment with defaults for local development
         self.license_api_url = os.getenv('LICENSE_API_URL', 'http://localhost:5002')
         self.plan_api_url = os.getenv('PLAN_API_URL', 'http://localhost:5003')
@@ -36,13 +37,18 @@ class ExternalAPIClient:
         # Get license key from environment
         self.license_key = os.getenv('KUBEOPT_LICENSE_KEY', '')
         
-        # API Security Keys
+        # JWT Configuration for secure API communication
+        self.jwt_secret = os.getenv('JWT_SECRET_KEY', secrets.token_urlsafe(32))
+        self.jwt_algorithm = 'HS256'
+        self.jwt_expiry_minutes = int(os.getenv('JWT_EXPIRY_MINUTES', '60'))
+        
+        # API Security Keys (for backward compatibility)
         self.api_key = os.getenv('KUBEOPT_API_KEY', self._generate_api_key())
         self.api_secret = os.getenv('KUBEOPT_API_SECRET', secrets.token_urlsafe(32))
         
         # Timeout settings
         self.timeout = int(os.getenv('API_TIMEOUT', '30'))
-        self.plan_timeout = int(os.getenv('PLAN_API_TIMEOUT', '120'))  # Longer for Claude
+        self.plan_timeout = int(os.getenv('PLAN_API_TIMEOUT', '120'))  # Longer timeout for plan generation
         
         # Check if we're in local development mode
         self.local_mode = os.getenv('LOCAL_DEV', 'false').lower() == 'true'
@@ -56,22 +62,34 @@ class ExternalAPIClient:
         logger.info(f"  License API: {self.license_api_url}")
         logger.info(f"  Plan API: {self.plan_api_url}")
         logger.info(f"  Local Mode: {self.local_mode}")
-        logger.info(f"  API Key: {self.api_key[:10]}...")
+        logger.info(f"  JWT Authentication: Enabled")
         
-        # Initialize encryption for sensitive data
-        self.use_encryption = os.getenv('USE_LICENSE_ENCRYPTION', 'true').lower() == 'true'
-        if self.use_encryption:
-            self.encryption_key = self._derive_encryption_key()
-            self.cipher = Fernet(self.encryption_key)
-        else:
-            logger.info("License encryption disabled - sending in plain text")
-        
-        if not os.getenv('KUBEOPT_API_SECRET'):
-            logger.warning("Using auto-generated API secret - set KUBEOPT_API_SECRET in production!")
+        if not os.getenv('JWT_SECRET_KEY'):
+            logger.warning("Using auto-generated JWT secret - set JWT_SECRET_KEY in production!")
     
     def _generate_api_key(self) -> str:
         """Generate a new API key"""
         return f"ko_{secrets.token_urlsafe(24)}"
+    
+    def _generate_jwt_token(self) -> str:
+        """
+        Generate a JWT token for API authentication
+        
+        Returns:
+            JWT token string
+        """
+        payload = {
+            'iss': 'kubeopt',  # Issuer
+            'sub': 'api_client',  # Subject
+            'aud': ['license-manager', 'plan-generation'],  # Audience
+            'exp': datetime.utcnow() + timedelta(minutes=self.jwt_expiry_minutes),
+            'iat': datetime.utcnow(),
+            'jti': secrets.token_urlsafe(16),  # JWT ID for uniqueness
+            'api_key': self.api_key,
+            'license_key': self.license_key
+        }
+        
+        return jwt.encode(payload, self.jwt_secret, algorithm=self.jwt_algorithm)
     
     def _derive_encryption_key(self) -> bytes:
         """
@@ -199,7 +217,7 @@ class ExternalAPIClient:
     def _get_secure_headers(self, method: str = 'GET', path: str = '', 
                            body: Optional[Dict] = None) -> Dict[str, str]:
         """
-        Generate secure headers for API requests
+        Generate secure headers for API requests with JWT authentication
         
         Args:
             method: HTTP method
@@ -209,13 +227,14 @@ class ExternalAPIClient:
         Returns:
             Dictionary of secure headers
         """
+        # Generate a fresh JWT token for this request
+        jwt_token = self._generate_jwt_token()
+        
         headers = {
             'Content-Type': 'application/json',
-            'X-API-Key': self.api_key,
-            'X-License-Key': self.license_key,
+            'Authorization': f'Bearer {jwt_token}',
             'X-Request-ID': secrets.token_urlsafe(16),
-            'X-Timestamp': str(int(time.time())),
-            'X-Signature': self._generate_request_signature(method, path, body)
+            'X-Timestamp': str(int(time.time()))
         }
         
         return headers
@@ -228,24 +247,7 @@ class ExternalAPIClient:
             Tuple of (is_valid, license_info)
         """
         if not self.license_key:
-            logger.warning("No license key configured")
-            if self.local_mode:
-                # Allow local development without license
-                return True, {
-                    'tier': 'DEVELOPMENT',
-                    'features': {
-                        'basic_analysis': True,
-                        'cost_reporting': True,
-                        'ai_plans': True,
-                        'auto_scheduling': True,
-                        'multi_cluster': True
-                    },
-                    'limits': {
-                        'clusters': -1,
-                        'analyses_per_month': -1,
-                        'ai_plans_per_month': -1
-                    }
-                }
+            logger.error("No license key configured")
             return False, {'error': 'No license key configured'}
         
         # Check rate limit
@@ -254,18 +256,11 @@ class ExternalAPIClient:
             return False, {'error': 'Rate limit exceeded', 'retry_after': self.rate_limit_window}
         
         try:
-            # Prepare request with optionally encrypted license key
+            # Prepare request with JWT authentication
             url = f"{self.license_api_url}{endpoint}"
             
-            if self.use_encryption:
-                encrypted_key = self._encrypt_sensitive_data(self.license_key)
-                body = {
-                    'license_key': encrypted_key,
-                    'encrypted': True  # Flag to indicate encrypted payload
-                }
-            else:
-                # Send plain text for backward compatibility
-                body = {'license_key': self.license_key}
+            # Simple payload with license key - JWT provides the security
+            body = {'license_key': self.license_key}
             headers = self._get_secure_headers('POST', endpoint, body)
             
             # Make secure API call
@@ -291,13 +286,6 @@ class ExternalAPIClient:
                 
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to connect to license API: {e}")
-            if self.local_mode:
-                logger.warning("Using development mode (license API unavailable)")
-                return True, {
-                    'tier': 'DEVELOPMENT',
-                    'features': {'ai_plans': True},
-                    'limits': {'ai_plans_per_month': -1}
-                }
             return False, {'error': 'License service unavailable'}
     
     def generate_plan(self, cluster_id: str, cluster_name: str, 
@@ -338,26 +326,16 @@ class ExternalAPIClient:
         try:
             logger.info(f"Requesting plan generation for cluster {cluster_id}")
             
-            # Prepare secure request with optionally encrypted license key
+            # Prepare secure request with JWT authentication
             url = f"{self.plan_api_url}{endpoint}"
             
-            if self.use_encryption:
-                encrypted_key = self._encrypt_sensitive_data(self.license_key)
-                body = {
-                    'license_key': encrypted_key,
-                    'encrypted': True,  # Flag to indicate encrypted license key
-                    'cluster_id': cluster_id,
-                    'cluster_name': cluster_name,
-                    'analysis_data': analysis_data
-                }
-            else:
-                # Send plain text for backward compatibility
-                body = {
-                    'license_key': self.license_key,
-                    'cluster_id': cluster_id,
-                    'cluster_name': cluster_name,
-                    'analysis_data': analysis_data
-                }
+            # Simple payload - JWT provides the security
+            body = {
+                'license_key': self.license_key,
+                'cluster_id': cluster_id,
+                'cluster_name': cluster_name,
+                'analysis_data': analysis_data
+            }
             headers = self._get_secure_headers('POST', endpoint, body)
             
             # Make secure API call

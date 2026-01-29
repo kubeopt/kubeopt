@@ -41,23 +41,44 @@ class AuthManager:
         return hashlib.sha256(salt + password.encode()).hexdigest()
     
     def _ensure_default_credentials(self):
-        """Initialize default credentials in settings if they don't exist"""
+        """Initialize credentials from environment variables or settings"""
         try:
             from infrastructure.services.settings_manager import settings_manager
+            
+            # Check environment variables first (Railway deployment)
+            env_username = os.getenv('USER_USERNAME', '')
+            env_password_hash = os.getenv('USER_PASSWORD_HASH', '')
+            env_role = os.getenv('USER_ROLE', 'admin')
+            
+            if env_username and env_password_hash:
+                # Use environment variables (Production/Railway)
+                env_settings = {
+                    'user_username': env_username,
+                    'user_password_hash': env_password_hash,
+                    'user_role': env_role
+                }
+                settings_manager.save_settings(env_settings)
+                logger.info(f"🔧 Initialized credentials from environment: {env_username}")
+                return
             
             # Check if username exists in settings
             stored_username = settings_manager.get_setting('user_username', '')
             if not stored_username:
-                # Set default username and password
+                # Fallback to secure default (NOT kubeopt/kubeopt)
+                import secrets
+                secure_username = f"admin_{secrets.token_hex(3)}"
+                secure_password = secrets.token_urlsafe(12)
+                
                 default_settings = {
-                    'user_username': 'kubeopt',
-                    'user_password_hash': self._hash_password('kubeopt'),
+                    'user_username': secure_username,
+                    'user_password_hash': self._hash_password(secure_password),
                     'user_role': 'admin'
                 }
                 settings_manager.save_settings(default_settings)
-                logger.info("🔧 Initialized default credentials: kubeopt/kubeopt")
+                logger.warning(f"🔧 Generated secure fallback credentials: {secure_username} / {secure_password}")
+                logger.warning("⚠️  SAVE THESE CREDENTIALS! Set USER_USERNAME and USER_PASSWORD_HASH in production!")
         except Exception as e:
-            logger.error(f"Failed to initialize default credentials: {e}")
+            logger.error(f"Failed to initialize credentials: {e}")
     
     def authenticate_user(self, username: str, password: str) -> bool:
         """
@@ -73,14 +94,14 @@ class AuthManager:
         try:
             from infrastructure.services.settings_manager import settings_manager
             
-            # Get stored credentials
-            stored_username = settings_manager.get_setting('user_username', 'kubeopt')
+            # Get stored credentials (no fallback defaults)
+            stored_username = settings_manager.get_setting('user_username', '')
             stored_password_hash = settings_manager.get_setting('user_password_hash', '')
             
-            # If no stored hash, create default
-            if not stored_password_hash:
-                stored_password_hash = self._hash_password('kubeopt')
-                settings_manager.save_settings({'user_password_hash': stored_password_hash})
+            # If no credentials available, authentication fails
+            if not stored_username or not stored_password_hash:
+                logger.error("❌ No credentials configured! Set USER_USERNAME and USER_PASSWORD_HASH environment variables.")
+                return False
             
             # Validate username
             if username != stored_username:
@@ -100,12 +121,13 @@ class AuthManager:
             logger.error(f"Error during authentication: {e}")
             return False
     
-    def create_session(self, username: str) -> str:
+    def create_session(self, username: str, remember: bool = False) -> str:
         """
         Create a new session for authenticated user
         
         Args:
             username: Authenticated username
+            remember: Whether to create a long-lived session
             
         Returns:
             str: Session token

@@ -47,3 +47,6 @@ pydantic==2.0.3
 
 # Template engine (for web UI)
 jinja2==3.1.2
+
+# Production WSGI Server (for Railway deployment)
+gunicorn==21.2.0

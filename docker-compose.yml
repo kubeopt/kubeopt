@@ -43,7 +43,7 @@ services:
       - PARALLEL_PROCESSING=true
       
       # API URLs - Local Development
-      - LICENSE_API_URL=http://host.docker.internal:5002
+      - LICENSE_API_URL=https://license.kubeopt.com
       - PLAN_GENERATION_API_URL=http://host.docker.internal:5003
       
       # Email/Slack settings (from .env.local or environment)
