@@ -10,14 +10,14 @@ window.UI = (function() {
      * Initialize UI components
      */
     function init() {
-        console.log('Initializing UI components...');
+        window.logger.debug('Initializing UI components...');
         
         initSidebar();
         initTheme();
         initTooltips();
         initDateDisplay();
         
-        console.log('UI components initialized');
+        window.logger.debug('UI components initialized');
     }
 
     /**

@@ -77,7 +77,7 @@ class SettingsPage {
                 this.populateFormFields(settings);
             }
         } catch (error) {
-            console.error('Error loading settings from API:', error);
+            window.logger.error('Error loading settings from API:', error);
         }
     }
     
@@ -247,7 +247,7 @@ class SettingsPage {
             await this.saveToAPI(settings);
                 this.showToast('Settings saved successfully', 'success');
         } catch (error) {
-            console.error('Error saving settings:', error);
+            window.logger.error('Error saving settings:', error);
             this.showToast('Failed to save settings: ' + error.message, 'error');
         }
     }
@@ -328,17 +328,17 @@ class SettingsPage {
             const data = await response.json();
             
             if (data.success || data.status === 'success') {
-                console.log('Settings saved successfully');
+                window.logger.debug('Settings saved successfully');
                 
                 // If license key was updated, show success message instead of reload
                 if (backendSettings.KUBEOPT_LICENSE_KEY) {
-                    console.log('License key updated successfully - no reload needed');
+                    window.logger.debug('License key updated successfully - no reload needed');
                 }
             } else {
                 throw new Error(data.message || 'Failed to save settings');
             }
         } catch (error) {
-            console.error('Error saving settings:', error);
+            window.logger.error('Error saving settings:', error);
             throw error; // Re-throw for proper error handling in saveSettings
         }
     }
@@ -420,7 +420,7 @@ class SettingsPage {
             }
             
         } catch (error) {
-            console.error('Azure connection test failed:', error);
+            window.logger.error('Azure connection test failed:', error);
             this.showToast('Azure connection test failed: ' + error.message, 'error');
         }
     }
@@ -440,7 +440,7 @@ class SettingsPage {
             }
             
         } catch (error) {
-            console.error('Failed to refresh subscriptions:', error);
+            window.logger.error('Failed to refresh subscriptions:', error);
             this.showToast('Failed to refresh subscriptions: ' + error.message, 'error');
         }
     }
@@ -459,7 +459,7 @@ class SettingsPage {
             }
             
         } catch (error) {
-            console.error('Slack test failed:', error);
+            window.logger.error('Slack test failed:', error);
             this.showToast('Slack test failed: ' + error.message, 'error');
         }
     }
@@ -491,7 +491,7 @@ class SettingsPage {
             }
             
         } catch (error) {
-            console.error('Email test failed:', error);
+            window.logger.error('Email test failed:', error);
             this.showToast('Email test failed: ' + error.message, 'error');
         }
     }
@@ -512,7 +512,7 @@ class SettingsPage {
                 dropdown.appendChild(option);
             });
             
-            console.log(`Updated subscription dropdown with ${subscriptions.length} subscriptions`);
+            window.logger.debug(`Updated subscription dropdown with ${subscriptions.length} subscriptions`);
         }
     }
 
@@ -535,7 +535,7 @@ class SettingsPage {
             }
             
         } catch (error) {
-            console.error('Failed to clear cache:', error);
+            window.logger.error('Failed to clear cache:', error);
             this.showToast('Failed to clear cache: ' + error.message, 'error');
         }
     }
@@ -563,7 +563,7 @@ class SettingsPage {
             this.showToast('Settings exported successfully', 'success');
             
         } catch (error) {
-            console.error('Failed to export settings:', error);
+            window.logger.error('Failed to export settings:', error);
             this.showToast('Failed to export settings', 'error');
         }
     }
@@ -717,7 +717,7 @@ class AutoSaveHandler {
                     // Show toast for license changes since it's important
                     this.showToast(data.message || 'License activated successfully', 'success');
                     // Update UI dynamically instead of reloading
-                    console.log('License updated dynamically - no page reload needed');
+                    window.logger.debug('License updated dynamically - no page reload needed');
                 }
             } else {
                 this.showSavingFeedback(element, 'error');
@@ -725,7 +725,7 @@ class AutoSaveHandler {
                 this.showToast(data.error || 'Failed to save setting', 'error');
             }
         } catch (error) {
-            console.error('Error saving setting:', error);
+            window.logger.error('Error saving setting:', error);
             this.showSavingFeedback(element, 'error');
             this.showToast('Network error while saving', 'error');
         }
@@ -786,7 +786,7 @@ class AutoSaveHandler {
         if (window.settingsPage) {
             window.settingsPage.showToast(message, type);
         } else {
-            console.log(`[${type}] ${message}`);
+            window.logger.debug(`[${type}] ${message}`);
         }
     }
 }
@@ -1087,7 +1087,7 @@ async function saveNotificationSettings() {
             showToast('Failed to save notification settings', 'error');
         }
     } catch (error) {
-        console.error('Error saving notification settings:', error);
+        window.logger.error('Error saving notification settings:', error);
         showToast('Error saving notification settings', 'error');
     }
 }
@@ -1121,7 +1121,7 @@ async function loadNotificationSettings() {
         document.getElementById('slack-cost-threshold').value = settings.slack_cost_threshold || '';
         
     } catch (error) {
-        console.error('Error loading notification settings:', error);
+        window.logger.error('Error loading notification settings:', error);
     }
 }
 
@@ -1210,7 +1210,7 @@ function showToast(message, type = 'info') {
     }, 5000);
     
     // Also log to console for debugging
-    console.log(`[${type}] ${message}`);
+    window.logger.debug(`[${type}] ${message}`);
 }
 
 // AJAX form submission to prevent page reload and tab switching
@@ -1273,7 +1273,7 @@ async function handleAjaxFormSubmit(form, successMessage) {
             showToast('Error saving settings. Please try again.', 'error');
         }
     } catch (error) {
-        console.error('Error submitting form:', error);
+        window.logger.error('Error submitting form:', error);
         showToast('Error saving settings. Please try again.', 'error');
     } finally {
         // Restore button state

@@ -58,11 +58,10 @@ class AuthManager:
                     'user_role': env_role
                 }
                 settings_manager.save_settings(env_settings)
-                logger.info(f"🔧 Initialized credentials from environment: {env_username}")
                 return
             
             # Check if username exists in settings
-            stored_username = settings_manager.get_setting('user_username', '')
+            stored_username = settings_manager.get_setting('USER_USERNAME', '')
             if not stored_username:
                 # Fallback to secure default (NOT kubeopt/kubeopt)
                 import secrets
@@ -75,8 +74,8 @@ class AuthManager:
                     'user_role': 'admin'
                 }
                 settings_manager.save_settings(default_settings)
-                logger.warning(f"🔧 Generated secure fallback credentials: {secure_username} / {secure_password}")
-                logger.warning("⚠️  SAVE THESE CREDENTIALS! Set USER_USERNAME and USER_PASSWORD_HASH in production!")
+                logger.warning(f"Generated secure fallback credentials: {secure_username} / {secure_password}")
+                logger.warning("SAVE THESE CREDENTIALS! Set USER_USERNAME and USER_PASSWORD_HASH in production!")
         except Exception as e:
             logger.error(f"Failed to initialize credentials: {e}")
     
@@ -95,26 +94,23 @@ class AuthManager:
             from infrastructure.services.settings_manager import settings_manager
             
             # Get stored credentials (no fallback defaults)
-            stored_username = settings_manager.get_setting('user_username', '')
-            stored_password_hash = settings_manager.get_setting('user_password_hash', '')
+            stored_username = settings_manager.get_setting('USER_USERNAME', '')
+            stored_password_hash = settings_manager.get_setting('USER_PASSWORD_HASH', '')
             
             # If no credentials available, authentication fails
             if not stored_username or not stored_password_hash:
-                logger.error("❌ No credentials configured! Set USER_USERNAME and USER_PASSWORD_HASH environment variables.")
+                logger.error("No credentials configured! Set USER_USERNAME and USER_PASSWORD_HASH environment variables.")
                 return False
             
             # Validate username
             if username != stored_username:
-                logger.warning(f"Authentication attempt for non-existent user: {username}")
                 return False
             
             # Validate password
             password_hash = self._hash_password(password)
             if password_hash == stored_password_hash:
-                logger.info(f"Successful authentication for user: {username}")
                 return True
             else:
-                logger.warning(f"Failed authentication for user: {username}")
                 return False
                 
         except Exception as e:
@@ -154,7 +150,6 @@ class AuthManager:
             session['role'] = session_data['role']
             session['session_token'] = session_token
             
-            logger.info(f"Session created for user: {username}")
             return session_token
             
         except Exception as e:
@@ -208,7 +203,6 @@ class AuthManager:
             if token and token in self.active_sessions:
                 username = self.active_sessions[token]['username']
                 del self.active_sessions[token]
-                logger.info(f"Session destroyed for user: {username}")
             
             # Clear Flask session
             session.clear()
@@ -259,7 +253,6 @@ class AuthManager:
             for token in expired_tokens:
                 username = self.active_sessions[token]['username']
                 del self.active_sessions[token]
-                logger.info(f"Expired session cleaned up for user: {username}")
                 
         except Exception as e:
             logger.error(f"Error cleaning up sessions: {e}")

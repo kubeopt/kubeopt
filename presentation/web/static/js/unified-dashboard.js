@@ -40,7 +40,7 @@ class UnifiedDashboard {
 
     // Sidebar Management - Two Panel System
     toggleSidebar() {
-        console.log('Toggle sidebar function called - Two Panel System');
+        window.logger.debug('Toggle sidebar function called - Two Panel System');
         const sidebarMenu = document.getElementById('sidebar-menu');
         if (sidebarMenu) {
             sidebarMenu.classList.toggle('expanded');
@@ -60,9 +60,9 @@ class UnifiedDashboard {
                 this.triggerChartResize();
             }, 350); // Wait for sidebar transition to complete
             
-            console.log('Sidebar menu expanded state:', isExpanded);
+            window.logger.debug('Sidebar menu expanded state:', isExpanded);
         } else {
-            console.error('Sidebar menu element not found');
+            window.logger.error('Sidebar menu element not found');
         }
     }
 
@@ -86,7 +86,7 @@ class UnifiedDashboard {
 
     // Chart Management
     triggerChartResize() {
-        console.log('Triggering chart resize...');
+        window.logger.debug('Triggering chart resize...');
         
         // Trigger window resize event to make charts responsive
         window.dispatchEvent(new Event('resize'));
@@ -114,7 +114,7 @@ class UnifiedDashboard {
             window.ChartManager.resizeAll();
         }
         
-        console.log('Chart resize triggered');
+        window.logger.debug('Chart resize triggered');
     }
 
     // Utility Functions
@@ -134,10 +134,10 @@ class UnifiedDashboard {
     initializeDashboardModule() {
         // Initialize Dashboard module
         if (window.Dashboard && typeof window.Dashboard.init === 'function') {
-            console.log('Initializing Dashboard module...');
+            window.logger.debug('Initializing Dashboard module...');
             window.Dashboard.init();
         } else {
-            console.error('Dashboard module not available or missing init function');
+            window.logger.error('Dashboard module not available or missing init function');
         }
     }
 
