@@ -48,7 +48,7 @@ window.API = (function() {
                     if (contentType && contentType.includes('application/json')) {
                         const errorData = await response.json();
                         errorMessage = errorData.message || errorData.error || errorMessage;
-                        console.error('Backend error details:', errorData);
+                        window.logger.error('Backend error details:', errorData);
                     } else {
                         const textError = await response.text();
                         if (textError) {
@@ -56,7 +56,7 @@ window.API = (function() {
                         }
                     }
                 } catch (parseError) {
-                    console.error('Could not parse error response:', parseError);
+                    window.logger.error('Could not parse error response:', parseError);
                 }
                 throw new Error(`HTTP ${response.status}: ${errorMessage}`);
             }
@@ -68,7 +68,7 @@ window.API = (function() {
                 return await response.text();
             }
         } catch (error) {
-            console.error(`API request failed for ${endpoint}:`, error);
+            window.logger.error(`API request failed for ${endpoint}:`, error);
             if (window.showToast) {
                 window.showToast(`Request failed: ${error.message}`, 'error');
             }

@@ -22,14 +22,25 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-# Configure enhanced logging for multi-subscription
+# Configure enhanced logging for multi-subscription with environment-based log level
+log_level = os.getenv('LOG_LEVEL', 'WARNING').upper()
+log_level_mapping = {
+    'DEBUG': logging.DEBUG,
+    'INFO': logging.INFO,
+    'WARNING': logging.WARNING,
+    'ERROR': logging.ERROR,
+    'CRITICAL': logging.CRITICAL
+}
+
+# Use WARNING as default for production to reduce noise
+effective_log_level = log_level_mapping.get(log_level, logging.WARNING)
+
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - [%(threadName)s] - %(message)s',
+    level=effective_log_level,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
         logging.FileHandler('app.log')
-        #logging.FileHandler('multi_subscription_analysis.log')  # Separate log for subscription analysis
     ]
 )
 
