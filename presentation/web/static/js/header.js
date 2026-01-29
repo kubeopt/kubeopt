@@ -106,7 +106,7 @@ class ClusterSwitcher {
                 this.loadClustersFromPortfolio();
             }
         } catch (error) {
-            console.error('Error loading clusters:', error);
+            window.logger.error('Error loading clusters:', error);
             this.loadClustersFromPortfolio();
         }
     }
@@ -130,7 +130,7 @@ class ClusterSwitcher {
                 this.showNoClustersMessage();
             }
         } catch (error) {
-            console.error('Error loading clusters from fallback:', error);
+            window.logger.error('Error loading clusters from fallback:', error);
             this.showNoClustersMessage();
         }
     }

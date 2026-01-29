@@ -14,7 +14,7 @@ window.Dashboard = (function() {
      * Initialize dashboard
      */
     function init() {
-        console.log('Initializing dashboard...');
+        window.logger.debug('Initializing dashboard...');
         
         initNavigation();
         
@@ -24,9 +24,9 @@ window.Dashboard = (function() {
         
         if (hash === 'implementation' || hash === 'alerts') {
             initialView = hash;
-            console.log(`📍 URL hash detected: ${hash}, setting initial view to: ${initialView}`);
+            window.logger.debug(`📍 URL hash detected: ${hash}, setting initial view to: ${initialView}`);
         } else if (hash) {
-            console.log(`⚠️ Unknown hash: ${hash}, defaulting to overview`);
+            window.logger.warning(`⚠️ Unknown hash: ${hash}, defaulting to overview`);
         }
         
         // Set initial view based on URL hash or default
@@ -37,7 +37,7 @@ window.Dashboard = (function() {
             loadDashboardData();
         }, 100);
         
-        console.log('Dashboard initialized successfully');
+        window.logger.debug('Dashboard initialized successfully');
     }
 
     /**
@@ -52,7 +52,7 @@ window.Dashboard = (function() {
         // Listen for hash changes (e.g., when navigating from settings page)
         window.addEventListener('hashchange', function() {
             const hash = window.location.hash.substring(1);
-            console.log(`#️⃣ Hash changed to: ${hash}`);
+            window.logger.debug(`#️⃣ Hash changed to: ${hash}`);
             
             if (hash === 'implementation' || hash === 'alerts' || hash === 'overview') {
                 switchView(hash);
@@ -79,26 +79,26 @@ window.Dashboard = (function() {
      * Switch between dashboard views
      */
     function switchView(viewName) {
-        console.log(`🔄 Switching to view: ${viewName}`);
+        window.logger.debug(`🔄 Switching to view: ${viewName}`);
         
         currentView = viewName;
         setActiveNavigation(viewName);
         
         // Hide all sections
         const sections = document.querySelectorAll('.dashboard-section');
-        console.log(`📋 Found ${sections.length} dashboard sections`);
+        window.logger.debug(`📋 Found ${sections.length} dashboard sections`);
         sections.forEach(section => {
             section.classList.remove('active');
-            console.log(`➡️ Removed active from: ${section.id}`);
+            window.logger.debug(`➡️ Removed active from: ${section.id}`);
         });
         
         // Show target section
         const targetSection = document.getElementById(`${viewName}-section`);
-        console.log(`🎯 Target section: ${viewName}-section, found:`, !!targetSection);
+        window.logger.debug(`🎯 Target section: ${viewName}-section, found:`, !!targetSection);
         
         if (targetSection) {
             targetSection.classList.add('active');
-            console.log(`✅ Added active to: ${targetSection.id}`);
+            window.logger.debug(`✅ Added active to: ${targetSection.id}`);
             
             // Notify ChartManager of view change
             if (window.ChartManager) {
@@ -107,7 +107,7 @@ window.Dashboard = (function() {
             
             loadViewContent(viewName);
         } else {
-            console.error(`❌ Target section not found: ${viewName}-section`);
+            window.logger.error(`❌ Target section not found: ${viewName}-section`);
         }
     }
 
@@ -140,10 +140,10 @@ window.Dashboard = (function() {
                     await loadAlertsData();
                     break;
                 default:
-                    console.warn(`Unknown view: ${viewName}`);
+                    window.logger.warning(`Unknown view: ${viewName}`);
             }
         } catch (error) {
-            console.error(`Error loading content for view ${viewName}:`, error);
+            window.logger.error(`Error loading content for view ${viewName}:`, error);
             if (window.showToast) {
                 window.showToast(`Failed to load ${viewName} content`, 'error');
             }
@@ -156,7 +156,7 @@ window.Dashboard = (function() {
     async function loadDashboardData() {
         const clusterId = window.AppState?.currentClusterId;
         if (!clusterId) {
-            console.log('ℹ️ No cluster ID available - likely on portfolio page, skipping dashboard data load');
+            window.logger.info('ℹ️ No cluster ID available - likely on portfolio page, skipping dashboard data load');
             return;
         }
 
@@ -217,7 +217,7 @@ window.Dashboard = (function() {
                     analysis_data: chartData // Pass full data for accuracy calculation
                 });
                 
-                console.log(`Metrics calculated: namespaces=${namespaceCount}, workloads=${workloadCount}, topNamespaceCost=${topNamespaceCost}`);
+                window.logger.debug(`Metrics calculated: namespaces=${namespaceCount}, workloads=${workloadCount}, topNamespaceCost=${topNamespaceCost}`);
                 
                 // Update HPA count badge
                 const hpaCountEl = document.getElementById('active-hpa-count');
@@ -233,12 +233,12 @@ window.Dashboard = (function() {
                 if (window.ChartManager) {
                     window.ChartManager.updateAllCharts(chartData);
                 } else {
-                    console.error('ChartManager not available!');
+                    window.logger.error('ChartManager not available!');
                 }
             }
             
         } catch (error) {
-            console.error('Error loading dashboard data:', error);
+            window.logger.error('Error loading dashboard data:', error);
             if (window.showToast) {
                 window.showToast('Failed to load dashboard data', 'error');
             }
@@ -263,7 +263,7 @@ window.Dashboard = (function() {
             // Use the exact same source as backup code: metrics.total_savings
             let totalSavings = (data.metrics && data.metrics.total_savings) || data.total_savings || 0;
             potentialSavingsEl.textContent = window.Utils.formatCurrency(totalSavings);
-            console.log(`Updated potential-savings to: ${window.Utils.formatCurrency(totalSavings)} from data.metrics.total_savings`);
+            window.logger.debug(`Updated potential-savings to: ${window.Utils.formatCurrency(totalSavings)} from data.metrics.total_savings`);
         }
         
         // Update optimization score - use real optimization score from analysis
@@ -313,7 +313,7 @@ window.Dashboard = (function() {
                 }
             }
         } catch (error) {
-            console.warn('Error extracting CPU metrics:', error);
+            window.logger.warning('Error extracting CPU metrics:', error);
         }
         
         const cpuOptimizationEl = document.getElementById('cpu-optimization-metric');
@@ -388,7 +388,7 @@ window.Dashboard = (function() {
             }
             
             analysisAccuracyEl.textContent = accuracy;
-            console.log(`Analysis accuracy set to: ${accuracy}`);
+            window.logger.debug(`Analysis accuracy set to: ${accuracy}`);
         }
         
         const topNamespaceCostEl = document.getElementById('top-namespace-cost');
@@ -422,7 +422,7 @@ window.Dashboard = (function() {
         if (window.ImplementationPlan) {
             await window.ImplementationPlan.loadPlan();
         } else {
-            console.error('ImplementationPlan module not available');
+            window.logger.error('ImplementationPlan module not available');
         }
     }
 
@@ -433,7 +433,7 @@ window.Dashboard = (function() {
         if (window.ImplementationPlan) {
             await window.ImplementationPlan.generatePlan();
         } else {
-            console.error('ImplementationPlan module not available');
+            window.logger.error('ImplementationPlan module not available');
         }
     }
 
@@ -444,7 +444,7 @@ window.Dashboard = (function() {
         if (window.Alerts) {
             await window.Alerts.loadAlerts();
         } else {
-            console.error('Alerts module not available');
+            window.logger.error('Alerts module not available');
         }
     }
 
@@ -460,12 +460,12 @@ window.Dashboard = (function() {
         // Refresh every 5 minutes
         refreshInterval = setInterval(() => {
             if (currentView === 'overview' && !document.hidden) {
-                console.log('Auto-refreshing dashboard data...');
+                window.logger.debug('Auto-refreshing dashboard data...');
                 loadDashboardData();
             }
         }, 5 * 60 * 1000);
         
-        console.log('Auto-refresh initialized (5 minutes)');
+        window.logger.debug('Auto-refresh initialized (5 minutes)');
     }
 
     /**
@@ -639,7 +639,7 @@ window.Dashboard = (function() {
         }
         
         // Fallback: minimal insights if backend insights not available
-        console.warn('⚠️ No backend insights available, using fallback');
+        window.logger.warning('⚠️ No backend insights available, using fallback');
         const insights = {};
         
         if (data.costBreakdown && data.costBreakdown.total_cost) {
@@ -655,18 +655,18 @@ window.Dashboard = (function() {
      */
     function loadNodeOptimizationData(chartData) {
         if (!chartData || !chartData.enhanced_analysis_input) {
-            console.log('No enhanced analysis data available for node optimization');
+            window.logger.info('No enhanced analysis data available for node optimization');
             return;
         }
         
         const nodeOptimization = chartData.enhanced_analysis_input.node_optimization;
         if (!nodeOptimization) {
-            console.log('No node optimization data available');
+            window.logger.info('No node optimization data available');
             showNoNodeRecommendations();
             return;
         }
         
-        console.log('Loading node optimization data:', nodeOptimization);
+        window.logger.debug('Loading node optimization data:', nodeOptimization);
         
         // Update summary statistics
         updateNodeOptimizationSummary(nodeOptimization);
@@ -815,18 +815,18 @@ window.Dashboard = (function() {
      */
     function loadAnomalyDetectionData(chartData) {
         if (!chartData || !chartData.enhanced_analysis_input) {
-            console.log('No enhanced analysis data available for anomaly detection');
+            window.logger.info('No enhanced analysis data available for anomaly detection');
             return;
         }
         
         const anomalyData = chartData.enhanced_analysis_input.anomaly_detection;
         if (!anomalyData) {
-            console.log('No anomaly detection data available');
+            window.logger.info('No anomaly detection data available');
             showNoAnomalyAlerts();
             return;
         }
         
-        console.log('Loading anomaly detection data:', anomalyData);
+        window.logger.debug('Loading anomaly detection data:', anomalyData);
         
         // Update summary statistics
         updateAnomalyAlertsSummary(anomalyData);
