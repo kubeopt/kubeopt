@@ -38,14 +38,14 @@ function validateElement(selector) {
  */
 window.setClusterContext = function(clusterInfo) {
     if (!clusterInfo) {
-        console.warn('Cannot set cluster context: no cluster info provided');
+        window.logger.warning('Cannot set cluster context: no cluster info provided');
         return false;
     }
     validateNotNull(clusterInfo.id, 'clusterInfo.id');
     
     window.AppState.currentClusterId = clusterInfo.id;
     window.AppState.currentClusterName = clusterInfo.name || clusterInfo.id;
-    console.log(`Cluster context set: ${clusterInfo.id}`);
+    window.logger.debug(`Cluster context set: ${clusterInfo.id}`);
     return true;
 };
 
@@ -76,10 +76,10 @@ window.initClusterContext = function() {
     const clusterInfo = window.getClusterInfo();
     if (clusterInfo) {
         window.setClusterContext(clusterInfo);
-        console.log('Cluster context initialized:', clusterInfo);
+        window.logger.debug('Cluster context initialized:', clusterInfo);
         return true;
     }
-    console.log('No cluster context available (not on cluster page)');
+    window.logger.debug('No cluster context available (not on cluster page)');
     return false;
 };
 
@@ -252,7 +252,7 @@ window.destroyChart = function(chartId) {
     if (window.AppState.charts[chartId]) {
         window.AppState.charts[chartId].destroy();
         delete window.AppState.charts[chartId];
-        console.log(`Chart destroyed: ${chartId}`);
+        window.logger.debug(`Chart destroyed: ${chartId}`);
     }
 };
 
@@ -278,7 +278,7 @@ window.createChart = function(canvasId, config) {
     
     const chart = new Chart(ctx, config);
     window.AppState.charts[canvasId] = chart;
-    console.log(`Chart created: ${canvasId}`);
+    window.logger.debug(`Chart created: ${canvasId}`);
     return chart;
 };
 
@@ -327,7 +327,7 @@ window.apiRequest = async function(endpoint, options = {}) {
             return await response.text();
         }
     } catch (error) {
-        console.error(`API request failed for ${endpoint}:`, error);
+        window.logger.error(`API request failed for ${endpoint}:`, error);
         window.showToast(`Request failed: ${error.message}`, 'error');
         throw error;
     }
@@ -337,11 +337,11 @@ window.apiRequest = async function(endpoint, options = {}) {
  * Initialize utilities module
  */
 window.initUtils = function() {
-    console.log('Utilities initialized');
+    window.logger.debug('Utilities initialized');
     
     // Set up global error handling for unhandled promise rejections
     window.addEventListener('unhandledrejection', function(event) {
-        console.error('Unhandled promise rejection:', event.reason);
+        window.logger.error('Unhandled promise rejection:', event.reason);
         window.showToast('An unexpected error occurred', 'error');
     });
     

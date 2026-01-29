@@ -130,7 +130,7 @@ class ClusterPortfolio {
                 select.innerHTML = '<option value="">No subscriptions available</option>';
             }
         } catch (error) {
-            console.error('Error loading subscriptions:', error);
+            window.logger.error('Error loading subscriptions:', error);
             select.innerHTML = '<option value="">Error loading subscriptions</option>';
         }
     }
@@ -208,7 +208,7 @@ class ClusterPortfolio {
             }
             
         } catch (error) {
-            console.error('Error validating cluster:', error);
+            window.logger.error('Error validating cluster:', error);
             this.showValidationStatus('error', 'fas fa-exclamation-triangle', 
                 '✗ Failed to connect to validation service');
             return false;
@@ -307,7 +307,7 @@ class ClusterPortfolio {
             }
             
         } catch (error) {
-            console.error('Error adding cluster:', error);
+            window.logger.error('Error adding cluster:', error);
             showToast(`Failed to add cluster: ${error.message}`, 'error');
         } finally {
             if (btnText && btnLoading) {
@@ -433,7 +433,7 @@ class ClusterPortfolio {
                 throw new Error(data.message || 'Analysis failed');
             }
         } catch (error) {
-            console.error('Analysis error:', error);
+            window.logger.error('Analysis error:', error);
             showToast(`Failed to start analysis: ${error.message}`, 'error');
             this.resetAnalyzeButton(clusterId, 'failed');
             this.updateClusterStatus(clusterId, 'failed');
@@ -529,7 +529,7 @@ class ClusterPortfolio {
                 }
                 
             } catch (error) {
-                console.error('Error polling analysis status:', error);
+                window.logger.error('Error polling analysis status:', error);
                 if (pollCount < this.maxPolls) {
                     setTimeout(pollAnalysisStatus, this.pollInterval);
                 } else {
@@ -661,7 +661,7 @@ class ClusterPortfolio {
                 throw new Error(data.message || 'Delete failed');
             }
         } catch (error) {
-            console.error('Delete error:', error);
+            window.logger.error('Delete error:', error);
             showToast(`Failed to delete cluster: ${error.message}`, 'error');
         }
     }
@@ -678,12 +678,12 @@ class ClusterPortfolio {
     async checkAllAnalysisStatus() {
         // Find all cluster cards and check their analysis status
         const clusterCards = document.querySelectorAll('[data-cluster-id]');
-        console.log(`🔍 Checking analysis status for ${clusterCards.length} clusters`);
+        window.logger.debug(`🔍 Checking analysis status for ${clusterCards.length} clusters`);
         
         for (const card of clusterCards) {
             const clusterId = card.getAttribute('data-cluster-id');
             if (clusterId) {
-                console.log(`🔍 Checking status for cluster: ${clusterId}`);
+                window.logger.debug(`🔍 Checking status for cluster: ${clusterId}`);
                 await this.checkSingleClusterStatus(clusterId);
             }
         }
@@ -694,54 +694,54 @@ class ClusterPortfolio {
             const response = await fetch(`/api/clusters/${encodeURIComponent(clusterId)}/analysis-status`);
             
             if (!response.ok) {
-                console.log(`❌ Failed to get status for ${clusterId}: ${response.status}`);
+                window.logger.debug(`❌ Failed to get status for ${clusterId}: ${response.status}`);
                 return;
             }
             
             const data = await response.json();
-            console.log(`📊 Status for ${clusterId}:`, data.analysis_status);
+            window.logger.debug(`📊 Status for ${clusterId}:`, data.analysis_status);
             
             // Check for both old and new API response formats
             const status = data.analysis_status || data.status;
             
             if (status === 'analyzing' || status === 'running') {
-                console.log(`🔄 Setting analyzing state for ${clusterId}`);
+                window.logger.debug(`🔄 Setting analyzing state for ${clusterId}`);
                 // Resume polling for running analysis
                 this.updateClusterStatus(clusterId, 'analyzing');
                 this.setAnalyzingState(clusterId);
                 this.startAnalysisPolling(clusterId);
             } else if (status === 'completed') {
-                console.log(`✅ Setting completed state for ${clusterId}`);
+                window.logger.debug(`✅ Setting completed state for ${clusterId}`);
                 this.updateClusterStatus(clusterId, 'completed');
                 this.resetAnalyzeButton(clusterId, 'completed');
             } else if (status === 'failed') {
-                console.log(`❌ Setting failed state for ${clusterId}`);
+                window.logger.debug(`❌ Setting failed state for ${clusterId}`);
                 this.updateClusterStatus(clusterId, 'failed');
                 this.resetAnalyzeButton(clusterId, 'failed');
             } else {
-                console.log(`⚪ Setting idle state for ${clusterId} (status: ${status})`);
+                window.logger.debug(`⚪ Setting idle state for ${clusterId} (status: ${status})`);
                 // idle or unknown - ensure button is reset
                 this.resetAnalyzeButton(clusterId, 'idle');
             }
         } catch (error) {
-            console.error(`Error checking status for cluster ${clusterId}:`, error);
+            window.logger.error(`Error checking status for cluster ${clusterId}:`, error);
         }
     }
 
     setAnalyzingState(clusterId) {
         // Set button to analyzing state without making API call
         const analyzeBtn = document.querySelector(`[data-cluster-id="${clusterId}"]`);
-        console.log(`🔍 Setting analyzing state for ${clusterId}, button found:`, !!analyzeBtn);
+        window.logger.debug(`🔍 Setting analyzing state for ${clusterId}, button found:`, !!analyzeBtn);
         
         if (!analyzeBtn) {
-            console.log(`❌ No button found with data-cluster-id="${clusterId}"`);
+            window.logger.debug(`❌ No button found with data-cluster-id="${clusterId}"`);
             return;
         }
         
         const analyzeIcon = analyzeBtn.querySelector('.analyze-icon');
         const spinner = analyzeBtn.querySelector('.analyzing-spinner');
         
-        console.log(`🔍 Elements found - icon: ${!!analyzeIcon}, spinner: ${!!spinner}`);
+        window.logger.debug(`🔍 Elements found - icon: ${!!analyzeIcon}, spinner: ${!!spinner}`);
         
         if (analyzeIcon && spinner) {
             analyzeIcon.classList.add('hidden');
@@ -753,23 +753,23 @@ class ClusterPortfolio {
             if (btnText) {
                 btnText.textContent = 'Analyzing...';
             }
-            console.log(`✅ Successfully set analyzing state for ${clusterId}`);
+            window.logger.debug(`✅ Successfully set analyzing state for ${clusterId}`);
         } else {
-            console.log(`❌ Missing elements for ${clusterId} - icon: ${!!analyzeIcon}, spinner: ${!!spinner}`);
+            window.logger.debug(`❌ Missing elements for ${clusterId} - icon: ${!!analyzeIcon}, spinner: ${!!spinner}`);
         }
     }
 
     // Auto-refresh functionality - disabled since global refresh handles it
     startAutoRefresh() {
         // Global auto-refresh in main.js now handles this
-        console.log('🔄 Using global auto-refresh (cluster-specific refresh disabled)');
+        window.logger.debug('🔄 Using global auto-refresh (cluster-specific refresh disabled)');
     }
 
     stopAutoRefresh() {
         if (this.autoRefreshInterval) {
             clearInterval(this.autoRefreshInterval);
             this.autoRefreshInterval = null;
-            console.log('⏹️ Auto-refresh stopped');
+            window.logger.debug('⏹️ Auto-refresh stopped');
         }
     }
 
@@ -777,18 +777,18 @@ class ClusterPortfolio {
         try {
             await this.loadPortfolioStats();
         } catch (error) {
-            console.error('❌ Silent refresh failed:', error);
+            window.logger.error('❌ Silent refresh failed:', error);
         }
     }
 
     // Standalone method to refresh just the cluster cards
     async refreshAllClusterCards() {
         try {
-            console.log('🔄 Fetching latest cluster data...');
+            window.logger.debug('🔄 Fetching latest cluster data...');
             const response = await fetch('/api/clusters/dropdown');
             
             if (!response.ok) {
-                console.error(`Clusters API not available: HTTP ${response.status}`);
+                window.logger.error(`Clusters API not available: HTTP ${response.status}`);
                 return;
             }
             
@@ -797,21 +797,21 @@ class ClusterPortfolio {
             if (data.status === 'success' && data.clusters) {
                 this.refreshClusterCards(data.clusters);
             } else {
-                console.error('Clusters data not available:', data.message || 'Unknown error');
+                window.logger.error('Clusters data not available:', data.message || 'Unknown error');
             }
         } catch (error) {
-            console.error('Error refreshing cluster cards:', error);
+            window.logger.error('Error refreshing cluster cards:', error);
         }
     }
 
 
     async loadPortfolioStats() {
         try {
-            console.log('🔄 Refreshing cluster portfolio data...');
+            window.logger.debug('🔄 Refreshing cluster portfolio data...');
             const response = await fetch('/api/portfolio/summary');
             
             if (!response.ok) {
-                console.error(`Portfolio stats endpoint not available: HTTP ${response.status}`);
+                window.logger.error(`Portfolio stats endpoint not available: HTTP ${response.status}`);
                 return;
             }
             
@@ -828,10 +828,10 @@ class ClusterPortfolio {
                     this.checkAllAnalysisStatus();
                 }
             } else {
-                console.error('Portfolio stats not available:', data.message || 'Unknown error');
+                window.logger.error('Portfolio stats not available:', data.message || 'Unknown error');
             }
         } catch (error) {
-            console.error('Error loading portfolio stats:', error);
+            window.logger.error('Error loading portfolio stats:', error);
         }
     }
 
@@ -854,11 +854,11 @@ class ClusterPortfolio {
 
     refreshClusterCards(clustersData) {
         if (!clustersData || !Array.isArray(clustersData)) {
-            console.log('🔄 No cluster data to refresh cards');
+            window.logger.debug('🔄 No cluster data to refresh cards');
             return;
         }
         
-        console.log(`🔄 Refreshing ${clustersData.length} cluster cards`);
+        window.logger.debug(`🔄 Refreshing ${clustersData.length} cluster cards`);
         
         clustersData.forEach(cluster => {
             this.updateClusterCard(cluster);
@@ -870,7 +870,7 @@ class ClusterPortfolio {
         
         const clusterCard = document.querySelector(`[data-cluster-id="${cluster.id}"]`);
         if (!clusterCard) {
-            console.log(`⚠️ Cluster card not found for: ${cluster.id}`);
+            window.logger.debug(`⚠️ Cluster card not found for: ${cluster.id}`);
             return;
         }
         
@@ -910,7 +910,7 @@ class ClusterPortfolio {
             }
         }
         
-        console.log(`✅ Updated cluster card: ${cluster.name} - $${cluster.last_cost?.toFixed(2) || 0}`);
+        window.logger.debug(`✅ Updated cluster card: ${cluster.name} - $${cluster.last_cost?.toFixed(2) || 0}`);
     }
 
     formatCurrency(amount) {
