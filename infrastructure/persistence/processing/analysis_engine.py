@@ -1952,6 +1952,45 @@ class MultiSubscriptionAnalysisEngine:
                     "detailed_steps": self._get_infrastructure_optimization_steps(usage_pattern)
                 })
             
+            # ENHANCED: Add auto-shutdown optimization opportunities  
+            compute_cost = basic_analysis.get('monthly_actual_compute', 0)
+            total_cost = basic_analysis.get('monthly_actual_total', 0)
+            
+            # Calculate potential auto-shutdown savings based on industry standards
+            if compute_cost > 0 and total_cost > 0:
+                auto_shutdown_savings_potential = compute_cost * CostCalculationStandards.AUTO_SHUTDOWN_SAVINGS
+                
+                # Only recommend auto-shutdown if potential savings > $50/month (significant impact)
+                if auto_shutdown_savings_potential >= 50:
+                    opportunities.append({
+                        "type": "auto_shutdown_schedule",
+                        "workload": "cluster-compute",
+                        "namespace": "cluster-wide",
+                        "description": f"Cluster with ${compute_cost:.2f}/month compute cost can benefit from auto-shutdown during non-business hours",
+                        "current_state": f"Cluster runs 24/7 at ${compute_cost:.2f}/month compute cost (${compute_cost/730*16:.2f}/night for 16 hours)",
+                        "recommended_action": "Implement automated shutdown for non-production workloads during off-hours (7PM-7AM weekdays, weekends)",
+                        "potential_monthly_savings": auto_shutdown_savings_potential,
+                        "implementation_difficulty": "medium",
+                        "risk_level": "low",
+                        "estimated_implementation_time": "4-6 hours",
+                        "category": "auto_shutdown_optimization",
+                        "industry_standard": f"60% compute savings achievable through auto-shutdown policies",
+                        "detailed_steps": [
+                            "Create Azure Automation runbooks for cluster start/stop operations",
+                            "Configure time-based triggers: Stop at 7PM, Start at 7AM (weekdays)",
+                            "Implement weekend shutdown: Stop Friday 7PM, Start Monday 7AM", 
+                            "Set up Azure Logic Apps for notification and override capabilities",
+                            "Create resource tags to identify auto-shutdown eligible resources",
+                            "Test shutdown/startup procedures in non-production environment first",
+                            "Monitor cost reduction and adjust schedule based on actual usage patterns"
+                        ],
+                        "business_impact": {
+                            "annual_savings": auto_shutdown_savings_potential * 12,
+                            "payback_period": "immediate",
+                            "risk_mitigation": "Override capability for emergency access"
+                        }
+                    })
+            
             # Method 2: Generate from HPA recommendations
             hpa_recs = basic_analysis.get('hpa_recommendations', {})
             workload_chars = hpa_recs.get('workload_characteristics', {})
