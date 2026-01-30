@@ -11,18 +11,25 @@ from typing import Dict
 class DatabaseConfig:
     """Configuration for the unified database architecture"""
     
-    # Base database directory
-    BASE_DIR = Path("infrastructure/persistence/database")
+    # Base database directory - configurable via environment
+    _base_dir = os.getenv('DATABASE_PATH')
+    if not _base_dir:
+        # Local development fallback
+        BASE_DIR = Path("infrastructure/persistence/database")
+    else:
+        # Production: use configured path (e.g., /data for Railway volumes)
+        BASE_DIR = Path(_base_dir).parent  # Remove filename if present
+    
+    # Ensure directory exists
+    BASE_DIR.mkdir(parents=True, exist_ok=True)
     
     # Unified database paths
     DATABASES = {
-        # Core databases (keep existing)
+        # Core databases
         'alerts': BASE_DIR / 'alerts.db',
-        'clusters': BASE_DIR / 'clusters.db',
-        
-        # New unified databases (if needed in future)
-        'ml_analytics': BASE_DIR / 'ml_analytics.db',
-        'security_analytics': BASE_DIR / 'security_analytics.db'
+        'clusters': BASE_DIR / 'clusters.db', 
+        'costs': BASE_DIR / 'costs.db',
+        'learning_data': BASE_DIR / 'learning_data.db'
     }
     
     # Machine learning database paths (clean architecture)
