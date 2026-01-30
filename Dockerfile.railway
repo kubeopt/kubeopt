@@ -54,7 +54,8 @@ RUN mkdir -p \
     /app/infrastructure/persistence/database \
     /app/infrastructure/persistence/cache \
     /app/machine_learning/data \
-    && chown -R appuser:appuser /app
+    && chown -R appuser:appuser /app \
+    && chmod -R 755 /app/data /app/infrastructure/persistence/database
 
 # Switch to non-root user
 USER appuser
