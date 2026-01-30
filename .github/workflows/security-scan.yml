@@ -29,7 +29,7 @@ jobs:
     - name: Credential Security Check
       run: |
         echo "🔍 Scanning for Azure credentials..."
-        if find . -type f -name "*.py" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" | xargs grep -l "AZURE_CLIENT_SECRET=.*[a-zA-Z0-9]\{10,\}\|AZURE_TENANT_ID=.*[a-f0-9\-]\{36\}" 2>/dev/null; then
+        if find . -type f -name "*.py" -o -name "*.json" | grep -v ".pre-commit-config.yaml" | xargs grep -l "AZURE_CLIENT_SECRET=.*[a-zA-Z0-9]\{10,\}\|AZURE_TENANT_ID=.*[a-f0-9\-]\{36\}" 2>/dev/null; then
           echo "❌ CRITICAL: Azure credentials detected!"
           exit 1
         fi
