@@ -375,18 +375,19 @@ class EnhancedMultiSubscriptionClusterManager:
     
     def __init__(self, db_path=None):
         import os
-        # Use volume mount path if available
+        # Use persistent volume if available
         if db_path is None:
-            volume_mount = os.getenv('RAILWAY_VOLUME_MOUNT_PATH')
+            # Check for generic volume mount path
+            volume_mount = os.getenv('VOLUME_MOUNT_PATH')
             if volume_mount:
                 # Using persistent volume
                 db_path = os.path.join(volume_mount, 'clusters.db')
-                print(f"🚀 Using persistent volume: {db_path}")
+                print(f"✅ Using persistent volume: {db_path}")
             else:
                 # Require explicit configuration if no volume attached
                 db_path = os.getenv('DATABASE_PATH')
                 if not db_path:
-                    raise ValueError("No volume detected. DATABASE_PATH environment variable is REQUIRED.")
+                    raise ValueError("No persistent volume detected. DATABASE_PATH environment variable is REQUIRED.")
         self.db_path = db_path
         self.logger = logging.getLogger(__name__)
         

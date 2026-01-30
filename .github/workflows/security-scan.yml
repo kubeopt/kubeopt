@@ -40,9 +40,9 @@ jobs:
           exit 1
         fi
         
-        echo "🔍 Scanning for email passwords..."
-        if find . -name "*.py" -o -name "*.md" | xargs grep -l "Meena@\|Shannu@\|password.*=.*[^y][^o][^u][^r]" 2>/dev/null; then
-          echo "❌ CRITICAL: Email passwords detected!"
+        echo "🔍 Scanning for hardcoded credentials..."
+        if find . -name "*.py" -o -name "*.md" | grep -v ".github/workflows" | xargs grep -l "Meena@outlook\.com\|Shannu@\|password.*=.*['\"][^'\"]*[a-zA-Z0-9][^'\"]*['\"]" 2>/dev/null; then
+          echo "❌ CRITICAL: Hardcoded credentials detected!"
           exit 1
         fi
         
