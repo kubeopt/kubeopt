@@ -374,10 +374,20 @@ class EnhancedMultiSubscriptionClusterManager:
     """Complete enhanced cluster manager with comprehensive multi-subscription support"""
     
     def __init__(self, db_path=None):
-        # Use environment variable for database path, fallback to default
+        import os
+        # Use persistent volume if available
         if db_path is None:
-            import os
-            db_path = os.getenv('DATABASE_PATH', 'infrastructure/persistence/database/clusters.db')
+            # Check for generic volume mount path
+            volume_mount = os.getenv('VOLUME_MOUNT_PATH')
+            if volume_mount:
+                # Using persistent volume
+                db_path = os.path.join(volume_mount, 'clusters.db')
+                print(f"✅ Using persistent volume: {db_path}")
+            else:
+                # Require explicit configuration if no volume attached
+                db_path = os.getenv('DATABASE_PATH')
+                if not db_path:
+                    raise ValueError("No persistent volume detected. DATABASE_PATH environment variable is REQUIRED.")
         self.db_path = db_path
         self.logger = logging.getLogger(__name__)
         

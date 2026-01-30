@@ -11,14 +11,15 @@ from typing import Dict
 class DatabaseConfig:
     """Configuration for the unified database architecture"""
     
-    # Base database directory - configurable via environment
-    _base_dir = os.getenv('DATABASE_PATH')
-    if not _base_dir:
-        # Local development fallback
-        BASE_DIR = Path("infrastructure/persistence/database")
+    # Use generic volume mount path if available
+    volume_mount = os.getenv('VOLUME_MOUNT_PATH')
+    if volume_mount:
+        BASE_DIR = Path(volume_mount)
     else:
-        # Production: use configured path (e.g., /data for Railway volumes)
-        BASE_DIR = Path(_base_dir).parent  # Remove filename if present
+        _base_dir = os.getenv('DATABASE_BASE_DIR')
+        if not _base_dir:
+            raise ValueError("No persistent volume detected. DATABASE_BASE_DIR environment variable is REQUIRED.")
+        BASE_DIR = Path(_base_dir)
     
     # Ensure directory exists
     BASE_DIR.mkdir(parents=True, exist_ok=True)
