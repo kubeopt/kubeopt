@@ -58,9 +58,11 @@ class KubernetesDataCache:
             "deployments_essential": 600, "hpa": 600,
             "deployments": 600, "replicasets": 600,
             
-            # === SEMI-STATIC (15 min) - Infrastructure ===
-            "nodes_essential": 900, "services_essential": 900,
-            "nodes": 900, "services": 900,
+            # === DYNAMIC INFRASTRUCTURE (2 min) - Nodes can scale dynamically ===
+            "nodes_essential": 120, "nodes": 120,
+            
+            # === SEMI-STATIC (15 min) - Services (less dynamic) ===
+            "services_essential": 900, "services": 900,
             
             # === STATIC (30 min) - Storage, namespaces ===
             "pvc_essential": 1800, "storage_complete": 1800,
@@ -394,7 +396,7 @@ class KubernetesDataCache:
             "resource_quota_default": "kubectl get resourcequota -n default",
             "limit_ranges": "kubectl get limitranges --all-namespaces -o json",
             # Optimized: Get metadata only, never actual secret data (95% reduction)
-            "secrets": '''kubectl get secrets --all-namespaces -o custom-columns="NS:.metadata.namespace,NAME:.metadata.name,TYPE:.type,DATA-COUNT:.data" --no-headers | awk '{gsub(/map\[/, "", $4); gsub(/\]/, "", $4); n=split($4,a," "); print $1","$2","$3","n}' ''',
+            "secrets": '''kubectl get secrets --all-namespaces -o custom-columns="NS:.metadata.namespace,NAME:.metadata.name,TYPE:.type,DATA-COUNT:.data" --no-headers | awk '{gsub(/map\\[/, "", $4); gsub(/\\]/, "", $4); n=split($4,a," "); print $1","$2","$3","n}' ''',
             # === RECOMMENDED ALTERNATIVES (Broader queries instead of specific failing ones) ===
             "namespaces_with_labels": "kubectl get ns --show-labels",  # Alternative to PSP - check Pod Security Admission labels
             "all_namespaces_list": "kubectl get ns",  # Alternative to specific namespace queries - filter results
@@ -405,7 +407,7 @@ class KubernetesDataCache:
             # Optimized: Get only Warning/Error events from last hour (95% reduction)
             "events": '''kubectl get events --all-namespaces --field-selector=type!=Normal --sort-by='.lastTimestamp' -o custom-columns="NS:.metadata.namespace,TYPE:.type,REASON:.reason,MESSAGE:.message,COUNT:.count,LAST:.lastTimestamp" --no-headers | head -100''',
             # Optimized: Get configmap metadata only (90% reduction)
-            "configmaps": '''kubectl get configmaps --all-namespaces -o custom-columns="NS:.metadata.namespace,NAME:.metadata.name,DATA-COUNT:.data,AGE:.metadata.creationTimestamp" --no-headers | awk '{gsub(/map\[/, "", $3); gsub(/\]/, "", $3); n=split($3,a," "); print $1","$2","n","$4}' ''',
+            "configmaps": '''kubectl get configmaps --all-namespaces -o custom-columns="NS:.metadata.namespace,NAME:.metadata.name,DATA-COUNT:.data,AGE:.metadata.creationTimestamp" --no-headers | awk '{gsub(/map\\[/, "", $3); gsub(/\\]/, "", $3); n=split($3,a," "); print $1","$2","n","$4}' ''',
             "applications": "kubectl get applications --all-namespaces -o json",  # ArgoCD
             "api_resources": "kubectl api-resources --output=wide",  # For config fetcher
             "api_versions": "kubectl api-versions",  # For config fetcher
@@ -856,6 +858,60 @@ class KubernetesDataCache:
         except Exception as e:
             logger.error(f"❌ {self.cluster_name}: Failed to extract kubectl output from Azure CLI response: {e}")
             return None
+    
+    def _detect_cluster_state_changes(self) -> bool:
+        """
+        Detect if any cluster state has changed since last cache.
+        Checks nodes, pods, deployments, HPAs, and services for changes.
+        """
+        try:
+            # Commands to get resource counts quickly
+            state_check_commands = {
+                'nodes': "kubectl get nodes --no-headers 2>/dev/null | wc -l",
+                'pods': "kubectl get pods -A --no-headers 2>/dev/null | wc -l", 
+                'deployments': "kubectl get deployments -A --no-headers 2>/dev/null | wc -l",
+                'services': "kubectl get services -A --no-headers 2>/dev/null | wc -l",
+                'hpa': "kubectl get hpa -A --no-headers 2>/dev/null | wc -l"
+            }
+            
+            changes_detected = []
+            
+            for resource_type, cmd in state_check_commands.items():
+                try:
+                    # Get fresh count
+                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=5)
+                    if result.returncode == 0:
+                        fresh_count = int(result.stdout.strip())
+                        
+                        # Get cached count
+                        cached_data = self.data.get(resource_type, {})
+                        if isinstance(cached_data, dict) and 'items' in cached_data:
+                            cached_count = len(cached_data['items'])
+                        elif isinstance(cached_data, list):
+                            cached_count = len(cached_data)
+                        else:
+                            cached_count = 0
+                        
+                        # Compare counts
+                        if fresh_count != cached_count:
+                            changes_detected.append(f"{resource_type}: {cached_count}→{fresh_count}")
+                            logger.info(f"🔄 {self.cluster_name}: {resource_type} count changed from {cached_count} to {fresh_count}")
+                    
+                except Exception as resource_error:
+                    logger.debug(f"⚠️ {self.cluster_name}: Failed to check {resource_type}: {resource_error}")
+                    continue
+            
+            if changes_detected:
+                logger.info(f"🔄 {self.cluster_name}: Cluster state changes detected: {', '.join(changes_detected)} - forcing cache refresh")
+                return True
+            else:
+                logger.debug(f"✅ {self.cluster_name}: No cluster state changes detected")
+                return False
+                
+        except Exception as e:
+            logger.debug(f"⚠️ {self.cluster_name}: Cluster state change detection failed: {e}")
+            return False
+
     def fetch_all_data(self, force_refresh: bool = False) -> Dict[str, Any]:
         """
         Fetch kubernetes data with SMART SELECTIVE CACHING
@@ -879,8 +935,18 @@ class KubernetesDataCache:
             batches_to_fetch = {}
             cached_results = {}
             
+            # Check for any cluster state changes (nodes, pods, deployments, services, HPAs)
+            cluster_state_changed = self._detect_cluster_state_changes()
+            
             for batch_name, batch_cmd in all_batched_commands.items():
                 ttl = self.batch_ttls.get(batch_name, 300)  # Default 5 min
+                
+                # Force refresh ALL batches if any cluster state changed
+                # When any resources change, other resources may be affected too
+                if cluster_state_changed:
+                    logger.info(f"🔄 {self.cluster_name}: Forcing refresh of {batch_name} due to cluster state changes")
+                    batches_to_fetch[batch_name] = batch_cmd
+                    continue
                 
                 if batch_name in self.cache_timestamps:
                     age = time.time() - self.cache_timestamps[batch_name]
@@ -1489,7 +1555,23 @@ class KubernetesDataCache:
     # === QUERY INTERFACE FOR COMPONENTS ===
     
     def get(self, key: str) -> Any:
-        """Get any data by key"""
+        """Get any data by key with automatic cache invalidation on cluster changes"""
+        
+        # Check for cluster state changes before returning cached data
+        # This ensures cache is invalidated when external cluster changes occur
+        if hasattr(self, '_detect_cluster_state_changes'):
+            try:
+                cluster_state_changed = self._detect_cluster_state_changes()
+                if cluster_state_changed:
+                    logger.info(f"🔄 {self.cluster_name}: Cluster state changes detected via get() - invalidating cache")
+                    # Clear all cached data and timestamps to force refresh
+                    self.data.clear()
+                    self.cache_timestamps.clear()
+                    # Fetch fresh data
+                    self.fetch_all_data(force_refresh=True)
+            except Exception as e:
+                logger.debug(f"⚠️ {self.cluster_name}: Cluster state change detection in get() failed: {e}")
+        
         return self.data.get(key)
     
     def _ensure_json_format(self, key: str) -> Dict[str, Any]:
