@@ -42,43 +42,37 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy Python packages from builder
 COPY --from=builder /install /usr/local/lib/python3.11/site-packages
 
-# Create non-root user (Debian version)
-RUN groupadd -g 1000 appuser && \
-    useradd -r -u 1000 -g appuser -s /bin/bash -m appuser
-
 # Set working directory
 WORKDIR /app
 
-# Copy application code (only Python files, not build artifacts)
-COPY --chown=appuser:appuser *.py ./
-COPY --chown=appuser:appuser analytics/ ./analytics/
-COPY --chown=appuser:appuser application/ ./application/
-COPY --chown=appuser:appuser infrastructure/ ./infrastructure/
-COPY --chown=appuser:appuser machine_learning/ ./machine_learning/
-COPY --chown=appuser:appuser presentation/ ./presentation/
-COPY --chown=appuser:appuser shared/ ./shared/
-COPY --chown=appuser:appuser config/ ./config/
-COPY --chown=appuser:appuser algorithms/ ./algorithms/
-COPY --chown=appuser:appuser requirements/ ./requirements/
+# Copy application code (as root for Railway volume access)
+COPY *.py ./
+COPY analytics/ ./analytics/
+COPY application/ ./application/
+COPY infrastructure/ ./infrastructure/
+COPY machine_learning/ ./machine_learning/
+COPY presentation/ ./presentation/
+COPY shared/ ./shared/
+COPY config/ ./config/
+COPY algorithms/ ./algorithms/
+COPY requirements/ ./requirements/
 
-# Create necessary directories with correct permissions
+# Create necessary directories
 RUN mkdir -p \
-    /app/data \
     /app/logs \
     /app/config \
     /app/machine_learning/data \
-    /home/appuser/.azure \
-    && chown -R appuser:appuser /app /home/appuser
+    /root/.azure
 
-# Switch to non-root user
-USER appuser
+# Run as root for Railway volume access
+# Railway volumes are owned by root, so we need root access
+# Note: Set RAILWAY_RUN_UID=0 in Railway if needed
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     FLASK_ENV=production \
-    DATABASE_PATH=/app/data/aks_optimizer.db \
-    AZURE_CONFIG_DIR=/home/appuser/.azure
+    AZURE_CONFIG_DIR=/root/.azure
 
 # Expose port
 EXPOSE 5010

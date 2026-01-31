@@ -375,19 +375,26 @@ class EnhancedMultiSubscriptionClusterManager:
     
     def __init__(self, db_path=None):
         import os
-        # Use persistent volume if available
+        from pathlib import Path
+        # REQUIRE persistent volume - no fallbacks
         if db_path is None:
-            # Check for generic volume mount path
-            volume_mount = os.getenv('VOLUME_MOUNT_PATH')
+            # Check for Railway volume mount path (auto-provided)
+            volume_mount = os.getenv('RAILWAY_VOLUME_MOUNT_PATH')
             if volume_mount:
-                # Using persistent volume
+                # Using Railway-provided volume path
                 db_path = os.path.join(volume_mount, 'clusters.db')
                 print(f"✅ Using persistent volume: {db_path}")
+            elif Path('/data').exists():
+                # Standard volume mount at /data
+                db_path = '/data/clusters.db'
+                print(f"✅ Using mounted volume: {db_path}")
             else:
-                # Require explicit configuration if no volume attached
-                db_path = os.getenv('DATABASE_PATH')
-                if not db_path:
-                    raise ValueError("No persistent volume detected. DATABASE_PATH environment variable is REQUIRED.")
+                # NO FALLBACK - volume is required
+                raise ValueError(
+                    "CRITICAL: No persistent volume detected! "
+                    "Please attach a volume to this service at /data mount path. "
+                    "Without a volume, all data will be lost on restart."
+                )
         self.db_path = db_path
         self.logger = logging.getLogger(__name__)
         

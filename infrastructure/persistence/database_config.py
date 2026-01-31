@@ -11,15 +11,20 @@ from typing import Dict
 class DatabaseConfig:
     """Configuration for the unified database architecture"""
     
-    # Use generic volume mount path if available
-    volume_mount = os.getenv('VOLUME_MOUNT_PATH')
+    # REQUIRE persistent volume - no fallbacks
+    volume_mount = os.getenv('RAILWAY_VOLUME_MOUNT_PATH')
     if volume_mount:
         BASE_DIR = Path(volume_mount)
+    elif Path('/data').exists():
+        # Standard volume mount location
+        BASE_DIR = Path('/data')
     else:
-        _base_dir = os.getenv('DATABASE_BASE_DIR')
-        if not _base_dir:
-            raise ValueError("No persistent volume detected. DATABASE_BASE_DIR environment variable is REQUIRED.")
-        BASE_DIR = Path(_base_dir)
+        # NO FALLBACK - volume is required
+        raise ValueError(
+            "CRITICAL: No persistent volume detected! "
+            "Please attach a volume to this service at /data mount path. "
+            "Without a volume, all data will be lost on restart."
+        )
     
     # Ensure directory exists
     BASE_DIR.mkdir(parents=True, exist_ok=True)
