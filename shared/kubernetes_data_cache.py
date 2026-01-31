@@ -14,6 +14,7 @@ Centralized Kubernetes Data Cache Manager
 import concurrent.futures
 import json
 import logging
+import os
 import subprocess
 import time
 import re
@@ -61,12 +62,12 @@ class KubernetesDataCache:
             # === DYNAMIC INFRASTRUCTURE (2 min) - Nodes can scale dynamically ===
             "nodes_essential": 120, "nodes": 120,
             
-            # === SEMI-STATIC (15 min) - Services (less dynamic) ===
-            "services_essential": 900, "services": 900,
+            # === SEMI-STATIC (5 min) - Services (reduced from 15 min) ===
+            "services_essential": 300, "services": 300,
             
-            # === STATIC (30 min) - Storage, namespaces ===
-            "pvc_essential": 1800, "storage_complete": 1800,
-            "namespaces": 1800, "pvcs": 1800, "storage_classes": 1800,
+            # === STATIC (10 min) - Storage, namespaces (reduced from 30 min) ===
+            "pvc_essential": 600, "storage_complete": 600,
+            "namespaces": 600, "pvcs": 600, "storage_classes": 600,
             
             # === MOSTLY STATIC (1 hour) - Config, RBAC ===
             "config_resources": 3600, "security_basic": 3600,
@@ -859,58 +860,6 @@ class KubernetesDataCache:
             logger.error(f"❌ {self.cluster_name}: Failed to extract kubectl output from Azure CLI response: {e}")
             return None
     
-    def _detect_cluster_state_changes(self) -> bool:
-        """
-        Detect if any cluster state has changed since last cache.
-        Checks nodes, pods, deployments, HPAs, and services for changes.
-        """
-        try:
-            # Commands to get resource counts quickly
-            state_check_commands = {
-                'nodes': "kubectl get nodes --no-headers 2>/dev/null | wc -l",
-                'pods': "kubectl get pods -A --no-headers 2>/dev/null | wc -l", 
-                'deployments': "kubectl get deployments -A --no-headers 2>/dev/null | wc -l",
-                'services': "kubectl get services -A --no-headers 2>/dev/null | wc -l",
-                'hpa': "kubectl get hpa -A --no-headers 2>/dev/null | wc -l"
-            }
-            
-            changes_detected = []
-            
-            for resource_type, cmd in state_check_commands.items():
-                try:
-                    # Get fresh count
-                    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=5)
-                    if result.returncode == 0:
-                        fresh_count = int(result.stdout.strip())
-                        
-                        # Get cached count
-                        cached_data = self.data.get(resource_type, {})
-                        if isinstance(cached_data, dict) and 'items' in cached_data:
-                            cached_count = len(cached_data['items'])
-                        elif isinstance(cached_data, list):
-                            cached_count = len(cached_data)
-                        else:
-                            cached_count = 0
-                        
-                        # Compare counts
-                        if fresh_count != cached_count:
-                            changes_detected.append(f"{resource_type}: {cached_count}→{fresh_count}")
-                            logger.info(f"🔄 {self.cluster_name}: {resource_type} count changed from {cached_count} to {fresh_count}")
-                    
-                except Exception as resource_error:
-                    logger.debug(f"⚠️ {self.cluster_name}: Failed to check {resource_type}: {resource_error}")
-                    continue
-            
-            if changes_detected:
-                logger.info(f"🔄 {self.cluster_name}: Cluster state changes detected: {', '.join(changes_detected)} - forcing cache refresh")
-                return True
-            else:
-                logger.debug(f"✅ {self.cluster_name}: No cluster state changes detected")
-                return False
-                
-        except Exception as e:
-            logger.debug(f"⚠️ {self.cluster_name}: Cluster state change detection failed: {e}")
-            return False
 
     def fetch_all_data(self, force_refresh: bool = False) -> Dict[str, Any]:
         """
@@ -935,18 +884,8 @@ class KubernetesDataCache:
             batches_to_fetch = {}
             cached_results = {}
             
-            # Check for any cluster state changes (nodes, pods, deployments, services, HPAs)
-            cluster_state_changed = self._detect_cluster_state_changes()
-            
             for batch_name, batch_cmd in all_batched_commands.items():
                 ttl = self.batch_ttls.get(batch_name, 300)  # Default 5 min
-                
-                # Force refresh ALL batches if any cluster state changed
-                # When any resources change, other resources may be affected too
-                if cluster_state_changed:
-                    logger.info(f"🔄 {self.cluster_name}: Forcing refresh of {batch_name} due to cluster state changes")
-                    batches_to_fetch[batch_name] = batch_cmd
-                    continue
                 
                 if batch_name in self.cache_timestamps:
                     age = time.time() - self.cache_timestamps[batch_name]

@@ -449,7 +449,18 @@ class SettingsPage {
         this.showToast('Testing Slack integration...', 'info');
         
         try {
-            const response = await fetch('/test_slack', { method: 'POST' });
+            // Get current form values (like Azure test does)
+            const formData = new FormData();
+            const webhookUrl = document.getElementById('slack-webhook-url')?.value || '';
+            const channel = document.getElementById('slack-channel')?.value || '';
+            
+            formData.append('slack_webhook_url', webhookUrl);
+            formData.append('slack_channel', channel);
+            
+            const response = await fetch('/test_slack', { 
+                method: 'POST',
+                body: formData
+            });
             const result = await response.json();
             
             if (result.success) {
@@ -879,8 +890,17 @@ function testSlack() {
     button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
     button.disabled = true;
     
+    // Get current form values (like Azure test does)
+    const formData = new FormData();
+    const webhookUrl = document.getElementById('slack-webhook-url')?.value || '';
+    const channel = document.getElementById('slack-channel')?.value || '';
+    
+    formData.append('slack_webhook_url', webhookUrl);
+    formData.append('slack_channel', channel);
+    
     fetch('/test_slack', {
-        method: 'POST'
+        method: 'POST',
+        body: formData
     })
     .then(response => response.json())
     .then(data => {
