@@ -367,6 +367,20 @@ def generate_insights(analysis_results):
             storage_enhancement = storage_cost * 0.08  # Additional 8% from advanced cleanup
             enhanced_optimizations.append(f"Advanced storage cleanup: ${storage_enhancement:.0f}/month")
         
+        # CRITICAL: Monitoring cost optimization (often the largest cost component)
+        monitoring_cost = analysis_results.get('monitoring_cost', 0)
+        if monitoring_cost > 10:  # If monitoring costs are significant
+            monitoring_percentage = (monitoring_cost / total_cost) * 100 if total_cost > 0 else 0
+            if monitoring_percentage > 50:  # CRITICAL: Over 50% monitoring costs
+                # Industry optimal is 5-15% of total cost for monitoring
+                optimal_monitoring = total_cost * 0.10  # 10% target
+                monitoring_savings = max(0, monitoring_cost - optimal_monitoring)
+                enhanced_optimizations.append(f"🚨 CRITICAL monitoring optimization: ${monitoring_savings:.0f}/month")
+                logger.info(f"💡 MONITORING INSIGHT: Added monitoring optimization insight: ${monitoring_savings:.0f}/month from {monitoring_percentage:.1f}% current vs 10% optimal")
+            elif monitoring_percentage > 20:  # Moderate monitoring costs
+                monitoring_savings = monitoring_cost * 0.25  # 25% typical savings
+                enhanced_optimizations.append(f"Monitoring optimization: ${monitoring_savings:.0f}/month")
+        
         # Add to savings summary if we found opportunities
         if enhanced_optimizations:
             advanced_text = ", ".join(enhanced_optimizations[:3])  # Show top 3
