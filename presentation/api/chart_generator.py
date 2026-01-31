@@ -1435,10 +1435,15 @@ def _calculate_believable_scaling_scenarios(cpu_hpas, memory_hpas, mixed_hpas, t
         cpu_hpas, mixed_hpas, avg_current, time_scenarios, total_hpas, analysis_data
     )
     
-    # Calculate Memory-based scaling strategy using time patterns  
-    memory_replicas = _calculate_memory_time_based_pattern(
-        memory_hpas, mixed_hpas, avg_current, time_scenarios, total_hpas, analysis_data
-    )
+    # Calculate Memory-based scaling strategy using time patterns (only if Memory/Mixed HPAs exist)
+    if memory_hpas or mixed_hpas:
+        memory_replicas = _calculate_memory_time_based_pattern(
+            memory_hpas, mixed_hpas, avg_current, time_scenarios, total_hpas, analysis_data
+        )
+        logger.info(f"✅ Calculated memory-based scaling patterns for {len(memory_hpas)} Memory + {len(mixed_hpas)} Mixed HPAs")
+    else:
+        logger.info("ℹ️ No Memory/Mixed HPAs found - skipping memory-based scaling calculations")
+        memory_replicas = [0, 0, 0, 0]  # Default pattern for 4 time periods (night/morning/afternoon/evening)
     
     # Calculate Mixed strategy using max() approach from hpa_test.py (enterprise best practice)
     mixed_replicas = _calculate_mixed_enterprise_strategy(
