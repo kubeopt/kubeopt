@@ -605,7 +605,25 @@ def register_auth_routes(app):
             return jsonify({'success': False, 'message': 'Admin access required'})
         
         try:
-            result = settings_manager.test_slack_integration()
+            # Extract Slack settings from form data (like Azure test)
+            webhook_url = request.form.get('slack_webhook_url', '').strip()
+            channel = request.form.get('slack_channel', '').strip()
+            
+            # Fall back to saved settings if form data not provided
+            if not webhook_url:
+                webhook_url = settings_manager.get_setting('SLACK_WEBHOOK_URL')
+            if not channel:
+                channel = settings_manager.get_setting('SLACK_CHANNEL', '#general')
+            
+            # Validate webhook URL
+            if not webhook_url or webhook_url == 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK':
+                return jsonify({
+                    'success': False, 
+                    'message': 'Please enter a valid Slack webhook URL to test integration'
+                })
+            
+            # Test with provided/saved values
+            result = settings_manager.test_slack_integration_with_values(webhook_url, channel)
             return jsonify(result)
         except Exception as e:
             logger.error(f"Error testing Slack: {e}")

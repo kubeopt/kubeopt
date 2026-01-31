@@ -326,6 +326,41 @@ class SettingsManager:
             logger.error(f"Error testing Slack integration: {e}")
             return {'success': False, 'message': str(e)}
     
+    def test_slack_integration_with_values(self, webhook_url: str, channel: str = '#general') -> Dict[str, Any]:
+        """
+        Test Slack webhook integration with provided values (allows testing before saving)
+        
+        Args:
+            webhook_url: Slack webhook URL to test
+            channel: Slack channel for the test message
+        
+        Returns:
+            Dict with test results
+        """
+        try:
+            if not webhook_url:
+                return {'success': False, 'message': 'Slack webhook URL not provided'}
+            
+            message = {
+                'channel': channel,
+                'username': 'AKS Cost Optimizer',
+                'text': f'🧪 Test message from AKS Cost Optimizer - {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
+                'icon_emoji': ':cloud:'
+            }
+            
+            response = requests.post(webhook_url, json=message, timeout=10)
+            
+            if response.status_code == 200:
+                logger.info("Slack test message sent successfully with provided values")
+                return {'success': True, 'message': 'Test message sent to Slack successfully!'}
+            else:
+                logger.error(f"Slack test failed: {response.status_code} - {response.text}")
+                return {'success': False, 'message': f'Slack API error: {response.status_code} - {response.text}'}
+                
+        except Exception as e:
+            logger.error(f"Error testing Slack integration with provided values: {e}")
+            return {'success': False, 'message': str(e)}
+    
     def test_email_configuration(self, smtp_server: str, smtp_port: int, username: str, password: str, recipients: List[str]) -> Dict[str, Any]:
         """
         Test email configuration
