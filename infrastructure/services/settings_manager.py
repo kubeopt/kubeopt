@@ -27,25 +27,81 @@ logger = logging.getLogger(__name__)
 
 class SettingsManager:
     """
-    Centralized settings and configuration management
+    Multi-Environment Settings Manager
+    ==================================
+    
+    Supports three deployment scenarios:
+    1. Local Development: .env file in current directory
+    2. Docker/Self-Hosted: Volume mount at /app/config or SETTINGS_PATH
+    3. Railway: GraphQL API sync + volume storage
     """
     
     def __init__(self):
-        # Use persistent settings path if configured, otherwise default to current directory
-        settings_dir = os.getenv('SETTINGS_PATH', os.getcwd())
-        
-        # Ensure the settings directory exists
-        if not os.path.exists(settings_dir):
-            os.makedirs(settings_dir, exist_ok=True)
-            
-        self.settings_file = os.path.join(settings_dir, '.env')
-        self.backup_settings_file = os.path.join(settings_dir, '.env.backup')
         self.config_cache = {}
+        self.deployment_type = self._detect_deployment_type()
+        self.settings_file, self.backup_settings_file = self._get_settings_paths()
+        
+        # Railway API configuration (only used in Railway environment)
+        self.railway_config = self._setup_railway_config()
+        
+        logger.info(f"🔧 Settings Manager initialized for: {self.deployment_type}")
         self.load_settings()
+    
+    def _detect_deployment_type(self) -> str:
+        """Detect which deployment environment we're running in"""
+        if os.getenv('RAILWAY_ENVIRONMENT'):
+            return 'railway'
+        elif os.path.exists('/app/config') and os.access('/app/config', os.W_OK):
+            return 'docker_volume'
+        elif os.getenv('SETTINGS_PATH'):
+            return 'custom_path'
+        else:
+            return 'local'
+    
+    def _get_settings_paths(self) -> tuple:
+        """Get appropriate settings file paths based on deployment type"""
+        if self.deployment_type == 'railway':
+            # Railway: Use volume if available, fall back to app directory
+            if os.getenv('RAILWAY_VOLUME_MOUNT_PATH'):
+                settings_dir = os.getenv('RAILWAY_VOLUME_MOUNT_PATH')
+                logger.info(f"🚂 Railway volume detected: {settings_dir}")
+            else:
+                settings_dir = '/app'
+                logger.info("🚂 Railway environment without volume")
+        elif self.deployment_type == 'docker_volume':
+            settings_dir = '/app/config'
+            logger.info(f"🐳 Docker volume mount detected: {settings_dir}")
+        elif self.deployment_type == 'custom_path':
+            settings_dir = os.getenv('SETTINGS_PATH')
+            logger.info(f"📁 Custom settings path: {settings_dir}")
+        else:
+            settings_dir = os.getcwd()
+            logger.info(f"💻 Local development: {settings_dir}")
+        
+        # Ensure directory exists
+        os.makedirs(settings_dir, exist_ok=True)
+        
+        settings_file = os.path.join(settings_dir, '.env')
+        backup_file = os.path.join(settings_dir, '.env.backup')
+        
+        return settings_file, backup_file
+    
+    def _setup_railway_config(self) -> dict:
+        """Setup Railway API configuration if in Railway environment"""
+        if self.deployment_type != 'railway':
+            return {}
+        
+        return {
+            'api_token': os.getenv('RAILWAY_API_TOKEN'),
+            'project_id': os.getenv('RAILWAY_PROJECT_ID'),
+            'environment_id': os.getenv('RAILWAY_ENVIRONMENT_ID'),
+            'service_id': os.getenv('RAILWAY_SERVICE_ID'),
+            'api_url': 'https://backboard.railway.com/graphql/v2'
+        }
     
     def load_settings(self) -> Dict[str, str]:
         """
-        Load settings from environment and .env file
+        Load settings with priority: Volume/File Settings > Environment Variables > Defaults
         
         Returns:
             Dict of current configuration
@@ -53,31 +109,43 @@ class SettingsManager:
         try:
             config = {}
             
-            # Load from .env file if it exists
+            # 1. Start with environment variables (defaults in Railway, all vars locally)
+            for key, value in os.environ.items():
+                if key.startswith(('AZURE_', 'SLACK_', 'EMAIL_', 'SMTP_', 'LOG_', 'PRODUCTION_', 'COST_', 'ANALYSIS_', 'AUTO_', 'DATABASE_', 'USER_', 'KUBEOPT_')):
+                    config[key] = value
+            
+            # 2. Override with settings file (customer overrides)
             if os.path.exists(self.settings_file):
+                logger.info(f"📄 Loading settings file: {self.settings_file}")
                 with open(self.settings_file, 'r') as f:
                     for line in f:
                         line = line.strip()
                         if line and not line.startswith('#') and '=' in line:
                             key, value = line.split('=', 1)
-                            config[key.strip()] = value.strip().strip('"\'')
-            
-            # Override with actual environment variables
-            for key, value in os.environ.items():
-                if key.startswith(('AZURE_', 'SLACK_', 'EMAIL_', 'SMTP_', 'LOG_', 'PRODUCTION_', 'COST_', 'ANALYSIS_', 'AUTO_', 'DATABASE_', 'USER_', 'KUBEOPT_')):
-                    config[key] = value
+                            key = key.strip()
+                            value = value.strip().strip('"\'')
+                            config[key] = value
+                            logger.debug(f"  Loaded: {key}")
+            else:
+                logger.info(f"📄 No settings file found at: {self.settings_file}")
             
             self.config_cache = config
-            logger.info(f"Settings loaded: {len(config)} configuration items")
+            logger.info(f"✅ Settings loaded ({self.deployment_type}): {len(config)} items")
             return config
             
         except Exception as e:
-            logger.error(f"Error loading settings: {e}")
+            logger.error(f"❌ Error loading settings: {e}")
             return {}
     
     def save_settings(self, new_settings: Dict[str, str]) -> bool:
         """
-        Save settings to .env file and environment - MERGES with existing settings
+        Multi-Environment Settings Save
+        ===============================
+        
+        Saves settings based on deployment type:
+        - Local: Saves to .env file
+        - Docker: Saves to volume mount
+        - Railway: Saves to file AND syncs to Railway API
         
         Args:
             new_settings: Dictionary of new settings to save
@@ -180,6 +248,14 @@ class SettingsManager:
             # Reload settings cache
             self.config_cache = merged_settings
             
+            # Railway-specific: Sync to Railway API if in Railway environment
+            if hasattr(self, 'deployment_type') and self.deployment_type == 'railway' and hasattr(self, '_can_sync_to_railway') and self._can_sync_to_railway():
+                railway_success = self._sync_to_railway_api(new_settings)
+                if railway_success:
+                    logger.info("🚂 Settings synced to Railway API")
+                else:
+                    logger.warning("⚠️ Railway API sync failed, but local file saved")
+            
             # Check if auto-analysis setting changed and restart scheduler if needed
             if 'auto_analysis_enabled' in new_settings:
                 try:
@@ -189,7 +265,7 @@ class SettingsManager:
                 except Exception as e:
                     logger.warning(f"⚠️ Could not restart auto-analysis scheduler: {e}")
             
-            logger.info("Settings saved successfully")
+            logger.info(f"✅ Settings saved successfully ({getattr(self, 'deployment_type', 'standard')} mode)")
             return True
             
         except Exception as e:
@@ -544,6 +620,99 @@ class SettingsManager:
         except Exception as e:
             logger.error(f"Error getting custom env vars: {e}")
             return ""
+
+    def _can_sync_to_railway(self) -> bool:
+        """Check if Railway API sync is possible"""
+        if not hasattr(self, 'railway_config'):
+            return False
+        required_keys = ['api_token', 'project_id', 'environment_id']
+        return all(self.railway_config.get(key) for key in required_keys)
+    
+    def _sync_to_railway_api(self, settings: Dict[str, str]) -> bool:
+        """Sync settings to Railway API using GraphQL"""
+        try:
+            if not self._can_sync_to_railway():
+                logger.warning("🚂 Railway API sync skipped: missing configuration")
+                return False
+            
+            # Prepare GraphQL mutation for multiple variables
+            variables_input = []
+            for key, value in settings.items():
+                env_key = self._get_env_key(key)
+                variables_input.append({
+                    "name": env_key,
+                    "value": str(value)
+                })
+            
+            mutation = """
+            mutation variableCollectionUpsert($input: VariableCollectionUpsertInput!) {
+                variableCollectionUpsert(input: $input)
+            }
+            """
+            
+            variables = {
+                "input": {
+                    "projectId": self.railway_config['project_id'],
+                    "environmentId": self.railway_config['environment_id'],
+                    "variables": variables_input,
+                    "skipDeploys": True  # Don't redeploy for settings changes
+                }
+            }
+            
+            # Add serviceId if available (for service-specific variables)
+            if self.railway_config.get('service_id'):
+                variables["input"]["serviceId"] = self.railway_config['service_id']
+            
+            # Make GraphQL request
+            headers = {
+                'Authorization': f'Bearer {self.railway_config["api_token"]}',
+                'Content-Type': 'application/json'
+            }
+            
+            payload = {
+                'query': mutation,
+                'variables': variables
+            }
+            
+            logger.debug("🚂 Syncing to Railway API...")
+            response = requests.post(
+                self.railway_config['api_url'],
+                json=payload,
+                headers=headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if 'errors' in result:
+                    logger.error(f"🚂 Railway API errors: {result['errors']}")
+                    return False
+                else:
+                    logger.info(f"🚂 Successfully synced {len(settings)} settings to Railway")
+                    return True
+            else:
+                logger.error(f"🚂 Railway API request failed: {response.status_code}")
+                logger.debug(f"Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Railway API sync error: {e}")
+            return False
+    
+    def get_deployment_info(self) -> Dict[str, Any]:
+        """Get deployment type and configuration info for debugging"""
+        info = {
+            'deployment_type': getattr(self, 'deployment_type', 'unknown'),
+            'settings_file': getattr(self, 'settings_file', 'unknown'),
+            'can_write_files': os.access(os.path.dirname(getattr(self, 'settings_file', '.')), os.W_OK) if hasattr(self, 'settings_file') else False
+        }
+        
+        if hasattr(self, 'deployment_type') and self.deployment_type == 'railway':
+            info['railway_api_available'] = self._can_sync_to_railway()
+            info['railway_volume'] = os.getenv('RAILWAY_VOLUME_MOUNT_PATH')
+            info['railway_environment'] = os.getenv('RAILWAY_ENVIRONMENT')
+        
+        return info
 
 # Global settings manager instance
 settings_manager = SettingsManager()
