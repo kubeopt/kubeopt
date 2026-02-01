@@ -347,7 +347,7 @@ class AutoAnalysisScheduler:
             # Clean up any stale analysis statuses before triggering
             self._cleanup_stale_analysis_statuses()
             
-            # Use internal API call to trigger analysis
+            # Use internal API call to trigger analysis with authentication
             with self.app.test_client() as client:
                 payload = {
                     'days': 30,
@@ -358,10 +358,17 @@ class AutoAnalysisScheduler:
                 
                 logger.info(f"📤 Triggering analysis for cluster {cluster_id} with payload: {payload}")
                 
+                # Get API key for internal authentication
+                from infrastructure.services.api_security import api_security
+                api_key = api_security.api_key
+                
                 response = client.post(
                     f'/api/clusters/{cluster_id}/analyze',
                     json=payload,
-                    headers={'Content-Type': 'application/json'}
+                    headers={
+                        'Content-Type': 'application/json',
+                        'X-API-Key': api_key  # 🔐 Internal authentication
+                    }
                 )
                 
                 logger.info(f"📥 API response: status={response.status_code}")

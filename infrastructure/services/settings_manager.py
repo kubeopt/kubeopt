@@ -326,17 +326,32 @@ class SettingsManager:
     
     def get_setting(self, key: str, default: str = '') -> str:
         """
-        Get individual setting value
+        Get individual setting value with case-insensitive lookup
         
         Args:
-            key: Setting key
+            key: Setting key (case-insensitive)
             default: Default value if not found
             
         Returns:
             str: Setting value
         """
         config = self.get_settings()
-        return config.get(key, default)
+        
+        # Try exact match first
+        if key in config:
+            return config.get(key, default)
+        
+        # Try uppercase version
+        upper_key = key.upper()
+        if upper_key in config:
+            return config.get(upper_key, default)
+        
+        # Try lowercase version
+        lower_key = key.lower()
+        if lower_key in config:
+            return config.get(lower_key, default)
+        
+        return default
     
     def update_setting(self, key: str, value: str) -> None:
         """

@@ -718,6 +718,7 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/subscriptions', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def api_get_subscriptions():
         """Get all available Azure subscriptions"""
         try:
@@ -751,6 +752,7 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/subscriptions/dropdown', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def api_get_subscriptions_dropdown():
         """Get subscriptions formatted for dropdown - maps to existing functionality"""
         try:
@@ -784,6 +786,7 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/subscriptions/<subscription_id>/validate', methods=['POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def api_validate_subscription_cluster(subscription_id):
         """Validate cluster access in specific subscription with auto-discovery"""
         try:
@@ -836,6 +839,7 @@ def register_api_routes(app):
             }), 500
         
     @app.route('/api/clusters/<cluster_id>/analysis-progress-stream')
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def analysis_progress_stream(cluster_id):
         """Server-Sent Events endpoint for real-time analysis progress"""
         import time
@@ -882,6 +886,7 @@ def register_api_routes(app):
         return response   
 
     @app.route('/api/chart-data')
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def api_chart_data():
         """
         Chart data API with CPU workload integration
@@ -1405,6 +1410,7 @@ def register_api_routes(app):
             }), 500
         
     @app.route('/api/clusters', methods=['GET', 'POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def api_clusters():
         """API for cluster management with subscription support"""
         try:
@@ -1624,6 +1630,7 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/clusters/<path:cluster_id>/analysis-status', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def get_cluster_analysis_status(cluster_id: str):
         """Get real-time analysis status for a cluster with subscription info"""
         try:
@@ -1781,6 +1788,7 @@ def register_api_routes(app):
             }), 500
     
     @app.route('/api/plan-costs/summary', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def get_plan_costs_summary():
         """Get Plan API cost summary"""
         try:
@@ -1835,6 +1843,7 @@ def register_api_routes(app):
     # Security endpoint removed - feature no longer needed
 
     @app.route('/api/debug-analysis')
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def debug_analysis():
         """Debug endpoint to check analysis results with subscription info"""
         try:
@@ -1896,6 +1905,7 @@ def register_api_routes(app):
 
     # CPU Optimization Plan and Report Export API Routes
     @app.route('/api/clusters/<path:cluster_id>/cpu-optimization-plan', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def generate_cpu_optimization_plan_api(cluster_id):
         """Generate CPU optimization plan with executable commands"""
         try:
@@ -2004,6 +2014,7 @@ def register_api_routes(app):
             }), 500
     
     @app.route('/api/clusters/<path:cluster_id>/cpu-optimization-script', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def export_cpu_optimization_script_api(cluster_id):
         """Export CPU optimization plan as executable bash script"""
         try:
@@ -2072,6 +2083,7 @@ def register_api_routes(app):
             }), 500
     
     @app.route('/api/clusters/<path:cluster_id>/cpu-report', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def export_cpu_report_api(cluster_id):
         """Export comprehensive CPU analysis report"""
         try:
@@ -2264,6 +2276,7 @@ def register_api_routes(app):
 
     # Cache management API routes with subscription awareness
     @app.route('/api/cache/clear', methods=['GET', 'POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def clear_analysis_cache_api():
         """Clear analysis cache for specific cluster or all clusters with subscription awareness"""
         try:
@@ -2343,6 +2356,7 @@ def register_api_routes(app):
 
     # Auto-Analysis Scheduler API endpoints
     @app.route('/api/scheduler/status', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def get_scheduler_status():
         """Get automatic analysis scheduler status"""
         try:
@@ -2360,6 +2374,7 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/scheduler/start', methods=['POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def start_scheduler():
         """Start the automatic analysis scheduler"""
         try:
@@ -2377,6 +2392,7 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/scheduler/stop', methods=['POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def stop_scheduler():
         """Stop the automatic analysis scheduler"""
         try:
@@ -2394,6 +2410,7 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/scheduler/force-analysis', methods=['POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def force_immediate_analysis():
         """Force an immediate analysis run"""
         try:
@@ -2421,6 +2438,7 @@ def register_api_routes(app):
     # ═══════════════════════════════════════════════════════════════
     
     @app.route('/api/clusters/<path:cluster_id>/plan', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def get_cluster_implementation_plan(cluster_id):
         """Get the latest implementation plan for a cluster with Claude-generated markdown content"""
         try:
@@ -2494,6 +2512,7 @@ def register_api_routes(app):
             }), 500
     
     @app.route('/api/clusters/<path:cluster_id>/plans', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def get_plan_history(cluster_id):
         """Get implementation plan history for a cluster"""
         try:
@@ -2513,6 +2532,7 @@ def register_api_routes(app):
             }), 500
     
     @app.route('/api/plans/<path:plan_id>', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def get_plan_by_id(plan_id):
         """Get a specific implementation plan by ID"""
         try:
