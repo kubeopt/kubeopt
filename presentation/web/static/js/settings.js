@@ -91,6 +91,8 @@ class SettingsPage {
             'SLACK_ENABLED': 'slack-notifications',
             'SLACK_WEBHOOK_URL': 'slack-webhook-url',
             'SLACK_CHANNEL': 'slack-channel',
+            'SLACK_COST_THRESHOLD': 'slack-cost-threshold',
+            'APP_URL': 'app-url',
             'EMAIL_ENABLED': 'email-notifications',
             'SMTP_SERVER': 'smtp-server',
             'SMTP_PORT': 'smtp-port',
@@ -99,11 +101,26 @@ class SettingsPage {
             'FROM_EMAIL': 'from-email',
             'EMAIL_RECIPIENTS': 'email-recipients',
             'COST_ALERT_THRESHOLD': 'cost-threshold',
+            'COST_CACHE_HOURS': 'cost-cache-hours',
             'ANALYSIS_REFRESH_INTERVAL': 'refresh-interval',
             'LOG_LEVEL': 'log-level',
             'PRODUCTION_MODE': 'production-mode',
             'AUTO_ANALYSIS_ENABLED': 'auto-refresh',
-            'AUTO_ANALYSIS_INTERVAL': 'auto-analysis-interval'
+            'AUTO_ANALYSIS_INTERVAL': 'auto-analysis-interval',
+            'DATABASE_CLEANUP_ENABLED': 'database-cleanup-enabled',
+            'DATABASE_CLEANUP_INTERVAL_HOURS': 'database-cleanup-interval',
+            'DATABASE_RETENTION_DAYS': 'database-retention-days',
+            'SESSION_TIMEOUT': 'session-timeout',
+            'LOCAL_DEV': 'local-dev',
+            'KUBEOPT_ENV': 'kubeopt-env',
+            'LICENSE_API_URL': 'license-api-url',
+            'PLAN_API_URL': 'plan-api-url',
+            'TEST_KEY': 'test-key',
+            'USER_PASSWORD_HASH': 'user-password-hash',
+            'USER_ROLE': 'user-role', 
+            'USER_USERNAME': 'user-username',
+            'USER_ZDOTDIR': 'user-zdotdir',
+            'KUBEOPT_LICENSE_KEY': 'license-key'
         };
         
         Object.entries(fieldMapping).forEach(([backendKey, uiFieldId]) => {
@@ -167,6 +184,24 @@ class SettingsPage {
             // Advanced - Developer Options
             localDev: 'LOCAL_DEV',
             logLevel: 'LOG_LEVEL',
+            costThreshold: 'COST_ALERT_THRESHOLD',
+            costCacheHours: 'COST_CACHE_HOURS',
+            
+            // Database Settings
+            databaseCleanupEnabled: 'DATABASE_CLEANUP_ENABLED',
+            databaseCleanupIntervalHours: 'DATABASE_CLEANUP_INTERVAL_HOURS',
+            databaseRetentionDays: 'DATABASE_RETENTION_DAYS',
+            
+            // Environment Settings  
+            kubeoptEnv: 'KUBEOPT_ENV',
+            testKey: 'TEST_KEY',
+            userPasswordHash: 'USER_PASSWORD_HASH',
+            userRole: 'USER_ROLE', 
+            userUsername: 'USER_USERNAME',
+            userZdotdir: 'USER_ZDOTDIR',
+            
+            // Slack specific settings
+            slackCostThreshold: 'SLACK_COST_THRESHOLD',
             
             // Security
             sessionTimeout: 'SESSION_TIMEOUT',
