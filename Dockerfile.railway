@@ -21,8 +21,10 @@ RUN pip install --no-cache-dir --target=/install \
     --upgrade pip setuptools wheel \
     -r requirements.txt
 
-# Add gunicorn for production server
-RUN pip install --no-cache-dir --target=/install gunicorn==21.2.0
+# Add gunicorn and gevent for production server
+RUN pip install --no-cache-dir --target=/install \
+    gunicorn==21.2.0 \
+    gevent==23.9.1
 
 # Production stage
 FROM python:3.11-slim
@@ -75,5 +77,16 @@ EXPOSE $PORT
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:$PORT/health || exit 1
 
-# Start with gunicorn for production
-CMD gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 300 --worker-class sync --access-logfile - --error-logfile - wsgi:app
+# Start with optimized gunicorn for Railway
+CMD gunicorn --bind 0.0.0.0:$PORT \
+    --workers 2 \
+    --worker-class gevent \
+    --worker-connections 1000 \
+    --timeout 120 \
+    --keep-alive 5 \
+    --max-requests 1000 \
+    --max-requests-jitter 50 \
+    --preload \
+    --access-logfile - \
+    --error-logfile - \
+    wsgi:app
