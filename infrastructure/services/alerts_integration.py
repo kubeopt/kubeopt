@@ -14,6 +14,9 @@ from flask import jsonify, request
 from shared.config.config import logger, enhanced_cluster_manager, ALERTS_AVAILABLE
 from infrastructure.services.feature_guard import require_feature, FeatureFlag
 
+# Import JWT authentication decorator
+from presentation.api.api_routes import hybrid_auth
+
 # Global alerts manager
 alerts_manager = None
 
@@ -314,6 +317,7 @@ def register_alerts_routes(app):
             }), 500
 
     @app.route('/api/alerts/<int:alert_id>/pause', methods=['POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def pause_alert_api(alert_id: int):
         """Pause/unpause alert"""
         try:
@@ -347,6 +351,7 @@ def register_alerts_routes(app):
 
     # 🆕 FREQUENCY MANAGEMENT ENDPOINTS
     @app.route('/api/alerts/frequency-configs', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def frequency_configurations_api():
         """🆕 Get available notification frequency configurations"""
         try:
@@ -438,6 +443,7 @@ def register_alerts_routes(app):
             }), 500
 
     @app.route('/api/alerts/frequency-preview', methods=['POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def frequency_preview_api():
         """🆕 Preview frequency settings and next notification times"""
         try:
@@ -502,6 +508,7 @@ def register_alerts_routes(app):
             }), 500
 
     @app.route('/api/alerts/validate-frequency', methods=['POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def validate_frequency_settings():
         """🆕 Validate frequency settings"""
         try:
@@ -601,6 +608,7 @@ def register_alerts_routes(app):
 
     # 🆕 INDIVIDUAL NOTIFICATION MANAGEMENT ENDPOINTS
     @app.route('/api/notifications/<notification_id>/mark-read', methods=['POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def mark_notification_read_api(notification_id: str):
         """Mark individual notification as read"""
         try:
@@ -633,6 +641,7 @@ def register_alerts_routes(app):
             }), 500
 
     @app.route('/api/notifications/<notification_id>/dismiss', methods=['POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def dismiss_notification_api(notification_id: str):
         """Dismiss individual notification"""
         try:
@@ -666,6 +675,7 @@ def register_alerts_routes(app):
 
     # 🆕 BULK NOTIFICATION MANAGEMENT ENDPOINT
     @app.route('/api/notifications/mark-all-read', methods=['POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def mark_all_notifications_read_api():
         """Mark all notifications as read"""
         try:
@@ -719,6 +729,7 @@ def register_alerts_routes(app):
             }), 500
 
     @app.route('/api/notifications/in-app', methods=['GET', 'POST', 'PUT'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def in_app_notifications_api():
         """Enhanced in-app notifications management"""
         try:
@@ -831,6 +842,7 @@ def register_alerts_routes(app):
 
     # 🆕 ALERT MANAGEMENT & DEBUGGING ENDPOINTS
     @app.route('/api/alerts/check-and-notify', methods=['POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def check_and_notify_alerts_api():
         """Manual alert checking and notification triggering"""
         try:
@@ -907,6 +919,7 @@ def register_alerts_routes(app):
             }), 500
 
     @app.route('/api/cluster-costs', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def cluster_costs_api():
         """Get current cluster costs for debugging"""
         try:
@@ -969,6 +982,7 @@ def register_alerts_routes(app):
 
     # 🆕 SYSTEM MANAGEMENT ENDPOINTS
     @app.route('/api/alerts/triggers', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def alert_triggers_api():
         """Get alert trigger history"""
         try:
@@ -998,6 +1012,7 @@ def register_alerts_routes(app):
             }), 500
 
     @app.route('/api/alerts/email-config', methods=['GET', 'POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def email_config_api():
         """Email configuration management"""
         try:
@@ -1040,6 +1055,7 @@ def register_alerts_routes(app):
             }), 500
 
     @app.route('/api/alerts/system-status', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def alerts_system_status():
         """Get alerts system status for debugging"""
         try:
@@ -1081,6 +1097,7 @@ def register_alerts_routes(app):
             }), 500
 
     @app.route('/api/alerts/statistics', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def alert_statistics_api():
         """Get alert statistics"""
         try:
@@ -1102,6 +1119,7 @@ def register_alerts_routes(app):
 
     # 🆕 TESTING & NOTIFICATION ENDPOINTS
     @app.route('/api/notifications/slack/test', methods=['POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def test_slack_notification():
         """Test Slack notification"""
         try:
@@ -1157,6 +1175,7 @@ def register_alerts_routes(app):
             }), 500
 
     @app.route('/api/alerts/test-trigger/<cluster_id>', methods=['POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def test_trigger_alerts(cluster_id):
         """Test alert triggering for a specific cluster - ENHANCED"""
         try:
