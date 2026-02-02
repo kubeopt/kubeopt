@@ -83,17 +83,18 @@ class SettingsPage {
     
     populateFormFields(settings) {
         // Map backend field names to UI form field IDs
+        // Support both uppercase (from env) and lowercase (from some endpoints)
         const fieldMapping = {
             'AZURE_TENANT_ID': 'azure-tenant-id',
             'AZURE_SUBSCRIPTION_ID': 'azure-subscription-id', 
             'AZURE_CLIENT_ID': 'azure-client-id',
             'AZURE_CLIENT_SECRET': 'azure-client-secret',
-            'SLACK_ENABLED': 'slack-notifications',
+            'SLACK_ENABLED': 'slack-enabled',
             'SLACK_WEBHOOK_URL': 'slack-webhook-url',
             'SLACK_CHANNEL': 'slack-channel',
             'SLACK_COST_THRESHOLD': 'slack-cost-threshold',
             'APP_URL': 'app-url',
-            'EMAIL_ENABLED': 'email-notifications',
+            'EMAIL_ENABLED': 'email-enabled',
             'SMTP_SERVER': 'smtp-server',
             'SMTP_PORT': 'smtp-port',
             'SMTP_USERNAME': 'smtp-username',
@@ -105,12 +106,14 @@ class SettingsPage {
             'ANALYSIS_REFRESH_INTERVAL': 'refresh-interval',
             'LOG_LEVEL': 'log-level',
             'PRODUCTION_MODE': 'production-mode',
-            'AUTO_ANALYSIS_ENABLED': 'auto-refresh',
+            'AUTO_ANALYSIS_ENABLED': 'auto-analysis-enabled',
             'AUTO_ANALYSIS_INTERVAL': 'auto-analysis-interval',
             'DATABASE_CLEANUP_ENABLED': 'database-cleanup-enabled',
             'DATABASE_CLEANUP_INTERVAL_HOURS': 'database-cleanup-interval',
             'DATABASE_RETENTION_DAYS': 'database-retention-days',
             'SESSION_TIMEOUT': 'session-timeout',
+            'JWT_SECRET_KEY': 'jwt-secret-key',
+            'JWT_EXPIRY_MINUTES': 'jwt-expiry-minutes',
             'LOCAL_DEV': 'local-dev',
             'KUBEOPT_ENV': 'kubeopt-env',
             'LICENSE_API_URL': 'license-api-url',
@@ -120,14 +123,26 @@ class SettingsPage {
             'USER_ROLE': 'user-role', 
             'USER_USERNAME': 'user-username',
             'USER_ZDOTDIR': 'user-zdotdir',
-            'KUBEOPT_LICENSE_KEY': 'license-key'
+            'KUBEOPT_LICENSE_KEY': 'license-key',
+            // AI Configuration
+            'AI_MODEL': 'ai-model',
+            'ANTHROPIC_API_KEY': 'anthropic-api-key',
+            'AI_ENABLE_COST_TRACKING': 'ai-cost-tracking',
+            'AI_MAX_CONTEXT_TOKENS': 'ai-max-context',
+            'AI_MAX_OUTPUT_TOKENS': 'ai-max-output',
+            'AI_MAX_RETRIES': 'ai-max-retries',
+            'AI_USE_SPLIT_MODE': 'ai-split-mode'
         };
         
         Object.entries(fieldMapping).forEach(([backendKey, uiFieldId]) => {
             const element = document.getElementById(uiFieldId);
-            const value = settings[backendKey];
             
-            if (element && value !== undefined) {
+            // Check for both uppercase (from env) and lowercase versions
+            const upperKey = backendKey;
+            const lowerKey = backendKey.toLowerCase();
+            const value = settings[upperKey] || settings[lowerKey];
+            
+            if (element && value !== undefined && value !== null) {
                 if (element.type === 'checkbox') {
                     element.checked = value === 'true' || value === true;
                 } else {
@@ -1155,25 +1170,29 @@ async function loadNotificationSettings() {
         const settings = await response.json();
         
         // Email settings
-        if (settings.email_enabled === 'true') {
-            document.getElementById('email-enabled').checked = true;
-            document.getElementById('email-config').style.display = 'block';
+        const emailCheckbox = document.getElementById('email-enabled');
+        if (emailCheckbox) {
+            // Check both uppercase (from env) and lowercase (from some endpoints)
+            emailCheckbox.checked = settings.EMAIL_ENABLED === 'true' || settings.email_enabled === 'true';
+            document.getElementById('email-config').style.display = emailCheckbox.checked ? 'block' : 'none';
         }
-        document.getElementById('smtp-server').value = settings.smtp_server || '';
-        document.getElementById('smtp-port').value = settings.smtp_port || '587';
-        document.getElementById('smtp-username').value = settings.smtp_username || '';
-        document.getElementById('from-email').value = settings.from_email || '';
-        document.getElementById('email-recipients').value = settings.email_recipients || '';
+        document.getElementById('smtp-server').value = settings.SMTP_SERVER || settings.smtp_server || '';
+        document.getElementById('smtp-port').value = settings.SMTP_PORT || settings.smtp_port || '587';
+        document.getElementById('smtp-username').value = settings.SMTP_USERNAME || settings.smtp_username || '';
+        document.getElementById('from-email').value = settings.FROM_EMAIL || settings.from_email || '';
+        document.getElementById('email-recipients').value = settings.EMAIL_RECIPIENTS || settings.email_recipients || '';
         // Don't load password for security
         
         // Slack settings
-        if (settings.slack_enabled === 'true') {
-            document.getElementById('slack-enabled').checked = true;
-            document.getElementById('slack-config').style.display = 'block';
+        const slackCheckbox = document.getElementById('slack-enabled');
+        if (slackCheckbox) {
+            // Check both uppercase (from env) and lowercase (from some endpoints)
+            slackCheckbox.checked = settings.SLACK_ENABLED === 'true' || settings.slack_enabled === 'true';
+            document.getElementById('slack-config').style.display = slackCheckbox.checked ? 'block' : 'none';
         }
-        document.getElementById('slack-webhook-url').value = settings.slack_webhook_url || '';
-        document.getElementById('slack-channel').value = settings.slack_channel || '';
-        document.getElementById('slack-cost-threshold').value = settings.slack_cost_threshold || '';
+        document.getElementById('slack-webhook-url').value = settings.SLACK_WEBHOOK_URL || settings.slack_webhook_url || '';
+        document.getElementById('slack-channel').value = settings.SLACK_CHANNEL || settings.slack_channel || '';
+        document.getElementById('slack-cost-threshold').value = settings.SLACK_COST_THRESHOLD || settings.slack_cost_threshold || '';
         
     } catch (error) {
         window.logger.error('Error loading notification settings:', error);
@@ -1187,15 +1206,37 @@ document.addEventListener('DOMContentLoaded', function() {
     const emailConfig = document.getElementById('email-config');
     const slackConfig = document.getElementById('slack-config');
     
+    // Don't set initial state here - let loadNotificationSettings handle it
+    
     // Email toggle logic
     if (emailToggle && emailConfig) {
         const emailActions = document.querySelector('#email-form .settings-actions');
         
-        emailToggle.addEventListener('change', function() {
+        emailToggle.addEventListener('change', async function() {
             const isEnabled = this.checked;
             emailConfig.style.display = isEnabled ? 'block' : 'none';
             if (emailActions) {
                 emailActions.style.display = isEnabled ? 'block' : 'none';
+            }
+            
+            // Auto-save the checkbox state
+            try {
+                const response = await fetch('/api/settings/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        key: 'EMAIL_ENABLED', 
+                        value: isEnabled ? 'true' : 'false' 
+                    })
+                });
+                
+                if (!response.ok) {
+                    console.error('Failed to save email enabled state');
+                }
+            } catch (error) {
+                console.error('Error saving email enabled state:', error);
             }
         });
         
@@ -1211,11 +1252,31 @@ document.addEventListener('DOMContentLoaded', function() {
     if (slackToggle && slackConfig) {
         const slackActions = document.querySelector('#slack-form .settings-actions');
         
-        slackToggle.addEventListener('change', function() {
+        slackToggle.addEventListener('change', async function() {
             const isEnabled = this.checked;
             slackConfig.style.display = isEnabled ? 'block' : 'none';
             if (slackActions) {
                 slackActions.style.display = isEnabled ? 'block' : 'none';
+            }
+            
+            // Auto-save the checkbox state
+            try {
+                const response = await fetch('/api/settings/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        key: 'SLACK_ENABLED', 
+                        value: isEnabled ? 'true' : 'false' 
+                    })
+                });
+                
+                if (!response.ok) {
+                    console.error('Failed to save slack enabled state');
+                }
+            } catch (error) {
+                console.error('Error saving slack enabled state:', error);
             }
         });
         
