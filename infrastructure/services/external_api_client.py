@@ -48,7 +48,7 @@ class ExternalAPIClient:
         
         # Timeout settings
         self.timeout = int(os.getenv('API_TIMEOUT', '30'))
-        self.plan_timeout = int(os.getenv('PLAN_API_TIMEOUT', '120'))  # Longer timeout for plan generation
+        self.plan_timeout = int(os.getenv('PLAN_API_TIMEOUT', '180'))  # Longer timeout for plan generation (3 minutes)
         
         # Check if we're in local development mode
         self.local_mode = os.getenv('LOCAL_DEV', 'false').lower() == 'true'
