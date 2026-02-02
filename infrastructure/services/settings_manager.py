@@ -83,8 +83,8 @@ class SettingsManager:
         # Ensure directory exists
         os.makedirs(settings_dir, exist_ok=True)
         
-        settings_file = os.path.join(settings_dir, 'customer_settings.env')  # Renamed for clarity
-        backup_file = os.path.join(settings_dir, 'customer_settings.env.backup')
+        settings_file = os.path.join(settings_dir, '.env')  # Use standard .env file
+        backup_file = os.path.join(settings_dir, '.env.backup')
         
         return settings_file, backup_file
     
@@ -120,6 +120,8 @@ class SettingsManager:
                             key = key.strip()
                             value = value.strip().strip('"\'')
                             config[key] = value  # This OVERWRITES environment values
+                            # Also update os.environ so Azure SDK and other services can access it
+                            os.environ[key] = value
                             customer_count += 1
                 logger.info(f"📄 Loaded {customer_count} customer overrides")
             else:
@@ -244,9 +246,12 @@ class SettingsManager:
             # Reload settings cache
             self.config_cache = merged_settings
             
-            # Note: Customer settings are saved to file only
-            # Environment variables (Railway/system defaults) remain unchanged
-            logger.debug("💾 Customer settings saved to file, environment defaults preserved")
+            # Update os.environ with the saved settings so Azure SDK can access them
+            for key, value in merged_settings.items():
+                os.environ[key] = str(value)
+            
+            # Note: Customer settings are saved to file and loaded into environment
+            logger.debug("💾 Settings saved to .env file and loaded into environment")
             
             # Check if auto-analysis setting changed and restart scheduler if needed
             if 'auto_analysis_enabled' in new_settings:
