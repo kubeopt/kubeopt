@@ -86,7 +86,6 @@ class SettingsPage {
         // Support both uppercase (from env) and lowercase (from some endpoints)
         const fieldMapping = {
             'AZURE_TENANT_ID': 'azure-tenant-id',
-            'AZURE_SUBSCRIPTION_ID': 'azure-subscription-id', 
             'AZURE_CLIENT_ID': 'azure-client-id',
             'AZURE_CLIENT_SECRET': 'azure-client-secret',
             'SLACK_ENABLED': 'slack-enabled',
