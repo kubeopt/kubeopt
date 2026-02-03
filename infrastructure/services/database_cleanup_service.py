@@ -54,8 +54,10 @@ class DatabaseCleanupService:
                 ("monthly_cost_trends", "month_start")
             ],
             "alerts.db": [
-                ("alert_history", "timestamp"),
-                ("notification_log", "timestamp")
+                # Don't delete the main alerts table - keep all alerts
+                # ("alerts", "created_at"),  # COMMENTED OUT - Keep all alerts
+                ("in_app_notifications", "created_at"),  # Clean old notifications
+                # Don't delete alert_triggers or notification_frequency_configs - these are settings
             ],
             "learning_data.db": [
                 ("ml_training_data", "timestamp"),

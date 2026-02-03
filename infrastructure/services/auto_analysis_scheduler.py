@@ -64,7 +64,7 @@ class AutoAnalysisScheduler:
         )
         self.scheduler_thread.start()
         
-        logger.info("🕐 Auto analysis scheduler started")
+        logger.info("Auto analysis scheduler started")
         
     def stop_scheduler(self):
         """Stop the automatic analysis scheduler"""
@@ -341,71 +341,79 @@ class AutoAnalysisScheduler:
         """
         try:
             if not cluster_id:
-                logger.error("❌ Cannot trigger analysis: cluster_id is empty")
+                logger.error("Cannot trigger analysis: cluster_id is empty")
                 return 'failed'
             
             # Clean up any stale analysis statuses before triggering
             self._cleanup_stale_analysis_statuses()
             
-            # Use internal API call to trigger analysis with authentication
-            with self.app.test_client() as client:
-                payload = {
-                    'days': 30,
-                    'enable_pod_analysis': True,
-                    'auto_triggered': True,
-                    'force_refresh': False  # Don't force refresh unless necessary
-                }
+            # Directly call the analysis function instead of using test_client
+            try:
+                logger.info(f"Triggering analysis for cluster {cluster_id}")
                 
-                logger.info(f"📤 Triggering analysis for cluster {cluster_id} with payload: {payload}")
+                # Import and use the cluster manager directly
+                from shared.config.config import enhanced_cluster_manager
+                from infrastructure.persistence.processing.analysis_engine import AnalysisEngine
                 
-                # Get API key for internal authentication
-                from infrastructure.services.api_security import api_security
-                api_key = api_security.api_key
-                
-                response = client.post(
-                    f'/api/clusters/{cluster_id}/analyze',
-                    json=payload,
-                    headers={
-                        'Content-Type': 'application/json',
-                        'X-API-Key': api_key  # 🔐 Internal authentication
-                    }
-                )
-                
-                logger.info(f"📥 API response: status={response.status_code}")
-                
-                if response.status_code == 200:
-                    data = response.get_json()
-                    status = data.get('status')
-                    message = data.get('message', 'No message')
-                    
-                    logger.info(f"📋 API response data: status={status}, message={message}")
-                    
-                    if status == 'success':
-                        return 'success'
-                    elif status == 'skipped':
-                        logger.info(f"⏸️ Analysis skipped for {cluster_id}: {message}")
-                        return 'skipped'
-                    else:
-                        logger.warning(f"❓ Unexpected API status: {status} - {message}")
-                        return 'failed'
-                        
-                elif response.status_code == 409:
-                    logger.info(f"⏸️ Analysis already running for {cluster_id}, skipping this interval")
+                # Check if analysis is already running
+                cluster_info = enhanced_cluster_manager.get_cluster(cluster_id)
+                if cluster_info and cluster_info.get('analysis_status') == 'analyzing':
+                    logger.info(f"Analysis already running for {cluster_id}, skipping")
                     return 'skipped'
-                else:
-                    try:
-                        error_data = response.get_json()
-                        error_message = error_data.get('message', 'Unknown error')
-                    except:
-                        error_message = f"HTTP {response.status_code}"
-                    
-                    logger.error(f"❌ Analysis API error: {error_message}")
-                    return 'failed'
-                    
+                
+                # Update status to analyzing
+                enhanced_cluster_manager.update_cluster_status(cluster_id, 'analyzing')
+                
+                # Create analysis engine and run analysis
+                analysis_engine = AnalysisEngine(cluster_id)
+                
+                # Run analysis in a separate thread to avoid blocking
+                import threading
+                analysis_thread = threading.Thread(
+                    target=self._run_analysis_async,
+                    args=(cluster_id, analysis_engine),
+                    daemon=True
+                )
+                analysis_thread.start()
+                
+                logger.info(f"Analysis started successfully for cluster {cluster_id}")
+                return 'success'
+                
+            except ImportError as e:
+                logger.error(f"Import error while triggering analysis: {e}")
+                logger.error("This might be due to missing dependencies in production")
+                return 'failed'
+                
         except Exception as e:
-            logger.error(f"❌ Exception while triggering cluster analysis: {e}")
-            logger.error(f"📋 Exception details: {type(e).__name__}: {str(e)}")
+            logger.error(f"Exception while triggering cluster analysis: {e}")
+            logger.error(f"Exception details: {type(e).__name__}: {str(e)}")
             return 'failed'
+    
+    def _run_analysis_async(self, cluster_id: str, analysis_engine):
+        """Run analysis asynchronously in a separate thread"""
+        try:
+            logger.info(f"Starting async analysis for cluster {cluster_id}")
+            
+            # Run the actual analysis
+            analysis_engine.run_analysis(
+                days=30,
+                enable_pod_analysis=True,
+                force_refresh=False
+            )
+            
+            # Update status when complete
+            from shared.config.config import enhanced_cluster_manager
+            enhanced_cluster_manager.update_cluster_status(cluster_id, 'completed')
+            logger.info(f"Analysis completed for cluster {cluster_id}")
+            
+        except Exception as e:
+            logger.error(f"Error in async analysis for cluster {cluster_id}: {e}")
+            # Update status to error
+            try:
+                from shared.config.config import enhanced_cluster_manager
+                enhanced_cluster_manager.update_cluster_status(cluster_id, 'error')
+            except:
+                pass
             
     def get_scheduler_status(self) -> Dict[str, Any]:
         """Get current scheduler status"""
