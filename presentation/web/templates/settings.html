@@ -445,18 +445,7 @@ Settings - AKS Cost Optimizer
                                         <p class="setting-description">Azure AD tenant ID</p>
                                     </div>
                                     <div class="setting-control">
-                                        <input type="text" name="azure_tenant_id" value="{{ config.get('AZURE_TENANT_ID', '') }}" 
-                                               class="setting-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
-                                    </div>
-                                </div>
-                                
-                                <div class="setting-item">
-                                    <div class="setting-info">
-                                        <h3 class="setting-title">Subscription ID</h3>
-                                        <p class="setting-description">Primary Azure subscription</p>
-                                    </div>
-                                    <div class="setting-control">
-                                        <input type="text" name="azure_subscription_id" value="{{ config.get('AZURE_SUBSCRIPTION_ID', '') }}" 
+                                        <input type="password" name="azure_tenant_id" value="{{ config.get('AZURE_TENANT_ID', '') }}" 
                                                class="setting-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
                                     </div>
                                 </div>
@@ -467,7 +456,7 @@ Settings - AKS Cost Optimizer
                                         <p class="setting-description">Service principal app ID</p>
                                     </div>
                                     <div class="setting-control">
-                                        <input type="text" name="azure_client_id" value="{{ config.get('AZURE_CLIENT_ID', '') }}" 
+                                        <input type="password" name="azure_client_id" value="{{ config.get('AZURE_CLIENT_ID', '') }}" 
                                                class="setting-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="username">
                                     </div>
                                 </div>
