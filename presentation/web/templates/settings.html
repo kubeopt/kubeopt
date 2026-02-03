@@ -381,7 +381,7 @@ Settings - AKS Cost Optimizer
                                             <p class="setting-description">Slack incoming webhook URL</p>
                                         </div>
                                         <div class="setting-control">
-                                            <input type="text" class="setting-input" id="slack-webhook-url" name="slack_webhook_url" placeholder="https://hooks.slack.com/services/...">
+                                            <input type="password" class="setting-input" id="slack-webhook-url" name="slack_webhook_url" placeholder="https://hooks.slack.com/services/...">
                                         </div>
                                     </div>
                                     
@@ -755,7 +755,7 @@ Settings - AKS Cost Optimizer
                                     <p class="setting-description">License validation endpoint</p>
                                 </div>
                                 <div class="setting-control">
-                                    <input type="text" name="license_api_url" id="license-api-url" class="setting-input" 
+                                    <input type="password" name="license_api_url" id="license-api-url" class="setting-input" 
                                            value="{{ config.get('LICENSE_API_URL', 'http://localhost:5002') }}" 
                                            placeholder="http://localhost:5002">
                                 </div>
@@ -767,7 +767,7 @@ Settings - AKS Cost Optimizer
                                     <p class="setting-description">Plan generation endpoint</p>
                                 </div>
                                 <div class="setting-control">
-                                    <input type="text" name="plan_api_url" id="plan-api-url" class="setting-input" 
+                                    <input type="password" name="plan_api_url" id="plan-api-url" class="setting-input" 
                                            value="{{ config.get('PLAN_API_URL', 'http://localhost:5003') }}" 
                                            placeholder="http://localhost:5003">
                                 </div>
