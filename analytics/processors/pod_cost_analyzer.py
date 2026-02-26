@@ -30,18 +30,40 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Azure VM specifications for dynamic detection
-AZURE_VM_SPECS = {
-    'Standard_B2s': {'cpu_coress': 2, 'memory_gb': 4},
-    'Standard_B4ms': {'cpu_coress': 4, 'memory_gb': 16},
-    'Standard_D2s_v3': {'cpu_coress': 2, 'memory_gb': 8},
-    'Standard_D4s_v3': {'cpu_coress': 4, 'memory_gb': 16},
-    'Standard_D8s_v3': {'cpu_coress': 8, 'memory_gb': 32},
-    'Standard_D16s_v3': {'cpu_coress': 16, 'memory_gb': 64},
-    'Standard_F4s_v2': {'cpu_coress': 4, 'memory_gb': 8},
-    'Standard_F8s_v2': {'cpu_coress': 8, 'memory_gb': 16},
-    'Standard_E4s_v3': {'cpu_coress': 4, 'memory_gb': 32},
-    'Standard_E8s_v3': {'cpu_coress': 8, 'memory_gb': 64}
+# Static fallback — used when the VM pricing service is unavailable
+_STATIC_VM_SPECS = {
+    'Standard_B2s': {'cpu_cores': 2, 'memory_gb': 4},
+    'Standard_B4ms': {'cpu_cores': 4, 'memory_gb': 16},
+    'Standard_D2s_v3': {'cpu_cores': 2, 'memory_gb': 8},
+    'Standard_D4s_v3': {'cpu_cores': 4, 'memory_gb': 16},
+    'Standard_D8s_v3': {'cpu_cores': 8, 'memory_gb': 32},
+    'Standard_D16s_v3': {'cpu_cores': 16, 'memory_gb': 64},
+    'Standard_F4s_v2': {'cpu_cores': 4, 'memory_gb': 8},
+    'Standard_F8s_v2': {'cpu_cores': 8, 'memory_gb': 16},
+    'Standard_E4s_v3': {'cpu_cores': 4, 'memory_gb': 32},
+    'Standard_E8s_v3': {'cpu_cores': 8, 'memory_gb': 64}
 }
+
+
+def get_vm_specs(vm_size: str) -> Optional[Dict]:
+    """Get VM specs (cpu_cores, memory_gb) for an Azure VM SKU.
+
+    Tries the naming-convention parser first (covers all SKUs), then
+    falls back to the static lookup table.
+    """
+    try:
+        from infrastructure.services.vm_pricing_service import _parse_vm_specs
+        specs = _parse_vm_specs(vm_size)
+        if specs:
+            return specs
+    except ImportError:
+        pass
+
+    return _STATIC_VM_SPECS.get(vm_size)
+
+
+# Keep AZURE_VM_SPECS as a public alias for backward compatibility
+AZURE_VM_SPECS = _STATIC_VM_SPECS
 
 
 @dataclass

@@ -14,7 +14,7 @@ Centralized Kubernetes Data Cache Manager
 import concurrent.futures
 import json
 import logging
-import subprocess
+import os
 import time
 import re
 from datetime import datetime, timedelta
@@ -58,13 +58,15 @@ class KubernetesDataCache:
             "deployments_essential": 600, "hpa": 600,
             "deployments": 600, "replicasets": 600,
             
-            # === SEMI-STATIC (15 min) - Infrastructure ===
-            "nodes_essential": 900, "services_essential": 900,
-            "nodes": 900, "services": 900,
+            # === DYNAMIC INFRASTRUCTURE (2 min) - Nodes can scale dynamically ===
+            "nodes_essential": 120, "nodes": 120,
             
-            # === STATIC (30 min) - Storage, namespaces ===
-            "pvc_essential": 1800, "storage_complete": 1800,
-            "namespaces": 1800, "pvcs": 1800, "storage_classes": 1800,
+            # === SEMI-STATIC (5 min) - Services (reduced from 15 min) ===
+            "services_essential": 300, "services": 300,
+            
+            # === STATIC (10 min) - Storage, namespaces (reduced from 30 min) ===
+            "pvc_essential": 600, "storage_complete": 600,
+            "namespaces": 600, "pvcs": 600, "storage_classes": 600,
             
             # === MOSTLY STATIC (1 hour) - Config, RBAC ===
             "config_resources": 3600, "security_basic": 3600,
@@ -308,12 +310,15 @@ class KubernetesDataCache:
             "storage_complete": '''kubectl get pv,storageclass -o custom-columns="KIND:.kind,NAME:.metadata.name,SIZE:.spec.capacity.storage,STATUS:.status.phase,CLASS:.spec.storageClassName" --no-headers 2>/dev/null || echo ""''',
             
             # BATCH 9: Critical events (last 100 warnings/errors)
+            # NOTE: Collected for future anomaly detection / alerts integration. Not yet consumed by analysis_engine.
             "events_critical": '''kubectl get events --all-namespaces --field-selector type!=Normal -o custom-columns='NAMESPACE:.metadata.namespace,TYPE:.type,REASON:.reason,MESSAGE:.message,COUNT:.count,LAST:.lastTimestamp' --no-headers 2>/dev/null | head -100 || echo ""''',
-            
+
             # BATCH 10: ConfigMaps and Secrets metadata (no data content)
+            # NOTE: Collected for future configuration drift detection. Not yet consumed by analysis_engine.
             "config_resources": '''kubectl get configmaps,secrets --all-namespaces -o custom-columns='KIND:.kind,NAMESPACE:.metadata.namespace,NAME:.metadata.name,TYPE:.type,AGE:.metadata.creationTimestamp' --no-headers 2>/dev/null | head -500 || echo ""''',
-            
+
             # BATCH 11: Security basics (network policies, service accounts, quotas)
+            # NOTE: Collected for future security tab. Not yet consumed by analysis_engine.
             "security_basic": '''kubectl get networkpolicies,serviceaccounts,resourcequotas,limitranges --all-namespaces -o custom-columns='KIND:.kind,NAMESPACE:.metadata.namespace,NAME:.metadata.name' --no-headers 2>/dev/null || echo ""''',
             
             # BATCH 12: Metrics - CRITICAL for real-time CPU data (prefer over HPA metrics)
@@ -394,7 +399,7 @@ class KubernetesDataCache:
             "resource_quota_default": "kubectl get resourcequota -n default",
             "limit_ranges": "kubectl get limitranges --all-namespaces -o json",
             # Optimized: Get metadata only, never actual secret data (95% reduction)
-            "secrets": '''kubectl get secrets --all-namespaces -o custom-columns="NS:.metadata.namespace,NAME:.metadata.name,TYPE:.type,DATA-COUNT:.data" --no-headers | awk '{gsub(/map\[/, "", $4); gsub(/\]/, "", $4); n=split($4,a," "); print $1","$2","$3","n}' ''',
+            "secrets": '''kubectl get secrets --all-namespaces -o custom-columns="NS:.metadata.namespace,NAME:.metadata.name,TYPE:.type,DATA-COUNT:.data" --no-headers | awk '{gsub(/map\\[/, "", $4); gsub(/\\]/, "", $4); n=split($4,a," "); print $1","$2","$3","n}' ''',
             # === RECOMMENDED ALTERNATIVES (Broader queries instead of specific failing ones) ===
             "namespaces_with_labels": "kubectl get ns --show-labels",  # Alternative to PSP - check Pod Security Admission labels
             "all_namespaces_list": "kubectl get ns",  # Alternative to specific namespace queries - filter results
@@ -405,7 +410,7 @@ class KubernetesDataCache:
             # Optimized: Get only Warning/Error events from last hour (95% reduction)
             "events": '''kubectl get events --all-namespaces --field-selector=type!=Normal --sort-by='.lastTimestamp' -o custom-columns="NS:.metadata.namespace,TYPE:.type,REASON:.reason,MESSAGE:.message,COUNT:.count,LAST:.lastTimestamp" --no-headers | head -100''',
             # Optimized: Get configmap metadata only (90% reduction)
-            "configmaps": '''kubectl get configmaps --all-namespaces -o custom-columns="NS:.metadata.namespace,NAME:.metadata.name,DATA-COUNT:.data,AGE:.metadata.creationTimestamp" --no-headers | awk '{gsub(/map\[/, "", $3); gsub(/\]/, "", $3); n=split($3,a," "); print $1","$2","n","$4}' ''',
+            "configmaps": '''kubectl get configmaps --all-namespaces -o custom-columns="NS:.metadata.namespace,NAME:.metadata.name,DATA-COUNT:.data,AGE:.metadata.creationTimestamp" --no-headers | awk '{gsub(/map\\[/, "", $3); gsub(/\\]/, "", $3); n=split($3,a," "); print $1","$2","n","$4}' ''',
             "applications": "kubectl get applications --all-namespaces -o json",  # ArgoCD
             "api_resources": "kubectl api-resources --output=wide",  # For config fetcher
             "api_versions": "kubectl api-versions",  # For config fetcher
@@ -582,7 +587,8 @@ class KubernetesDataCache:
             except Exception as e:
                 logger.warning(f"⚠️ {self.cluster_name}: Azure replacement failed for '{cmd[:50]}...', falling back to kubectl: {e}")
         
-        # Fall back to SDK-based kubectl execution
+        # Always use server-side execution via begin_run_command() (ARM API)
+        # Works for ALL AKS clusters: AAD, local RBAC, public, private
         return self._execute_kubectl_via_sdk(cmd, timeout)
     
     def _execute_kubectl_via_sdk(self, cmd: str, timeout: int = None) -> Optional[str]:
@@ -856,6 +862,8 @@ class KubernetesDataCache:
         except Exception as e:
             logger.error(f"❌ {self.cluster_name}: Failed to extract kubectl output from Azure CLI response: {e}")
             return None
+    
+
     def fetch_all_data(self, force_refresh: bool = False) -> Dict[str, Any]:
         """
         Fetch kubernetes data with SMART SELECTIVE CACHING
@@ -1434,11 +1442,35 @@ class KubernetesDataCache:
         
         # Create kubectl_data structure that analysis_engine expects
         # The analysis_engine specifically looks for kubectl_data['pods'] and kubectl_data['namespaces']
+        # Also include services, storage, and other resources for dashboard features
+        # Standardize all kubectl_data values as plain lists for consistent downstream access
         kubectl_data = {}
         if 'pods' in final_results:
-            kubectl_data['pods'] = {"items": final_results['pods']}
+            kubectl_data['pods'] = final_results['pods']  # Already a list
         if 'namespaces' in final_results:
-            kubectl_data['namespaces'] = {"items": final_results['namespaces']}
+            kubectl_data['namespaces'] = final_results['namespaces']  # Already a list
+        if 'services' in final_results:
+            kubectl_data['services'] = final_results['services']  # Already a list
+        if 'pvcs' in final_results:
+            kubectl_data['persistentvolumeclaims'] = final_results['pvcs']  # Already a list
+        if 'ingress_resources' in results:
+            ing_data = results['ingress_resources']
+            if isinstance(ing_data, dict) and 'items' in ing_data:
+                kubectl_data['ingress'] = ing_data['items']
+            elif isinstance(ing_data, list):
+                kubectl_data['ingress'] = ing_data
+            else:
+                kubectl_data['ingress'] = []
+        # Storage data from raw batch results
+        if 'storage_complete' in results:
+            sc_data = results['storage_complete']
+            # Unwrap {"items": [...]} if needed
+            if isinstance(sc_data, dict) and 'items' in sc_data:
+                kubectl_data['storage_volumes'] = sc_data['items']
+            elif isinstance(sc_data, list):
+                kubectl_data['storage_volumes'] = sc_data
+            else:
+                kubectl_data['storage_volumes'] = []
         
         if kubectl_data:
             final_results['kubectl_data'] = kubectl_data
@@ -1489,7 +1521,23 @@ class KubernetesDataCache:
     # === QUERY INTERFACE FOR COMPONENTS ===
     
     def get(self, key: str) -> Any:
-        """Get any data by key"""
+        """Get any data by key with automatic cache invalidation on cluster changes"""
+        
+        # Check for cluster state changes before returning cached data
+        # This ensures cache is invalidated when external cluster changes occur
+        if hasattr(self, '_detect_cluster_state_changes'):
+            try:
+                cluster_state_changed = self._detect_cluster_state_changes()
+                if cluster_state_changed:
+                    logger.info(f"🔄 {self.cluster_name}: Cluster state changes detected via get() - invalidating cache")
+                    # Clear all cached data and timestamps to force refresh
+                    self.data.clear()
+                    self.cache_timestamps.clear()
+                    # Fetch fresh data
+                    self.fetch_all_data(force_refresh=True)
+            except Exception as e:
+                logger.debug(f"⚠️ {self.cluster_name}: Cluster state change detection in get() failed: {e}")
+        
         return self.data.get(key)
     
     def _ensure_json_format(self, key: str) -> Dict[str, Any]:

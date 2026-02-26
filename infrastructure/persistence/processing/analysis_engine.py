@@ -1220,53 +1220,29 @@ class MultiSubscriptionAnalysisEngine:
         """Extract node pool details from analysis data"""
         try:
             node_pools = []
-            
-            # Extract from node metrics if available
-            node_metrics = basic_analysis.get('node_metrics', [])
-            if not node_metrics:
-                node_metrics = basic_analysis.get('nodes', [])
-            
-            if node_metrics:
-                # Create a synthetic node pool from aggregated node data
-                total_nodes = len(node_metrics)
-                if total_nodes > 0:
-                    # Calculate averages
-                    total_cpu = sum(node.get('cpu_usage_percent', 0) for node in node_metrics)
-                    total_memory = sum(node.get('memory_usage_percent', 0) for node in node_metrics)
-                    avg_cpu = total_cpu / total_nodes
-                    avg_memory = total_memory / total_nodes
-                    
-                    # Estimate node cost (distribute total node cost across nodes)
-                    node_cost = basic_analysis.get('node_cost', 0)
-                    
-                    node_pool = {
-                        "name": "nodepool1",  # Default name
-                        "vm_sku": "Standard_D4s_v3",  # Default SKU
-                        "node_count": total_nodes,
-                        "min_count": max(1, total_nodes - 2),
-                        "max_count": total_nodes + 3,
-                        "cpu_cores_per_node": 4,  # Default
-                        "memory_gb_per_node": 16,  # Default
-                        "utilization": {
-                            "cpu_percentage": round(avg_cpu, 1),
-                            "memory_percentage": round(avg_memory, 1),
-                            "avg_cpu_last_7d": round(avg_cpu, 1),
-                            "avg_memory_last_7d": round(avg_memory, 1),
-                            "peak_cpu_last_7d": round(max(node.get('cpu_usage_percent', 0) for node in node_metrics), 1),
-                            "peak_memory_last_7d": round(max(node.get('memory_usage_percent', 0) for node in node_metrics), 1)
-                        },
-                        "monthly_cost": round(node_cost, 2),
-                        "workload_type": "user",
-                        "spot_enabled": False,
-                        "taints": []
+
+            # Primary source: agent_pool_profiles from AKS cluster info (Azure SDK)
+            aks_info = basic_analysis.get('aks_cluster_info', {})
+            if aks_info and 'agent_pool_profiles' in aks_info:
+                for pool in aks_info['agent_pool_profiles']:
+                    pool_info = {
+                        "name": pool.get('name', 'unknown'),
+                        "vm_sku": pool.get('vm_size', 'unknown'),
+                        "node_count": pool.get('count', 0),
+                        "min_count": pool.get('min_count'),
+                        "max_count": pool.get('max_count'),
+                        "spot_enabled": pool.get('enable_auto_scaling', False),
+                        "os_type": pool.get('os_type'),
+                        "mode": pool.get('mode'),
+                        "scale_set_priority": pool.get('scale_set_priority'),
                     }
-                    node_pools.append(node_pool)
-            
+                    node_pools.append(pool_info)
+
             if not node_pools:
-                raise ValueError("No node pool data available in analysis")
-            
+                raise ValueError("No node pool data available in analysis (aks_cluster_info missing agent_pool_profiles)")
+
             return node_pools
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to get node pool details: {e}")
             raise ValueError(f"Failed to extract node pool details: {e}") from e
@@ -1309,38 +1285,73 @@ class MultiSubscriptionAnalysisEngine:
             total_monthly_savings = 0.0
             efficiency_scores = []
             utilization_categories = {"idle": 0, "low": 0, "moderate": 0, "high": 0, "critical": 0}
-            
-            # Process each node
+
+            # Extract cluster region for real-time VM pricing
+            cluster_region = None
+            try:
+                aks_info = basic_analysis.get('aks_cluster_info', {})
+                if isinstance(aks_info, dict):
+                    cluster_region = aks_info.get('location')
+                if not cluster_region:
+                    cluster_region = self._extract_cluster_location(basic_analysis)
+            except Exception:
+                logger.debug("Could not extract cluster region for VM pricing, will use static fallback")
+
+            # Group nodes by VM size (pool-level analysis)
+            pools = {}
             for node_metric in node_metrics:
+                vm_size = node_metric.get('vm_size', 'unknown')
+                if vm_size not in pools:
+                    pools[vm_size] = []
+                pools[vm_size].append(node_metric)
+
+            # Process each pool (not each node)
+            for vm_size, pool_nodes in pools.items():
                 try:
-                    # Analyze node utilization
-                    utilization_analysis = node_optimizer.analyze_node_utilization(node_metric)
-                    
-                    # Calculate efficiency score
-                    efficiency_score = node_optimizer.calculate_node_efficiency_score(node_metric)
-                    efficiency_scores.append(efficiency_score)
-                    
-                    # Count utilization categories
-                    cpu_category = utilization_analysis.get('cpu_category', 'moderate')
-                    if cpu_category in utilization_categories:
-                        utilization_categories[cpu_category] += 1
-                    
-                    # Generate VM size recommendations (mock available VM sizes for now)
-                    available_vm_sizes = self._get_available_vm_sizes()
+                    # Calculate per-node efficiency scores for summary stats
+                    for node_metric in pool_nodes:
+                        try:
+                            efficiency_score = node_optimizer.calculate_node_efficiency_score(node_metric)
+                            efficiency_scores.append(efficiency_score)
+                            utilization_analysis = node_optimizer.analyze_node_utilization(node_metric)
+                            cpu_category = utilization_analysis.get('cpu_category', 'moderate')
+                            if cpu_category in utilization_categories:
+                                utilization_categories[cpu_category] += 1
+                        except Exception:
+                            continue
+
+                    # Average utilization across the pool for recommendations
+                    avg_cpu = sum(n.get('cpu_usage_pct', 0) for n in pool_nodes) / len(pool_nodes)
+                    avg_memory = sum(n.get('memory_usage_pct', 0) for n in pool_nodes) / len(pool_nodes)
+                    representative_node = dict(pool_nodes[0])
+                    representative_node['cpu_usage_pct'] = avg_cpu
+                    representative_node['memory_usage_pct'] = avg_memory
+
+                    # Generate ONE set of recommendations per pool
+                    utilization_analysis = node_optimizer.analyze_node_utilization(representative_node)
+                    available_vm_sizes = self._get_available_vm_sizes(region=cluster_region)
                     recommendations = node_optimizer.generate_vm_size_recommendations(
                         utilization_analysis, available_vm_sizes
                     )
-                    
-                    # Add recommendations with node context
+
+                    pool_efficiency = sum(efficiency_scores[-len(pool_nodes):]) / len(pool_nodes) if pool_nodes else 0
+
                     for rec in recommendations:
                         rec['cluster_id'] = cluster_id
-                        rec['node_name'] = node_metric.get('node_name', 'unknown')
-                        rec['efficiency_score'] = efficiency_score
+                        rec['node_pool_vm'] = vm_size
+                        rec['node_count'] = len(pool_nodes)
+                        rec['node_names'] = [n.get('node_name', 'unknown') for n in pool_nodes]
+                        rec['node_name'] = f"{vm_size} ({len(pool_nodes)} nodes)"
+                        rec['efficiency_score'] = pool_efficiency
+                        rec['avg_cpu_pct'] = round(avg_cpu, 1)
+                        rec['avg_memory_pct'] = round(avg_memory, 1)
+                        # Scale savings by node count
+                        rec['monthly_savings'] = rec.get('monthly_savings', 0.0) * len(pool_nodes)
                         all_recommendations.append(rec)
                         total_monthly_savings += rec.get('monthly_savings', 0.0)
-                        
-                except Exception as node_error:
-                    logger.warning(f"Failed to analyze node {node_metric.get('node_name', 'unknown')}: {node_error}")
+
+                except Exception as pool_error:
+                    logger.warning(f"Failed to analyze pool {vm_size}: {pool_error}")
                     continue
             
             # Calculate summary statistics
@@ -1388,12 +1399,28 @@ class MultiSubscriptionAnalysisEngine:
             logger.error(f"❌ Failed to get node optimization data: {e}")
             raise ValueError(f"Failed to generate node optimization data: {e}") from e
     
-    def _get_available_vm_sizes(self) -> List[dict]:
+    def _get_available_vm_sizes(self, region: str = None) -> List[dict]:
         """
-        Get available VM sizes with pricing data
-        NOTE: This is a simplified version. In production, this should query Azure API
+        Get available Azure VM sizes with pricing for right-sizing recommendations.
+        Uses the Azure Retail Prices API for real-time, region-accurate pricing.
+        Falls back to a static list if the API is unavailable.
+
+        Args:
+            region: Azure region name (e.g. 'westeurope', 'eastus'). If provided,
+                    fetches real-time pricing for that region.
         """
-        # Mock data for common Azure VM sizes (should be replaced with real API call)
+        if region:
+            try:
+                from infrastructure.services.vm_pricing_service import VMPricingService
+                pricing = VMPricingService()
+                prices = pricing.get_vm_prices(region)
+                if prices:
+                    return prices
+            except Exception as e:
+                logger.warning(f"Azure pricing API unavailable ({e}), using static fallback")
+
+        # Fallback: static prices (approximate West Europe Linux pay-as-you-go)
+        logger.warning("Using static VM pricing fallback (may be inaccurate for non-West-Europe regions)")
         return [
             {"vm_size": "Standard_B2s", "cost_per_hour": 0.041, "cpu_cores": 2, "memory_gb": 4},
             {"vm_size": "Standard_B2ms", "cost_per_hour": 0.083, "cpu_cores": 2, "memory_gb": 8},
@@ -1545,15 +1572,9 @@ class MultiSubscriptionAnalysisEngine:
                     if isinstance(item, dict) and "amount" in item and "timestamp" in item:
                         cost_history.append(item)
         
-        # If no direct cost history, create synthetic data from current analysis
+        # Return only real cost history
         if not cost_history:
-            current_cost = basic_analysis.get("total_cost", 0)
-            if current_cost > 0:
-                # Create a simple cost point for current analysis
-                cost_history.append({
-                    "amount": current_cost,
-                    "timestamp": basic_analysis.get("analysis_timestamp", datetime.now().isoformat())
-                })
+            logger.info("No real cost history found - returning empty list")
         
         return cost_history
     
@@ -1778,6 +1799,9 @@ class MultiSubscriptionAnalysisEngine:
                 if not actual_memory_request:
                     optimization_reasons.append("no_memory_requests")
                     
+                # Compute cost split ratio from actual resource requests
+                cpu_cost_ratio = self._compute_cpu_cost_ratio(actual_cpu_request, actual_memory_request)
+
                 workload_detail = {
                     "namespace": namespace,
                     "name": workload_name,
@@ -1800,18 +1824,16 @@ class MultiSubscriptionAnalysisEngine:
                     ),
                     "cost_estimate": {
                         "monthly_cost": round(monthly_cost, 2),
-                        "cpu_cost": round(monthly_cost * 0.6, 2),
-                        "memory_cost": round(monthly_cost * 0.4, 2),
+                        "cpu_cost": round(monthly_cost * cpu_cost_ratio, 2) if monthly_cost > 0 else 0.0,
+                        "memory_cost": round(monthly_cost * (1.0 - cpu_cost_ratio), 2) if monthly_cost > 0 else 0.0,
                         "storage_cost": 0.0
                     },
                     "traffic_pattern": {
                         "pattern_type": pattern_type,
-                        "confidence": get_standards_loader().get_confidence_and_risk_factors()['confidence_threshold'],
-                        "peak_hours": [9, 10, 11, 14, 15, 16] if pattern_type == "BURSTY" else [],
-                        "scaling_events_last_7d": 15 if has_hpa else 0
+                        "confidence": get_standards_loader().get_confidence_and_risk_factors()['confidence_threshold']
                     },
                     "priority": workload.get('severity', 'medium'),
-                    "environment": "production",  # Default
+                    "environment": self._infer_environment_from_namespace(namespace),
                     "last_updated": datetime.now().isoformat(),
                     "optimization_candidate": is_optimization_candidate,
                     "optimization_reasons": optimization_reasons
@@ -1998,7 +2020,11 @@ class MultiSubscriptionAnalysisEngine:
             
             if not all_workloads:
                 all_workloads = basic_analysis.get('all_workloads_preserved', [])
-            
+
+            # Get workload costs for savings estimation
+            pod_cost_analysis = basic_analysis.get('pod_cost_analysis', {})
+            workload_costs = pod_cost_analysis.get('workload_costs', {})
+
             # Generate opportunities from workload analysis
             for workload in all_workloads:
                 if not isinstance(workload, dict):
@@ -2008,42 +2034,51 @@ class MultiSubscriptionAnalysisEngine:
                 namespace = workload.get('namespace', 'default')
                 workload_type = workload.get('type', 'unknown')
                 
+                # Look up workload cost from pod_cost_analysis if available
+                workload_cost_key = f"{namespace}/{workload_name}"
+                workload_monthly_cost = 0
+                if workload_cost_key in workload_costs:
+                    wc = workload_costs[workload_cost_key]
+                    if isinstance(wc, dict):
+                        workload_monthly_cost = wc.get('cost', 0)
+
                 # High CPU detected workloads
                 if 'high_cpu' in workload_type:
+                    # Estimate 20% savings from right-sizing over-utilized workloads
+                    estimated_savings = round(workload_monthly_cost * 0.20, 2) if workload_monthly_cost > 0 else None
                     opportunities.append({
                         "type": "right_sizing",
                         "workload": workload_name,
                         "namespace": namespace,
                         "description": f"Workload {workload_name} showing high CPU utilization patterns",
-                        "current_state": "High CPU utilization detected",
+                        "current_state": f"High CPU utilization detected" + (f", monthly cost: ${workload_monthly_cost:.2f}" if workload_monthly_cost > 0 else ""),
                         "recommended_action": f"kubectl patch deployment {workload_name} -n {namespace} --type='merge' -p PATCH_SPEC_FOR_RIGHTSIZING",
-                        "potential_monthly_savings": 25.50,
+                        "potential_monthly_savings": estimated_savings,
                         "implementation_difficulty": "low",
                         "risk_level": "low",
                         "estimated_implementation_time": "15min",
                         "category": "workload_rightsizing"
                     })
-                
+
                 # HPA opportunities
                 if 'hpa' not in workload_type.lower() and workload.get('cpu_utilization', 0) > 50:
+                    # Estimate 15% savings from HPA-based auto-scaling
+                    estimated_savings = round(workload_monthly_cost * 0.15, 2) if workload_monthly_cost > 0 else None
                     opportunities.append({
                         "type": "horizontal_scaling",
                         "workload": workload_name,
                         "namespace": namespace,
                         "description": f"Workload {workload_name} could benefit from Horizontal Pod Autoscaling",
-                        "current_state": "No HPA configured",
+                        "current_state": f"No HPA configured" + (f", monthly cost: ${workload_monthly_cost:.2f}" if workload_monthly_cost > 0 else ""),
                         "recommended_action": f"kubectl autoscale deployment {workload_name} -n {namespace} --cpu-percent=70 --min=1 --max=10",
-                        "potential_monthly_savings": 15.75,
+                        "potential_monthly_savings": estimated_savings,
                         "implementation_difficulty": "low",
                         "risk_level": "low",
                         "estimated_implementation_time": "10min",
                         "category": "auto_scaling_optimization"
                     })
             
-            # Method 3: Generate from cost analysis 
-            pod_cost_analysis = basic_analysis.get('pod_cost_analysis', {})
-            workload_costs = pod_cost_analysis.get('workload_costs', {})
-            
+            # Method 3: Generate from cost analysis
             # Find high-cost workloads without resource requests
             for workload_key, cost_data in workload_costs.items():
                 if isinstance(cost_data, dict) and cost_data.get('cost', 0) > 20:
@@ -2210,46 +2245,56 @@ class MultiSubscriptionAnalysisEngine:
         return top_storage
     
     def _get_storage_details(self, cluster_id: str, basic_analysis: dict) -> List[dict]:
-        """Extract storage volume details"""
+        """Extract storage volume details from real kubectl data only"""
         try:
             storage_volumes = []
             
-            # Try to extract storage info from basic analysis
-            storage_cost = basic_analysis.get('storage_cost', 0)
+            # Get real kubectl data - NO fake data generation
+            kubectl_data = basic_analysis.get('kubectl_data', {})
             
-            if storage_cost > 0:
-                # Create synthetic storage entries based on cost
-                estimated_volumes = max(1, int(storage_cost / 20))  # Assume ~$20/volume average
-                
-                for i in range(min(estimated_volumes, 5)):  # Limit to 5 synthetic volumes
-                    volume = {
-                        "pvc_name": f"data-volume-{i+1}",
-                        "namespace": "default",
-                        "storage_class": "managed-premium",
-                        "size": {
-                            "requested_gb": 100,
-                            "used_gb": 67.3,
-                            "utilization_percentage": 67.3
-                        },
-                        "monthly_cost": round(storage_cost / estimated_volumes, 2),
-                        "performance_tier": "Premium_LRS",
-                        "last_accessed": datetime.now().isoformat(),
-                        "attached_workload": {
-                            "name": f"workload-{i+1}",
-                            "namespace": "default",
-                            "type": "StatefulSet"
-                        },
-                        "backup_enabled": True,
-                        "snapshot_count": 7,
-                        "iops_usage": {
-                            "avg_read_iops": 150,
-                            "avg_write_iops": 89,
-                            "peak_iops": 450
-                        },
-                        "optimization_candidate": False
-                    }
-                    storage_volumes.append(volume)
+            # Extract PersistentVolumeClaims if available
+            if 'persistentvolumeclaims' in kubectl_data:
+                pvc_data = kubectl_data['persistentvolumeclaims']
+                if isinstance(pvc_data, str) and pvc_data.strip():
+                    # Parse the kubectl output for PVC data
+                    for line in pvc_data.strip().split('\n')[1:]:  # Skip header
+                        if line.strip():
+                            parts = line.split()
+                            if len(parts) >= 6:
+                                volume = {
+                                    "pvc_name": parts[0],
+                                    "namespace": basic_analysis.get('namespace', 'default'),
+                                    "status": parts[1],
+                                    "volume": parts[2] if parts[2] != '<none>' else None,
+                                    "capacity": parts[3],
+                                    "access_modes": parts[4],
+                                    "storage_class": parts[5] if len(parts) > 5 else 'unknown',
+                                    "age": parts[6] if len(parts) > 6 else 'unknown'
+                                }
+                                storage_volumes.append(volume)
             
+            # Extract storage volumes data if available
+            elif 'storage_volumes' in kubectl_data:
+                storage_data = kubectl_data['storage_volumes']
+                if isinstance(storage_data, str) and storage_data.strip():
+                    # Parse the kubectl storage output
+                    for line in storage_data.strip().split('\n')[1:]:  # Skip header
+                        if line.strip():
+                            parts = line.split()
+                            if len(parts) >= 4:
+                                volume = {
+                                    "pvc_name": parts[0],
+                                    "namespace": parts[1] if len(parts) > 1 else 'default',
+                                    "capacity": parts[2] if len(parts) > 2 else 'unknown',
+                                    "storage_class": parts[3] if len(parts) > 3 else 'unknown',
+                                    "status": parts[4] if len(parts) > 4 else 'unknown'
+                                }
+                                storage_volumes.append(volume)
+                elif isinstance(storage_data, list):
+                    # If storage_data is already parsed as list
+                    storage_volumes.extend(storage_data)
+            
+            logger.info(f"📦 Found {len(storage_volumes)} real storage volumes (no fake data)")
             return storage_volumes
             
         except Exception as e:
@@ -2332,19 +2377,11 @@ class MultiSubscriptionAnalysisEngine:
                             "target_utilization": target_cpu
                         }
                     ],
-                    "scaling_events": {
-                        "last_7d": 15 if is_high_cpu else 5,
-                        "last_24h": 3 if is_high_cpu else 1,
-                        "scale_up_events": 10 if is_high_cpu else 3,
-                        "scale_down_events": 5 if is_high_cpu else 2
+                    "health_indicators": {
+                        "cpu_at_target": abs(current_cpu - target_cpu) < 15 if current_cpu and target_cpu else None,
+                        "at_max_replicas": hpa.get('current_replicas') == hpa.get('max_replicas'),
+                        "at_min_replicas": hpa.get('current_replicas') == hpa.get('min_replicas')
                     },
-                    "performance_metrics": {
-                        "effectiveness_score": 4.0 if is_high_cpu else 7.5,
-                        "avg_response_time_ms": 200 if is_high_cpu else 125,
-                        "stability_score": 0.6 if is_high_cpu else 0.85,  # Risk-based scoring
-                        "cost_efficiency": 0.4 if is_high_cpu else 0.75  # Efficiency based on CPU state
-                    },
-                    "last_scale_time": datetime.now().isoformat(),
                     "status": "Active"
                 }
                 
@@ -2376,53 +2413,65 @@ class MultiSubscriptionAnalysisEngine:
                 all_namespaces = {'default', 'kube-system'}
             
             total_cost = basic_analysis.get('total_cost', 0)
-            
+
+            # Build per-namespace resource counts from real kubectl data
+            kubectl_data = basic_analysis.get('kubectl_data', {})
+            ns_pod_counts = {}
+            ns_svc_counts = {}
+            ns_pvc_counts = {}
+            ns_cpu_requests = {}
+            ns_memory_requests = {}
+            ns_cpu_limits = {}
+            ns_memory_limits = {}
+
+            # Count pods per namespace
+            pods = kubectl_data.get('pods', [])
+            if isinstance(pods, list):
+                for pod in pods:
+                    if isinstance(pod, dict):
+                        ns = pod.get('namespace', 'default')
+                        ns_pod_counts[ns] = ns_pod_counts.get(ns, 0) + 1
+
+            # Count services per namespace
+            services = kubectl_data.get('services', [])
+            if isinstance(services, list):
+                for svc in services:
+                    if isinstance(svc, dict):
+                        ns = svc.get('namespace', 'default')
+                        ns_svc_counts[ns] = ns_svc_counts.get(ns, 0) + 1
+
+            # Count PVCs per namespace
+            pvcs = kubectl_data.get('persistentvolumeclaims', [])
+            if isinstance(pvcs, list):
+                for pvc in pvcs:
+                    if isinstance(pvc, dict):
+                        ns = pvc.get('namespace', 'default')
+                        ns_pvc_counts[ns] = ns_pvc_counts.get(ns, 0) + 1
+
             for ns_name in all_namespaces:
-                if ns_name in ['kube-system', 'kube-public', 'kube-node-lease']:
-                    env_type = "system"
-                elif 'prod' in ns_name.lower():
-                    env_type = "production"
-                elif 'staging' in ns_name.lower() or 'uat' in ns_name.lower():
-                    env_type = "staging"
-                elif 'dev' in ns_name.lower():
-                    env_type = "development"
-                else:
-                    env_type = "production"
-                
-                ns_cost = namespace_costs.get(ns_name, total_cost / len(all_namespaces))
-                workload_count = workload_ns_breakdown.get(ns_name, 1)
-                
+                env_type = self._infer_environment_from_namespace(ns_name)
+
+                ns_cost = namespace_costs.get(ns_name, total_cost / len(all_namespaces) if all_namespaces else 0)
+                workload_count = workload_ns_breakdown.get(ns_name, 0)
+
                 namespace = {
                     "name": ns_name,
                     "labels": {
-                        "environment": env_type,
-                        "managed-by": "kubeopt"
+                        "environment": env_type
                     },
                     "resource_usage": {
-                        "pod_count": workload_count * 2,  # Estimate
+                        "pod_count": ns_pod_counts.get(ns_name, 0),
                         "deployment_count": workload_count,
-                        "service_count": max(1, workload_count - 1),
-                        "pvc_count": max(0, workload_count // 2),
-                        "cpu_requests_total": f"{workload_count * 500}m",
-                        "memory_requests_total": f"{workload_count * 512}Mi",
-                        "cpu_limits_total": f"{workload_count * 1000}m",
-                        "memory_limits_total": f"{workload_count * 1024}Mi",
-                        "cpu_usage_avg": get_cpu_target()['optimal'] - 5,  # Slightly below optimal
-                        "memory_usage_avg": get_memory_target()['optimal']
+                        "service_count": ns_svc_counts.get(ns_name, 0),
+                        "pvc_count": ns_pvc_counts.get(ns_name, 0)
                     },
                     "monthly_cost_estimate": {
-                        "total": round(ns_cost, 2),
-                        "compute": round(ns_cost * 0.7, 2),  # 70% compute allocation (standard distribution)
-                        "storage": round(ns_cost * 0.2, 2),
-                        "networking": round(ns_cost * 0.1, 2)
+                        "total": round(ns_cost, 2)
                     },
                     "environment_type": env_type,
-                    "team_owner": self._validate_team_owner(ns_name),
-                    "cost_center": "engineering",
-                    "optimization_score": int(get_cpu_target()['optimal'] + 5),  # Base score from optimal CPU + buffer
-                    "inefficiencies": ["missing_resource_limits"] if env_type != "system" else []
+                    "team_owner": self._validate_team_owner(ns_name)
                 }
-                
+
                 namespaces.append(namespace)
             
             logger.info(f"✅ Extracted {len(namespaces)} namespace summaries")
@@ -2433,51 +2482,58 @@ class MultiSubscriptionAnalysisEngine:
             return []
     
     def _get_network_resources(self, cluster_id: str, basic_analysis: dict) -> dict:
-        """Extract network resource information"""
+        """Extract network resource information from real kubectl data"""
         try:
             networking_cost = basic_analysis.get('networking_cost', 0)
-            
+            kubectl_data = basic_analysis.get('kubectl_data', {})
+
+            # Extract real LoadBalancer services
+            load_balancers = []
+            public_ips = []
+            services = kubectl_data.get('services', [])
+            if isinstance(services, list):
+                for svc in services:
+                    if isinstance(svc, dict) and svc.get('type') == 'LoadBalancer':
+                        lb_name = svc.get('name', 'unknown')
+                        external_ip = svc.get('external_ip', '')
+                        load_balancers.append({
+                            "name": lb_name,
+                            "namespace": svc.get('namespace', 'default'),
+                            "type": "Standard",
+                            "external_ip": external_ip,
+                            "ports": svc.get('ports', ''),
+                        })
+                        if external_ip and external_ip not in ('<none>', '<pending>', ''):
+                            public_ips.append({
+                                "name": f"{lb_name}-ip",
+                                "ip_address": external_ip,
+                                "allocation_method": "Static",
+                                "attached_to": lb_name,
+                            })
+
+            # Extract real ingress resources from kubectl_data
+            ingress_resources = []
+            ingress_data = kubectl_data.get('ingress', [])
+            if isinstance(ingress_data, list):
+                for ing in ingress_data:
+                    if isinstance(ing, dict):
+                        ingress_resources.append({
+                            "name": ing.get('name', 'unknown'),
+                            "namespace": ing.get('namespace', 'default'),
+                            "hosts": ing.get('hosts', ''),
+                            "backend": ing.get('backend', ''),
+                        })
+
             network_resources = {
-                "public_ips": [
-                    {
-                        "name": "aks-ingress-ip",
-                        "ip_address": "20.123.45.67",
-                        "allocation_method": "Static",
-                        "monthly_cost": round(networking_cost * 0.05, 2),
-                        "attached_to": "ingress-nginx-controller",
-                        "usage_gb_last_30d": 1250.5,
-                        "utilization": "medium"
-                    }
-                ] if networking_cost > 0 else [],
-                "load_balancers": [
-                    {
-                        "name": "kubernetes",
-                        "type": "Standard", 
-                        "monthly_cost": round(networking_cost * 0.3, 2),
-                        "rule_count": 12,
-                        "backend_pool_count": 6,
-                        "data_processed_gb": 2340.7,
-                        "associated_services": ["ingress-nginx-controller", "api-gateway-service"]
-                    }
-                ] if networking_cost > 0 else [],
-                "ingress_resources": [
-                    {
-                        "name": "api-ingress",
-                        "namespace": "default",
-                        "controller": "nginx",
-                        "tls_enabled": True,
-                        "rule_count": 8,
-                        "monthly_requests": 2450000,
-                        "avg_response_time_ms": 145
-                    }
-                ] if networking_cost > 0 else [],
+                "public_ips": public_ips,
+                "load_balancers": load_balancers,
+                "ingress_resources": ingress_resources,
                 "total_network_cost": networking_cost,
-                "egress_cost": round(networking_cost * 0.6, 2),
-                "ingress_cost": round(networking_cost * 0.1, 2)
             }
-            
+
+            logger.info(f"📡 Found {len(load_balancers)} load balancers, {len(public_ips)} public IPs, {len(ingress_resources)} ingress resources (real data)")
             return network_resources
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to get network resources: {e}")
             return {
@@ -2539,29 +2595,21 @@ class MultiSubscriptionAnalysisEngine:
                         "workload": workload_ref,
                         "utilization_details": {
                             "avg_cpu_utilization": cpu_util,
-                            "avg_memory_utilization": 40.0,
-                            "replica_efficiency": 0.3,
-                            "idle_time_percentage": 80.0,  # Standard idle threshold
-                            "scaling_opportunity": True
+                            "scaling_opportunity": not has_hpa
                         },
-                        "recommendations": ["reduce_replicas", "implement_hpa"]
+                        "recommendations": ["reduce_replicas", "implement_hpa"] if not has_hpa else ["reduce_replicas"]
                     })
-                
+
                 # Missing HPA candidates
                 if not has_hpa and cpu_util > 50 and cpu_util < 300:
                     missing_hpa_candidates.append({
                         "workload": workload_ref,
-                        "hpa_suitability": {
-                            "traffic_variability": 0.7,  # Moderate traffic variability
-                            "scaling_potential": 0.8,  # High scaling potential
-                            "stateless_score": 0.9,  # Most workloads are stateless
-                            "estimated_savings": 25.0,
-                            "recommended_hpa_config": {
-                                "min_replicas": 1,
-                                "max_replicas": 5,
-                                "target_cpu": get_hpa_config()['target_cpu_utilization'],
-                                "target_memory": get_hpa_config()['target_memory_utilization']
-                            }
+                        "current_cpu_utilization": cpu_util,
+                        "recommended_hpa_config": {
+                            "min_replicas": 1,
+                            "max_replicas": 5,
+                            "target_cpu": get_hpa_config()['target_cpu_utilization'],
+                            "target_memory": get_hpa_config()['target_memory_utilization']
                         }
                     })
             
@@ -2576,7 +2624,6 @@ class MultiSubscriptionAnalysisEngine:
                 "orphaned_resources": orphaned_resources,
                 "summary": {
                     "total_optimization_opportunities": total_opportunities,
-                    "total_potential_monthly_savings": len(missing_hpa_candidates) * 25.0,
                     "high_priority_count": high_priority,
                     "medium_priority_count": total_opportunities - high_priority,
                     "low_priority_count": 0
@@ -2603,7 +2650,18 @@ class MultiSubscriptionAnalysisEngine:
             }
     
     def _get_analysis_metadata(self, basic_analysis: dict) -> dict:
-        """Generate analysis metadata"""
+        """Generate analysis metadata from actual data availability"""
+        # Determine which data sources actually provided data
+        has_cost_data = basic_analysis.get('total_cost', 0) > 0
+        has_kubectl_data = bool(basic_analysis.get('kubectl_data', {}))
+        has_metrics = bool(basic_analysis.get('current_cpu_utilization') or basic_analysis.get('current_memory_utilization'))
+
+        # Compute metrics completeness from actual data fields present
+        expected_fields = ['total_cost', 'kubectl_data', 'current_cpu_utilization', 'current_memory_utilization',
+                          'pod_cost_analysis', 'hpa_recommendations', 'namespace_costs']
+        present_fields = sum(1 for f in expected_fields if basic_analysis.get(f))
+        metrics_completeness = round(present_fields / len(expected_fields), 2) if expected_fields else 0
+
         return {
             "schema_version": "2.0.0",
             "collection_timestamp": datetime.now().isoformat(),
@@ -2613,18 +2671,78 @@ class MultiSubscriptionAnalysisEngine:
                 "metrics_lookback_days": 7
             },
             "data_sources": {
-                "azure_cost_management": True,
-                "prometheus_metrics": True,
-                "kubernetes_api": True,
-                "azure_monitor": True
+                "azure_cost_management": has_cost_data,
+                "kubernetes_api": has_kubectl_data,
+                "azure_monitor": has_metrics
             },
             "collection_confidence": {
                 "overall_score": basic_analysis.get('analysis_confidence', get_standards_loader().get_confidence_and_risk_factors()['confidence_threshold']),
                 "cost_data_quality": basic_analysis.get('data_quality_score', 10.0) / 10.0,
-                "metrics_completeness": 0.85,  # Standard metrics completeness score
+                "metrics_completeness": metrics_completeness,
                 "workload_coverage": min(1.0, len(basic_analysis.get('all_workloads_preserved', [])) / 50.0)
             }
         }
+
+    def _compute_cpu_cost_ratio(self, cpu_request: str, memory_request: str) -> float:
+        """Compute CPU cost ratio from actual resource requests. Returns proportion of cost attributable to CPU."""
+        if not cpu_request and not memory_request:
+            return 0.5  # No data — equal split
+
+        # Convert CPU request to millicores
+        cpu_millicores = 0
+        if cpu_request:
+            cpu_str = str(cpu_request).strip()
+            try:
+                if cpu_str.endswith('m'):
+                    cpu_millicores = float(cpu_str[:-1])
+                else:
+                    cpu_millicores = float(cpu_str) * 1000
+            except (ValueError, TypeError):
+                cpu_millicores = 0
+
+        # Convert memory to MiB
+        memory_mib = 0
+        if memory_request:
+            mem_str = str(memory_request).strip()
+            try:
+                if mem_str.endswith('Gi'):
+                    memory_mib = float(mem_str[:-2]) * 1024
+                elif mem_str.endswith('Mi'):
+                    memory_mib = float(mem_str[:-2])
+                elif mem_str.endswith('Ki'):
+                    memory_mib = float(mem_str[:-2]) / 1024
+                else:
+                    memory_mib = float(mem_str) / (1024 * 1024)  # bytes to MiB
+            except (ValueError, TypeError):
+                memory_mib = 0
+
+        if cpu_millicores == 0 and memory_mib == 0:
+            return 0.5
+
+        # Azure pricing approximation: ~$0.05/vCPU-hour, ~$0.005/GiB-hour
+        # So 1000m CPU ≈ $0.05, 1024 MiB ≈ $0.005
+        cpu_cost = (cpu_millicores / 1000) * 0.05
+        memory_cost = (memory_mib / 1024) * 0.005
+        total = cpu_cost + memory_cost
+
+        if total == 0:
+            return 0.5
+        return min(0.95, max(0.05, cpu_cost / total))  # Clamp to 5-95%
+
+    def _infer_environment_from_namespace(self, namespace: str) -> str:
+        """Infer environment type from namespace name."""
+        ns_lower = namespace.lower()
+        if any(kw in ns_lower for kw in ['prod', 'prd', 'live']):
+            return "production"
+        elif any(kw in ns_lower for kw in ['staging', 'stg', 'uat', 'preprod', 'pre-prod']):
+            return "staging"
+        elif any(kw in ns_lower for kw in ['dev', 'develop', 'sandbox']):
+            return "development"
+        elif any(kw in ns_lower for kw in ['test', 'qa', 'testing']):
+            return "testing"
+        elif ns_lower in ('kube-system', 'kube-public', 'kube-node-lease'):
+            return "system"
+        return "unknown"
 
     def _parse_pod_resources(self, pod_resources_text: str) -> Dict[str, Dict]:
         """Parse kubectl pod resources output to extract actual resource specifications"""
@@ -2871,15 +2989,19 @@ class MultiSubscriptionAnalysisEngine:
         """Count actual pods from kubectl data"""
         try:
             kubectl_data = basic_analysis.get('kubectl_data', {})
-            pods = kubectl_data.get('pods', {})
-            
-            if isinstance(pods, dict) and 'items' in pods:
+            pods = kubectl_data.get('pods', [])
+
+            # Handle both list (standardized) and legacy dict {"items": [...]} formats
+            if isinstance(pods, list):
+                pod_count = len(pods)
+            elif isinstance(pods, dict) and 'items' in pods:
                 pod_count = len(pods['items'])
+            else:
+                pod_count = 0
+
+            if pod_count > 0:
                 logger.info(f"✅ Counted {pod_count} pods from kubectl data")
-                return pod_count
-            
-            logger.warning("⚠️ No kubectl pods data found")
-            return 0
+            return pod_count
         except Exception as e:
             logger.error(f"❌ Failed to count kubectl pods: {e}")
             return 0
@@ -2888,15 +3010,19 @@ class MultiSubscriptionAnalysisEngine:
         """Count actual namespaces from kubectl data"""
         try:
             kubectl_data = basic_analysis.get('kubectl_data', {})
-            namespaces = kubectl_data.get('namespaces', {})
-            
-            if isinstance(namespaces, dict) and 'items' in namespaces:
+            namespaces = kubectl_data.get('namespaces', [])
+
+            # Handle both list (standardized) and legacy dict {"items": [...]} formats
+            if isinstance(namespaces, list):
+                ns_count = len(namespaces)
+            elif isinstance(namespaces, dict) and 'items' in namespaces:
                 ns_count = len(namespaces['items'])
+            else:
+                ns_count = 0
+
+            if ns_count > 0:
                 logger.info(f"✅ Counted {ns_count} namespaces from kubectl data")
-                return ns_count
-            
-            logger.warning("⚠️ No kubectl namespaces data found")
-            return 0
+            return ns_count
         except Exception as e:
             logger.error(f"❌ Failed to count kubectl namespaces: {e}")
             return 0

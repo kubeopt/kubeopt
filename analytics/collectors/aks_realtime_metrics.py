@@ -1127,30 +1127,6 @@ class AKSRealTimeMetricsFetcher:
         logger.warning(f"No usage data found for node {node_name}")
         return None
     
-    def _safe_kubectl_command(self, cmd: str, timeout: int = 60) -> Optional[str]:
-        """Execute kubectl command safely."""
-        try:
-            result = subprocess.run(
-                cmd,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=timeout
-            )
-            
-            if result.returncode == 0:
-                return result.stdout
-            else:
-                logger.error(f"kubectl command failed: {result.stderr}")
-                return None
-                
-        except subprocess.TimeoutExpired:
-            logger.error(f"kubectl command timed out: {cmd}")
-            return None
-        except Exception as e:
-            logger.error(f"Failed to execute kubectl: {e}")
-            return None
-    
     def _validate_ml_metrics(self, metrics: Dict):
         """Validate ML metrics structure per .clauderc."""
         required_fields = ['nodes', 'all_workloads', 'top_cpu_summary', 'hpa_implementation']
