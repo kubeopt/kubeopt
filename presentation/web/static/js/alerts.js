@@ -503,14 +503,79 @@ window.Alerts = (function() {
      */
     function showAlertDetails(alertId) {
         if (!alertId) return;
-        
-        window.logger.debug('Show alert details for:', alertId);
-        
-        if (window.showToast) {
-            window.showToast('Alert details view coming soon!', 'info');
+
+        const alerts = currentAlerts?.alerts || [];
+        const alert = alerts.find(a => a.id === alertId);
+        if (!alert) {
+            if (window.showToast) window.showToast('Alert not found', 'error');
+            return;
         }
-        
-        // TODO: Implement alert details modal/page
+
+        const severity = (alert.severity || 'info').toLowerCase();
+        const status = (alert.status || 'active').toLowerCase();
+        const isActive = status === 'active';
+        const created = alert.created_at ? new Date(alert.created_at).toLocaleString() : 'Unknown';
+        const updated = alert.updated_at ? new Date(alert.updated_at).toLocaleString() : '--';
+
+        // Build modal
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.id = 'alert-details-modal';
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+        overlay.innerHTML = `
+            <div class="modal-content" style="max-width: 520px;">
+                <div class="modal-header">
+                    <h3><i class="fas fa-bell"></i> Alert Details</h3>
+                    <button class="modal-close" onclick="document.getElementById('alert-details-modal').remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                        <span class="alert-status ${isActive ? 'alert-status-active' : 'alert-status-paused'}">${isActive ? 'Active' : 'Paused'}</span>
+                        <span class="severity-badge severity-${severity}">${severity.toUpperCase()}</span>
+                    </div>
+                    <h4 style="margin: 0 0 8px 0;">${escapeHtml(alert.name || alert.title || 'Untitled Alert')}</h4>
+                    <p style="color: var(--text-secondary); margin: 0 0 20px 0;">${escapeHtml(alert.description || alert.message || 'No description')}</p>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                        <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                            <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 4px;">Condition</div>
+                            <div style="font-weight: 600;">${escapeHtml(alert.metric || '--')} ${escapeHtml(alert.operator || '')} ${alert.threshold != null ? alert.threshold : '--'}</div>
+                        </div>
+                        <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                            <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 4px;">Notification</div>
+                            <div style="font-weight: 600;">${escapeHtml(alert.notification_frequency || alert.frequency || 'Default')}</div>
+                        </div>
+                        <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                            <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 4px;">Created</div>
+                            <div style="font-weight: 600;">${created}</div>
+                        </div>
+                        <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px;">
+                            <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 4px;">Last Updated</div>
+                            <div style="font-weight: 600;">${updated}</div>
+                        </div>
+                    </div>
+
+                    ${alert.email ? `<div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; margin-bottom: 20px;">
+                        <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 4px;">Notification Email</div>
+                        <div style="font-weight: 600;">${escapeHtml(alert.email)}</div>
+                    </div>` : ''}
+
+                    <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                        <button class="btn-secondary" onclick="editAlert('${alertId}'); document.getElementById('alert-details-modal').remove();">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn-secondary" style="color: var(--danger);" onclick="deleteAlert('${alertId}'); document.getElementById('alert-details-modal').remove();">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
     }
 
     /**

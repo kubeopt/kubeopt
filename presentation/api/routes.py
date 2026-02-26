@@ -9,6 +9,7 @@ Project: AKS Cost Optimizer - Clean Architecture
 Updated Flask Routes for Multi-Subscription AKS Cost Optimization Tool
 """
 
+import re
 import subprocess
 import traceback
 import sys
@@ -198,11 +199,35 @@ def register_routes(app):
             return render_template('error.html', error=str(e))
 
 
+    # Azure resource names: alphanumeric, hyphens, underscores, periods (max 63 chars)
+    _AZURE_NAME_RE = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$')
+    _SUBSCRIPTION_RE = re.compile(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+
+    def _validate_azure_name(name: str, field: str = "name") -> str | None:
+        """Validate Azure resource name. Returns error message or None if valid."""
+        if not name or not _AZURE_NAME_RE.match(name):
+            return f"Invalid {field}: must be 1-63 alphanumeric characters, hyphens, underscores, or periods"
+        return None
+
+    def _validate_subscription_id(sub_id: str) -> str | None:
+        """Validate Azure subscription ID format. Returns error message or None if valid."""
+        if not sub_id or not _SUBSCRIPTION_RE.match(sub_id):
+            return f"Invalid subscription ID format"
+        return None
+
     @app.route('/analyze/<subscription_id>/<cluster_name>')
     @auth_manager.require_auth
     def analyze_cluster(subscription_id, cluster_name):
         """Enhanced cluster analysis with multi-subscription support"""
         try:
+            # Validate inputs
+            err = _validate_subscription_id(subscription_id)
+            if err:
+                return jsonify({'status': 'error', 'message': err}), 400
+            err = _validate_azure_name(cluster_name, 'cluster name')
+            if err:
+                return jsonify({'status': 'error', 'message': err}), 400
+
             session_key = f"{subscription_id}_{cluster_name}"
             
             # Check if analysis is already running
