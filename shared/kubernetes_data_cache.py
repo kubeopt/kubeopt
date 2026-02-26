@@ -15,7 +15,6 @@ import concurrent.futures
 import json
 import logging
 import os
-import subprocess
 import time
 import re
 from datetime import datetime, timedelta
@@ -311,12 +310,15 @@ class KubernetesDataCache:
             "storage_complete": '''kubectl get pv,storageclass -o custom-columns="KIND:.kind,NAME:.metadata.name,SIZE:.spec.capacity.storage,STATUS:.status.phase,CLASS:.spec.storageClassName" --no-headers 2>/dev/null || echo ""''',
             
             # BATCH 9: Critical events (last 100 warnings/errors)
+            # NOTE: Collected for future anomaly detection / alerts integration. Not yet consumed by analysis_engine.
             "events_critical": '''kubectl get events --all-namespaces --field-selector type!=Normal -o custom-columns='NAMESPACE:.metadata.namespace,TYPE:.type,REASON:.reason,MESSAGE:.message,COUNT:.count,LAST:.lastTimestamp' --no-headers 2>/dev/null | head -100 || echo ""''',
-            
+
             # BATCH 10: ConfigMaps and Secrets metadata (no data content)
+            # NOTE: Collected for future configuration drift detection. Not yet consumed by analysis_engine.
             "config_resources": '''kubectl get configmaps,secrets --all-namespaces -o custom-columns='KIND:.kind,NAMESPACE:.metadata.namespace,NAME:.metadata.name,TYPE:.type,AGE:.metadata.creationTimestamp' --no-headers 2>/dev/null | head -500 || echo ""''',
-            
+
             # BATCH 11: Security basics (network policies, service accounts, quotas)
+            # NOTE: Collected for future security tab. Not yet consumed by analysis_engine.
             "security_basic": '''kubectl get networkpolicies,serviceaccounts,resourcequotas,limitranges --all-namespaces -o custom-columns='KIND:.kind,NAMESPACE:.metadata.namespace,NAME:.metadata.name' --no-headers 2>/dev/null || echo ""''',
             
             # BATCH 12: Metrics - CRITICAL for real-time CPU data (prefer over HPA metrics)
@@ -585,7 +587,8 @@ class KubernetesDataCache:
             except Exception as e:
                 logger.warning(f"⚠️ {self.cluster_name}: Azure replacement failed for '{cmd[:50]}...', falling back to kubectl: {e}")
         
-        # Fall back to SDK-based kubectl execution
+        # Always use server-side execution via begin_run_command() (ARM API)
+        # Works for ALL AKS clusters: AAD, local RBAC, public, private
         return self._execute_kubectl_via_sdk(cmd, timeout)
     
     def _execute_kubectl_via_sdk(self, cmd: str, timeout: int = None) -> Optional[str]:
@@ -1439,11 +1442,35 @@ class KubernetesDataCache:
         
         # Create kubectl_data structure that analysis_engine expects
         # The analysis_engine specifically looks for kubectl_data['pods'] and kubectl_data['namespaces']
+        # Also include services, storage, and other resources for dashboard features
+        # Standardize all kubectl_data values as plain lists for consistent downstream access
         kubectl_data = {}
         if 'pods' in final_results:
-            kubectl_data['pods'] = {"items": final_results['pods']}
+            kubectl_data['pods'] = final_results['pods']  # Already a list
         if 'namespaces' in final_results:
-            kubectl_data['namespaces'] = {"items": final_results['namespaces']}
+            kubectl_data['namespaces'] = final_results['namespaces']  # Already a list
+        if 'services' in final_results:
+            kubectl_data['services'] = final_results['services']  # Already a list
+        if 'pvcs' in final_results:
+            kubectl_data['persistentvolumeclaims'] = final_results['pvcs']  # Already a list
+        if 'ingress_resources' in results:
+            ing_data = results['ingress_resources']
+            if isinstance(ing_data, dict) and 'items' in ing_data:
+                kubectl_data['ingress'] = ing_data['items']
+            elif isinstance(ing_data, list):
+                kubectl_data['ingress'] = ing_data
+            else:
+                kubectl_data['ingress'] = []
+        # Storage data from raw batch results
+        if 'storage_complete' in results:
+            sc_data = results['storage_complete']
+            # Unwrap {"items": [...]} if needed
+            if isinstance(sc_data, dict) and 'items' in sc_data:
+                kubectl_data['storage_volumes'] = sc_data['items']
+            elif isinstance(sc_data, list):
+                kubectl_data['storage_volumes'] = sc_data
+            else:
+                kubectl_data['storage_volumes'] = []
         
         if kubectl_data:
             final_results['kubectl_data'] = kubectl_data

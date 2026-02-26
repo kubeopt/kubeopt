@@ -31,6 +31,9 @@
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
+    <!-- Kubernetes Dashboard CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/kubernetes-dashboard.css') }}">
+    
     <!-- Centralized Logging Utility (load first) -->
     <script src="{{ url_for('static', filename='js/logger.js') }}"></script>
     
@@ -194,6 +197,8 @@
     <script src="{{ url_for('static', filename='js/chart-manager.js') }}"></script>
     <script src="{{ url_for('static', filename='js/implementation-plan.js') }}"></script>
     <script src="{{ url_for('static', filename='js/alerts.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/kubernetes-charts.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/kubernetes-dashboard.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     
