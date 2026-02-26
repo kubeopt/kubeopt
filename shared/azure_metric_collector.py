@@ -435,7 +435,21 @@ class AzureMetricCollector:
                 "sku": {
                     "name": cluster.sku.name if cluster.sku else None,
                     "tier": cluster.sku.tier if cluster.sku else None
-                }
+                },
+                "agent_pool_profiles": [
+                    {
+                        "name": pool.name,
+                        "vm_size": pool.vm_size,
+                        "count": pool.count,
+                        "min_count": pool.min_count,
+                        "max_count": pool.max_count,
+                        "enable_auto_scaling": pool.enable_auto_scaling,
+                        "os_type": pool.os_type,
+                        "mode": pool.mode,
+                        "scale_set_priority": getattr(pool, 'scale_set_priority', None),
+                    }
+                    for pool in (cluster.agent_pool_profiles or [])
+                ]
             }
             
             result = {

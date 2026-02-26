@@ -26,6 +26,7 @@ def register_auth_routes(app):
     
     # Settings API endpoints (must be before login route)
     @app.route('/api/settings/save', methods=['POST'])
+    @auth_manager.require_auth  # 🚨 SECURITY FIX
     def save_single_setting():
         """Save a single setting via auto-save"""
         try:
@@ -87,6 +88,7 @@ def register_auth_routes(app):
             return jsonify({'error': str(e)}), 500
     
     @app.route('/api/settings', methods=['GET', 'POST'])
+    @auth_manager.require_auth  # 🚨 CRITICAL SECURITY FIX
     def settings_api():
         """Get or update settings as JSON"""
         if request.method == 'GET':
@@ -94,22 +96,43 @@ def register_auth_routes(app):
                 from infrastructure.services.settings_manager import settings_manager
                 settings = settings_manager.get_all_settings()
                 
-                # Add license info
+                # 🚨 SECURITY: Filter out ALL sensitive data
+                safe_settings = {}
+                for key, value in settings.items():
+                    key_lower = key.lower()
+                    # Exclude passwords, secrets, keys, tokens
+                    if any(sensitive in key_lower for sensitive in [
+                        'password', 'secret', 'key', 'token', 'auth', 'credential',
+                        'smtp_password', 'azure_client_secret', 'slack_webhook_url', 
+                        'webhook_url', 'api_key', 'kubeopt_license_key'
+                    ]):
+                        # Show masked version for UI feedback
+                        if value and len(value) > 4:
+                            safe_settings[key] = f"{value[:4]}{'*' * (len(value) - 4)}"
+                        elif value:
+                            safe_settings[key] = '***'
+                        else:
+                            safe_settings[key] = ''
+                    else:
+                        safe_settings[key] = value
+                
+                # Add license info (non-sensitive parts only)
                 from infrastructure.services.license_validator import get_license_validator
                 validator = get_license_validator()
                 license_info = validator.get_license_info()
                 
-                # Mask sensitive values
-                if 'kubeopt_license_key' in settings:
-                    key = settings.get('kubeopt_license_key', '')
-                    if key and len(key) > 10:
-                        settings['license_key'] = f"{key[:10]}...****"
-                    else:
-                        settings['license_key'] = key
+                # Only include non-sensitive license info
+                safe_license_info = {
+                    'tier': license_info.get('tier', 'NONE'),
+                    'tier_display': license_info.get('tier_display', 'Free'),
+                    'expires': license_info.get('expires', ''),
+                    'valid': license_info.get('valid', False)
+                    # Exclude: license_key, api_endpoints, etc.
+                }
                 
                 return jsonify({
-                    **settings,
-                    'license': license_info
+                    **safe_settings,
+                    'license': safe_license_info
                 })
             except Exception as e:
                 logger.error(f"Error getting settings: {e}")
@@ -605,7 +628,25 @@ def register_auth_routes(app):
             return jsonify({'success': False, 'message': 'Admin access required'})
         
         try:
-            result = settings_manager.test_slack_integration()
+            # Extract Slack settings from form data (like Azure test)
+            webhook_url = request.form.get('slack_webhook_url', '').strip()
+            channel = request.form.get('slack_channel', '').strip()
+            
+            # Fall back to saved settings if form data not provided
+            if not webhook_url:
+                webhook_url = settings_manager.get_setting('SLACK_WEBHOOK_URL')
+            if not channel:
+                channel = settings_manager.get_setting('SLACK_CHANNEL', '#general')
+            
+            # Validate webhook URL
+            if not webhook_url or webhook_url == 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK':
+                return jsonify({
+                    'success': False, 
+                    'message': 'Please enter a valid Slack webhook URL to test integration'
+                })
+            
+            # Test with provided/saved values
+            result = settings_manager.test_slack_integration_with_values(webhook_url, channel)
             return jsonify(result)
         except Exception as e:
             logger.error(f"Error testing Slack: {e}")

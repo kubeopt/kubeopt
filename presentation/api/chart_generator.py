@@ -367,6 +367,20 @@ def generate_insights(analysis_results):
             storage_enhancement = storage_cost * 0.08  # Additional 8% from advanced cleanup
             enhanced_optimizations.append(f"Advanced storage cleanup: ${storage_enhancement:.0f}/month")
         
+        # CRITICAL: Monitoring cost optimization (often the largest cost component)
+        monitoring_cost = analysis_results.get('monitoring_cost', 0)
+        if monitoring_cost > 10:  # If monitoring costs are significant
+            monitoring_percentage = (monitoring_cost / total_cost) * 100 if total_cost > 0 else 0
+            if monitoring_percentage > 50:  # CRITICAL: Over 50% monitoring costs
+                # Industry optimal is 5-15% of total cost for monitoring
+                optimal_monitoring = total_cost * 0.10  # 10% target
+                monitoring_savings = max(0, monitoring_cost - optimal_monitoring)
+                enhanced_optimizations.append(f"🚨 CRITICAL monitoring optimization: ${monitoring_savings:.0f}/month")
+                logger.info(f"💡 MONITORING INSIGHT: Added monitoring optimization insight: ${monitoring_savings:.0f}/month from {monitoring_percentage:.1f}% current vs 10% optimal")
+            elif monitoring_percentage > 20:  # Moderate monitoring costs
+                monitoring_savings = monitoring_cost * 0.25  # 25% typical savings
+                enhanced_optimizations.append(f"Monitoring optimization: ${monitoring_savings:.0f}/month")
+        
         # Add to savings summary if we found opportunities
         if enhanced_optimizations:
             advanced_text = ", ".join(enhanced_optimizations[:3])  # Show top 3
@@ -912,32 +926,11 @@ def _extract_hpa_state_data(analysis_data):
                             hpa_state['existing_hpas'] = existing_hpas
                             logger.info(f"✅ Found {len(existing_hpas)} HPAs in metrics_data.hpa_implementation")
                         else:
-                            # No detailed HPA data but we have HPA implementation info
+                            # No real HPA data found - return empty list
                             total_hpas = hpa_implementation.get('total_hpas', 0)
                             if total_hpas > 0:
-                                # Generate synthetic HPA entries for chart display
-                                logger.info(f"🔧 Generating synthetic HPA data for {total_hpas} HPAs")
-                                existing_hpas = []
-                                for i in range(min(total_hpas, 10)):  # Limit to 10 for display
-                                    synthetic_hpa = {
-                                        'namespace': f'namespace-{i+1}',
-                                        'name': f'hpa-{i+1}',
-                                        'current_replicas': 2,  # Reasonable default
-                                        'min_replicas': 1,
-                                        'max_replicas': 10,
-                                        'hpa_id': f'namespace-{i+1}/hpa-{i+1}',
-                                        'hpa_type': 'mixed',  # Use mixed for synthetic HPAs since distribution shows Mixed=228
-                                        'spec': {
-                                            'minReplicas': 1,
-                                            'maxReplicas': 10
-                                        },
-                                        'status': {
-                                            'currentReplicas': 2
-                                        }
-                                    }
-                                    existing_hpas.append(synthetic_hpa)
-                                hpa_state['existing_hpas'] = existing_hpas
-                                logger.info(f"✅ Generated {len(existing_hpas)} synthetic HPAs from total count")
+                                logger.info(f"📊 Found {total_hpas} HPAs in metadata but no detailed HPA data - returning empty list")
+                            hpa_state['existing_hpas'] = []
                         
                         # Extract summary info
                         if total_hpas > 0:
@@ -1075,7 +1068,7 @@ def _generate_ml_driven_scenarios(workload_type: str, primary_action: str, ml_co
     # NO FALLBACK LOGIC - Only use real HPA data
     if not hpa_implementation:
         logger.error("❌ No real HPA implementation data found in analysis")
-        raise ValueError("No real HPA implementation data available - refusing to use synthetic/static data")
+        raise ValueError("No real HPA implementation data available")
     
     # This check is redundant since we already raised above, but keep for safety
     if not hpa_implementation:
@@ -1114,7 +1107,7 @@ def _generate_ml_driven_scenarios(workload_type: str, primary_action: str, ml_co
     logger.info(f"🔍 Real cluster data: {current_replicas_data['total_hpas']} HPAs, avg {current_replicas_data['current_avg']} replicas")
     logger.info(f"🔍 HPA distribution: {current_replicas_data['cpu_based_count']} CPU-based, {current_replicas_data['memory_based_count']} Memory-based")
     
-    # ENTERPRISE: Use REAL HPA replica data instead of synthetic scenarios
+    # ENTERPRISE: Use REAL HPA replica data
     cpu_replicas, memory_replicas = _extract_real_replica_arrays_for_chart(current_replicas_data, analysis_data)
     
     # Calculate recommendation based on real data
@@ -1435,10 +1428,15 @@ def _calculate_believable_scaling_scenarios(cpu_hpas, memory_hpas, mixed_hpas, t
         cpu_hpas, mixed_hpas, avg_current, time_scenarios, total_hpas, analysis_data
     )
     
-    # Calculate Memory-based scaling strategy using time patterns  
-    memory_replicas = _calculate_memory_time_based_pattern(
-        memory_hpas, mixed_hpas, avg_current, time_scenarios, total_hpas, analysis_data
-    )
+    # Calculate Memory-based scaling strategy using time patterns (only if Memory/Mixed HPAs exist)
+    if memory_hpas or mixed_hpas:
+        memory_replicas = _calculate_memory_time_based_pattern(
+            memory_hpas, mixed_hpas, avg_current, time_scenarios, total_hpas, analysis_data
+        )
+        logger.info(f"✅ Calculated memory-based scaling patterns for {len(memory_hpas)} Memory + {len(mixed_hpas)} Mixed HPAs")
+    else:
+        logger.info("ℹ️ No Memory/Mixed HPAs found - skipping memory-based scaling calculations")
+        memory_replicas = [0, 0, 0, 0]  # Default pattern for 4 time periods (night/morning/afternoon/evening)
     
     # Calculate Mixed strategy using max() approach from hpa_test.py (enterprise best practice)
     mixed_replicas = _calculate_mixed_enterprise_strategy(

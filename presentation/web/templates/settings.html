@@ -77,6 +77,7 @@ Settings - AKS Cost Optimizer
                             <span>Azure Integration</span>
                         </a>
                     </div>
+                    <!-- AWS Integration nav item - hidden until implemented
                     <div class="nav-item disabled">
                         <a href="#aws" class="settings-nav-link disabled" data-section="aws" onclick="showSection('aws'); return false;">
                             <i class="fab fa-aws"></i>
@@ -84,6 +85,8 @@ Settings - AKS Cost Optimizer
                             <span class="coming-soon-badge">Coming Soon</span>
                         </a>
                     </div>
+                    -->
+                    <!-- GCP Integration nav item - hidden until implemented
                     <div class="nav-item disabled">
                         <a href="#gcp" class="settings-nav-link disabled" data-section="gcp" onclick="showSection('gcp'); return false;">
                             <i class="fab fa-google"></i>
@@ -91,6 +94,7 @@ Settings - AKS Cost Optimizer
                             <span class="coming-soon-badge">Coming Soon</span>
                         </a>
                     </div>
+                    -->
                     <div class="nav-item">
                         <a href="#security" class="settings-nav-link" data-section="security" onclick="showSection('security'); return false;">
                             <i class="fas fa-shield-alt"></i>
@@ -381,7 +385,7 @@ Settings - AKS Cost Optimizer
                                             <p class="setting-description">Slack incoming webhook URL</p>
                                         </div>
                                         <div class="setting-control">
-                                            <input type="text" class="setting-input" id="slack-webhook-url" name="slack_webhook_url" placeholder="https://hooks.slack.com/services/...">
+                                            <input type="password" class="setting-input" id="slack-webhook-url" name="slack_webhook_url" placeholder="https://hooks.slack.com/services/...">
                                         </div>
                                     </div>
                                     
@@ -445,18 +449,7 @@ Settings - AKS Cost Optimizer
                                         <p class="setting-description">Azure AD tenant ID</p>
                                     </div>
                                     <div class="setting-control">
-                                        <input type="text" name="azure_tenant_id" value="{{ config.get('AZURE_TENANT_ID', '') }}" 
-                                               class="setting-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
-                                    </div>
-                                </div>
-                                
-                                <div class="setting-item">
-                                    <div class="setting-info">
-                                        <h3 class="setting-title">Subscription ID</h3>
-                                        <p class="setting-description">Primary Azure subscription</p>
-                                    </div>
-                                    <div class="setting-control">
-                                        <input type="text" name="azure_subscription_id" value="{{ config.get('AZURE_SUBSCRIPTION_ID', '') }}" 
+                                        <input type="password" name="azure_tenant_id" value="{{ config.get('AZURE_TENANT_ID', '') }}" 
                                                class="setting-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
                                     </div>
                                 </div>
@@ -467,7 +460,7 @@ Settings - AKS Cost Optimizer
                                         <p class="setting-description">Service principal app ID</p>
                                     </div>
                                     <div class="setting-control">
-                                        <input type="text" name="azure_client_id" value="{{ config.get('AZURE_CLIENT_ID', '') }}" 
+                                        <input type="password" name="azure_client_id" value="{{ config.get('AZURE_CLIENT_ID', '') }}" 
                                                class="setting-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="username">
                                     </div>
                                 </div>
@@ -506,7 +499,7 @@ Settings - AKS Cost Optimizer
                     </form>
                 </section>
                 
-                <!-- AWS Integration -->
+                <!-- AWS Integration - hidden until implemented
                 <section id="aws-section" class="settings-section">
                     <div class="section-header">
                         <h2 class="section-title">
@@ -516,7 +509,7 @@ Settings - AKS Cost Optimizer
                         </h2>
                         <p class="section-description">Configure AWS credentials and account settings for multi-cloud cost optimization</p>
                     </div>
-                    
+
                     <div class="settings-card disabled">
                         <div class="settings-grid">
                             <div class="setting-item">
@@ -567,7 +560,7 @@ Settings - AKS Cost Optimizer
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="settings-footer">
                             <div class="footer-actions">
                                 <button type="button" class="btn-outline" disabled>
@@ -581,20 +574,21 @@ Settings - AKS Cost Optimizer
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="info-box info-box-primary">
                         <div class="info-box-header">
                             <i class="fas fa-info-circle"></i>
                             <h4>AWS Integration Coming Soon</h4>
                         </div>
                         <div class="info-box-text">
-                            AWS cost optimization is planned for a future release. This will include EKS cluster analysis, 
+                            AWS cost optimization is planned for a future release. This will include EKS cluster analysis,
                             EC2 instance optimization, and cross-cloud cost comparison.
                         </div>
                     </div>
                 </section>
+                -->
                 
-                <!-- GCP Integration -->
+                <!-- GCP Integration - hidden until implemented
                 <section id="gcp-section" class="settings-section">
                     <div class="section-header">
                         <h2 class="section-title">
@@ -604,7 +598,7 @@ Settings - AKS Cost Optimizer
                         </h2>
                         <p class="section-description">Configure Google Cloud service account and project settings for multi-cloud cost optimization</p>
                     </div>
-                    
+
                     <div class="settings-card disabled">
                         <div class="settings-grid">
                             <div class="setting-item">
@@ -655,7 +649,7 @@ Settings - AKS Cost Optimizer
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="settings-footer">
                             <div class="footer-actions">
                                 <button type="button" class="btn-outline" disabled>
@@ -669,18 +663,19 @@ Settings - AKS Cost Optimizer
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="info-box info-box-primary">
                         <div class="info-box-header">
                             <i class="fas fa-info-circle"></i>
                             <h4>GCP Integration Coming Soon</h4>
                         </div>
                         <div class="info-box-text">
-                            Google Cloud cost optimization is planned for a future release. This will include GKE cluster analysis, 
+                            Google Cloud cost optimization is planned for a future release. This will include GKE cluster analysis,
                             Compute Engine optimization, and unified multi-cloud cost management.
                         </div>
                     </div>
                 </section>
+                -->
                 
                 <!-- Security Settings -->
                 <section id="security-section" class="settings-section">
@@ -755,7 +750,7 @@ Settings - AKS Cost Optimizer
                                     <p class="setting-description">License validation endpoint</p>
                                 </div>
                                 <div class="setting-control">
-                                    <input type="text" name="license_api_url" id="license-api-url" class="setting-input" 
+                                    <input type="password" name="license_api_url" id="license-api-url" class="setting-input" 
                                            value="{{ config.get('LICENSE_API_URL', 'http://localhost:5002') }}" 
                                            placeholder="http://localhost:5002">
                                 </div>
@@ -767,7 +762,7 @@ Settings - AKS Cost Optimizer
                                     <p class="setting-description">Plan generation endpoint</p>
                                 </div>
                                 <div class="setting-control">
-                                    <input type="text" name="plan_api_url" id="plan-api-url" class="setting-input" 
+                                    <input type="password" name="plan_api_url" id="plan-api-url" class="setting-input" 
                                            value="{{ config.get('PLAN_API_URL', 'http://localhost:5003') }}" 
                                            placeholder="http://localhost:5003">
                                 </div>
@@ -963,7 +958,7 @@ Settings - AKS Cost Optimizer
                                     <p class="support-card-description">
                                         Comprehensive guides, API documentation, and best practices for AKS cost optimization.
                                     </p>
-                                    <a href="https://kubeopt.com/docs" target="_blank" class="btn btn-primary btn-sm btn-external">
+                                    <a href="https://github.com/kubeopt/kubeopt/tree/main/docs" target="_blank" class="btn btn-primary btn-sm btn-external">
                                         <i class="fas fa-external-link-alt"></i>
                                         View Docs
                                     </a>
@@ -980,7 +975,7 @@ Settings - AKS Cost Optimizer
                                     <p class="support-card-description">
                                         Get direct help from our support team. Track and manage your support requests.
                                     </p>
-                                    <a href="https://kubeopt.com/support" target="_blank" class="btn btn-success btn-sm btn-external">
+                                    <a href="https://github.com/kubeopt/kubeopt/tree/main/docs/support.md" target="_blank" class="btn btn-success btn-sm btn-external">
                                         <i class="fas fa-external-link-alt"></i>
                                         Open Ticket
                                     </a>
@@ -997,7 +992,7 @@ Settings - AKS Cost Optimizer
                                     <p class="support-card-description">
                                         Connect with other KubeOpt users, share best practices, and get community support.
                                     </p>
-                                    <a href="https://kubeopt.com/community" target="_blank" class="btn btn-outline btn-sm btn-external">
+                                    <a href="https://github.com/kubeopt/kubeopt/discussions" target="_blank" class="btn btn-outline btn-sm btn-external">
                                         <i class="fas fa-external-link-alt"></i>
                                         Join Community
                                     </a>
@@ -1014,7 +1009,7 @@ Settings - AKS Cost Optimizer
                                     <p class="support-card-description">
                                         Learn advanced optimization techniques with our training programs and workshops.
                                     </p>
-                                    <a href="https://kubeopt.com/training" target="_blank" class="btn btn-warning btn-sm btn-external">
+                                    <a href="https://github.com/kubeopt/kubeopt/tree/main/docs/quick-start.md" target="_blank" class="btn btn-warning btn-sm btn-external">
                                         <i class="fas fa-external-link-alt"></i>
                                         View Training
                                     </a>

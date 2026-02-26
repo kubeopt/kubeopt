@@ -15,9 +15,16 @@ window.Dashboard = (function() {
      */
     function init() {
         window.logger.debug('Initializing dashboard...');
-        
+
+        // Guard: only run on pages that have dashboard sections
+        const dashboardContent = document.getElementById('dashboard-content');
+        if (!dashboardContent) {
+            window.logger.debug('Not a dashboard page, skipping Dashboard.init()');
+            return;
+        }
+
         initNavigation();
-        
+
         // Check URL hash first to determine initial view
         const hash = window.location.hash.substring(1); // Remove the #
         let initialView = 'overview'; // Default
@@ -132,6 +139,21 @@ window.Dashboard = (function() {
             switch (viewName) {
                 case 'overview':
                     await loadDashboardData();
+                    break;
+                case 'pods':
+                    if (typeof window.refreshPodsData === 'function') {
+                        await window.refreshPodsData();
+                    }
+                    break;
+                case 'workloads':
+                    if (typeof window.refreshWorkloadsData === 'function') {
+                        await window.refreshWorkloadsData();
+                    }
+                    break;
+                case 'resources':
+                    if (typeof window.refreshResourcesData === 'function') {
+                        await window.refreshResourcesData();
+                    }
                     break;
                 case 'implementation':
                     await loadImplementationPlan();
@@ -274,7 +296,8 @@ window.Dashboard = (function() {
                 const optimizationScore = data.metrics.optimization_score;
                 optimizationScoreEl.textContent = window.Utils.formatPercentage(optimizationScore);
             } else {
-                throw new Error('No optimization score available in analysis data');
+                optimizationScoreEl.textContent = 'N/A';
+                window.logger.warning('No optimization score available in analysis data');
             }
         }
         
@@ -724,88 +747,207 @@ window.Dashboard = (function() {
     /**
      * Populate node optimization recommendations
      */
+    // ── State for table sorting ──
+    let _nodeRecSortField = 'monthly_savings';
+    let _nodeRecSortAsc = false; // default: highest savings first
+    let _nodeRecommendations = [];
+
     function populateNodeRecommendations(recommendations) {
-        const gridEl = document.getElementById('node-recommendations-grid');
+        const tableWrapper = document.getElementById('node-recommendations-table-wrapper');
         const noRecommendationsEl = document.getElementById('no-node-recommendations');
-        
-        if (!gridEl) return;
-        
+
+        if (!tableWrapper) return;
+
         if (!recommendations || recommendations.length === 0) {
             showNoNodeRecommendations();
             return;
         }
-        
-        // Hide no recommendations message
-        if (noRecommendationsEl) {
-            noRecommendationsEl.classList.add('hidden');
-        }
-        
-        // Clear existing content
-        gridEl.innerHTML = '';
-        
-        // Create recommendation cards
-        recommendations.forEach(rec => {
-            const card = createNodeRecommendationCard(rec);
-            gridEl.appendChild(card);
+
+        // Store for re-sorting
+        _nodeRecommendations = recommendations;
+
+        // Show table, hide empty state
+        tableWrapper.classList.remove('hidden');
+        if (noRecommendationsEl) noRecommendationsEl.classList.add('hidden');
+
+        // Bind sort headers (once)
+        _bindSortHeaders();
+
+        // Render rows
+        _renderNodeRecRows();
+    }
+
+    /**
+     * Bind click handlers to sortable column headers
+     */
+    function _bindSortHeaders() {
+        const table = document.getElementById('node-recommendations-table');
+        if (!table || table.dataset.sortBound) return;
+        table.dataset.sortBound = 'true';
+
+        table.querySelectorAll('.node-rec-th.sortable').forEach(th => {
+            th.addEventListener('click', () => {
+                const field = th.dataset.sort;
+                if (_nodeRecSortField === field) {
+                    _nodeRecSortAsc = !_nodeRecSortAsc;
+                } else {
+                    _nodeRecSortField = field;
+                    _nodeRecSortAsc = field === 'current_vm_size' || field === 'recommended_vm_size';
+                }
+                // Update header classes
+                table.querySelectorAll('.node-rec-th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+                th.classList.add(_nodeRecSortAsc ? 'sort-asc' : 'sort-desc');
+                _renderNodeRecRows();
+            });
         });
     }
-    
+
     /**
-     * Create a node recommendation card
+     * Render (or re-render) table body rows from _nodeRecommendations
      */
-    function createNodeRecommendationCard(recommendation) {
-        const card = document.createElement('div');
-        card.className = 'recommendation-card';
-        
-        const monthlySavings = Math.abs(recommendation.monthly_savings || 0);
-        const savingsSign = (recommendation.monthly_savings || 0) < 0 ? 'Cost' : 'Savings';
-        
-        card.innerHTML = `
-            <div class="recommendation-header">
-                <div class="recommendation-title">${recommendation.node_name}</div>
-                <div class="recommendation-priority ${recommendation.priority || 'medium'}">${recommendation.priority || 'medium'}</div>
-            </div>
-            <div class="recommendation-content">
-                <div class="recommendation-description">${recommendation.reasoning || 'VM size optimization recommended'}</div>
-                <div class="recommendation-change">
-                    <div class="vm-change">
-                        <span class="current-vm">${recommendation.current_vm_size}</span>
-                        <span class="change-arrow">→</span>
-                        <span class="recommended-vm">${recommendation.recommended_vm_size}</span>
-                    </div>
-                </div>
-                <div class="recommendation-savings">
-                    <div>
-                        <div class="savings-amount">$${monthlySavings.toFixed(0)} ${savingsSign}</div>
-                        <div class="savings-period">per month</div>
-                    </div>
-                    <div class="confidence-score">${(recommendation.confidence_score || 0).toFixed(0)}% confidence</div>
-                </div>
-            </div>
-        `;
-        
-        return card;
+    function _renderNodeRecRows() {
+        const tbody = document.getElementById('node-recommendations-tbody');
+        if (!tbody) return;
+
+        // Sort
+        const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+        const sorted = [..._nodeRecommendations].sort((a, b) => {
+            let va, vb;
+            if (_nodeRecSortField === 'priority') {
+                va = priorityOrder[a.priority] ?? 4;
+                vb = priorityOrder[b.priority] ?? 4;
+            } else if (_nodeRecSortField === 'monthly_savings' || _nodeRecSortField === 'node_count') {
+                va = a[_nodeRecSortField] || 0;
+                vb = b[_nodeRecSortField] || 0;
+            } else {
+                va = (a[_nodeRecSortField] || '').toString().toLowerCase();
+                vb = (b[_nodeRecSortField] || '').toString().toLowerCase();
+            }
+            if (va < vb) return _nodeRecSortAsc ? -1 : 1;
+            if (va > vb) return _nodeRecSortAsc ? 1 : -1;
+            return 0;
+        });
+
+        tbody.innerHTML = '';
+        sorted.forEach(rec => {
+            tbody.appendChild(_createNodeRecRow(rec));
+        });
     }
-    
+
+    /**
+     * Create a table row for a single recommendation
+     */
+    function _createNodeRecRow(rec) {
+        const tr = document.createElement('tr');
+        const monthlySavings = Math.abs(rec.monthly_savings || 0);
+        const isPositive = (rec.monthly_savings || 0) >= 0;
+        const nodeCount = rec.node_count || 1;
+        const cpuPct = rec.avg_cpu_pct ?? 0;
+        const memPct = rec.avg_memory_pct ?? 0;
+        const recType = rec.recommendation_type || 'change_series';
+        const recTypeLabel = recType === 'downsize' ? '\u2193 Downsize' : recType === 'upsize' ? '\u2191 Upsize' : '\u21C4 Series';
+        const hourlyDiff = Math.abs(rec.cost_difference_per_hour || 0);
+        const confidence = rec.confidence_score ? `${Math.round(rec.confidence_score)}%` : '';
+
+        tr.innerHTML = `
+            <td class="vm-name-cell vm-current">${rec.current_vm_size || '—'}</td>
+            <td class="node-count-cell">${nodeCount}</td>
+            <td>
+                <div class="util-bars">
+                    <div class="util-row">
+                        <span class="util-label">cpu</span>
+                        <div class="util-bar-track">
+                            <div class="util-bar-fill ${_utilClass(cpuPct)}" style="width:${Math.min(cpuPct, 100)}%"></div>
+                        </div>
+                        <span class="util-pct">${cpuPct}%</span>
+                    </div>
+                    <div class="util-row">
+                        <span class="util-label">mem</span>
+                        <div class="util-bar-track">
+                            <div class="util-bar-fill ${_utilClass(memPct)}" style="width:${Math.min(memPct, 100)}%"></div>
+                        </div>
+                        <span class="util-pct">${memPct}%</span>
+                    </div>
+                </div>
+            </td>
+            <td>
+                <span class="vm-name-cell vm-recommended">${rec.recommended_vm_size || '—'}</span>
+                <span class="rec-type-badge ${recType}">${recTypeLabel}</span>
+            </td>
+            <td class="savings-cell ${isPositive ? 'savings-positive' : 'savings-negative'}">
+                ${isPositive ? '' : '+'}$${monthlySavings.toFixed(0)}/mo
+                <span class="savings-sub">${nodeCount > 1 ? nodeCount + ' nodes \u00B7 ' : ''}$${hourlyDiff.toFixed(3)}/hr ea</span>
+            </td>
+            <td><span class="priority-badge ${rec.priority || 'medium'}">${rec.priority || 'medium'}</span></td>
+        `;
+
+        // Click-to-expand reasoning
+        tr.style.cursor = 'pointer';
+        tr.addEventListener('click', () => {
+            const existing = tr.nextElementSibling;
+            if (existing && existing.classList.contains('rec-detail-row')) {
+                existing.remove();
+                return;
+            }
+            // Remove any other open detail rows
+            document.querySelectorAll('.rec-detail-row').forEach(r => r.remove());
+
+            const detailTr = document.createElement('tr');
+            detailTr.className = 'rec-detail-row';
+            detailTr.innerHTML = `
+                <td colspan="6">
+                    <div class="rec-detail-content">
+                        <div class="detail-item" style="flex: 1 1 100%;">
+                            <span class="detail-label">Reasoning:</span>
+                            <span class="detail-value">${rec.reasoning || 'VM size optimization recommended based on utilization analysis'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Confidence:</span>
+                            <span class="detail-value">${confidence || 'N/A'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Hourly cost:</span>
+                            <span class="detail-value">$${(rec.current_cost_per_hour || 0).toFixed(3)} \u2192 $${(rec.recommended_cost_per_hour || 0).toFixed(3)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Savings:</span>
+                            <span class="detail-value">${Math.abs(rec.savings_percentage || 0).toFixed(0)}%</span>
+                        </div>
+                    </div>
+                </td>
+            `;
+            tr.after(detailTr);
+        });
+
+        return tr;
+    }
+
+    /**
+     * Return utilization CSS class based on percentage
+     */
+    function _utilClass(pct) {
+        if (pct >= 80) return 'util-high';
+        if (pct >= 50) return 'util-moderate';
+        return 'util-low';
+    }
+
     /**
      * Show no node recommendations message
      */
     function showNoNodeRecommendations() {
-        const gridEl = document.getElementById('node-recommendations-grid');
+        const tableWrapper = document.getElementById('node-recommendations-table-wrapper');
         const noRecommendationsEl = document.getElementById('no-node-recommendations');
-        
-        if (gridEl) {
-            gridEl.innerHTML = '';
-        }
-        
+
+        if (tableWrapper) tableWrapper.classList.add('hidden');
+
         if (noRecommendationsEl) {
             noRecommendationsEl.classList.remove('hidden');
         }
-        
+
         // Reset summary stats
         const totalRecommendationsEl = document.getElementById('total-node-recommendations');
         const totalSavingsEl = document.getElementById('total-node-savings');
-        
+
         if (totalRecommendationsEl) totalRecommendationsEl.textContent = '0';
         if (totalSavingsEl) totalSavingsEl.textContent = '$0';
     }

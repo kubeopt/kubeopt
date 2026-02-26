@@ -1387,36 +1387,63 @@ class AKSScorer:
         # Check for commitment tier first
         commitment_tier = metrics.get("log_analytics_commitment_tier")
         if commitment_tier:
-            # Azure Log Analytics commitment tier pricing (as of 2024)
+            # Azure Log Analytics commitment tier pricing - effective per-GB rate
+            # (as of 2025 - verify at https://azure.microsoft.com/en-us/pricing/details/monitor/)
+            # TODO: These hardcoded prices should be fetched dynamically from the
+            # Azure Retail Prices API (https://prices.azure.com/api/retail/prices)
+            # using filters: serviceName eq 'Log Analytics' and armRegionName eq '<region>'
+            # Higher commitment tiers yield lower effective per-GB cost.
             pricing_map = {
-                "100GB": 1.15,   # $1.15/GB for 100GB/day commitment
-                "200GB": 1.46,   # $1.46/GB for 200GB/day commitment  
-                "300GB": 1.70,   # $1.70/GB for 300GB/day commitment
-                "400GB": 1.84,   # $1.84/GB for 400GB/day commitment
-                "500GB": 1.96,   # $1.96/GB for 500GB/day commitment
-                "1000GB": 2.05,  # $2.05/GB for 1TB/day commitment
-                "2000GB": 2.15,  # $2.15/GB for 2TB/day commitment
-                "5000GB": 2.25   # $2.25/GB for 5TB/day commitment
+                "100GB": 1.96,   # ~$196/day for 100GB/day commitment
+                "200GB": 1.84,   # ~$368/day for 200GB/day commitment
+                "300GB": 1.70,   # ~$510/day for 300GB/day commitment
+                "400GB": 1.60,   # ~$640/day for 400GB/day commitment
+                "500GB": 1.50,   # ~$750/day for 500GB/day commitment
+                "1000GB": 1.35,  # ~$1350/day for 1TB/day commitment
+                "2000GB": 1.20,  # ~$2400/day for 2TB/day commitment
+                "5000GB": 1.05   # ~$5250/day for 5TB/day commitment
             }
             tier_price = pricing_map.get(commitment_tier)
             if tier_price is not None and tier_price:
                 logger.info(f"🏷️ Using commitment tier pricing: {commitment_tier} = ${tier_price}/GB")
                 return tier_price
         
-        # Check for region-specific pay-as-you-go pricing
+        # Region-specific pay-as-you-go pricing (per GB ingested)
+        # (as of 2025 - verify at https://azure.microsoft.com/en-us/pricing/details/monitor/)
+        # TODO: These hardcoded prices should be fetched dynamically from the
+        # Azure Retail Prices API (https://prices.azure.com/api/retail/prices)
+        # using filters: serviceName eq 'Log Analytics' and priceType eq 'Consumption'
         region = metrics.get("region", "").lower()
         regional_pricing = {
             "eastus": 2.76,
-            "eastus2": 2.76, 
+            "eastus2": 2.76,
             "westus": 2.99,
             "westus2": 2.99,
+            "centralus": 2.76,
+            "northcentralus": 2.76,
+            "southcentralus": 2.76,
+            "westus3": 2.99,
             "northeurope": 3.04,
             "westeurope": 3.04,
             "southeastasia": 3.31,
+            "eastasia": 3.31,
             "australiaeast": 3.31,
+            "australiasoutheast": 3.31,
             "uksouth": 2.87,
+            "ukwest": 2.87,
             "canadacentral": 2.87,
-            "japaneast": 3.31
+            "canadaeast": 2.87,
+            "japaneast": 3.31,
+            "japanwest": 3.31,
+            "koreacentral": 3.31,
+            "brazilsouth": 4.14,
+            "francecentral": 3.04,
+            "germanywestcentral": 3.04,
+            "norwayeast": 3.04,
+            "switzerlandnorth": 3.68,
+            "uaenorth": 3.68,
+            "southafricanorth": 3.68,
+            "centralindia": 3.31,
         }
         
         regional_price = regional_pricing.get(region)

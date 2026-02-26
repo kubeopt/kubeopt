@@ -647,23 +647,10 @@ class MLEnhancedHPARecommendationEngine:
         if not isinstance(top_cpu_summary, dict):
             raise TypeError(f"top_cpu_summary must be dict, got {type(top_cpu_summary)}")
         
-        # If we don't have workloads, use data from top_cpu_summary
+        # If we don't have workloads, return empty list
         if not all_workloads:
-            if 'max_cpu_utilization' not in top_cpu_summary:
-                raise ValueError("max_cpu_utilization missing from top_cpu_summary")
-            
-            max_cpu = top_cpu_summary['max_cpu_utilization']
-            if max_cpu > 0:
-                # Create synthetic workload entry
-                workload = {
-                    'name': 'aggregated',
-                    'namespace': 'default',
-                    'cpu_usage_pct': max_cpu,
-                    'target': cpu_target_pct,
-                    'severity': self.workload_classification_algorithm.determine_severity(max_cpu),
-                    'type': 'aggregated'
-                }
-                all_workloads.append(workload)
+            logger.info("No real workloads found in kubectl data - returning empty list")
+            return []
         
         logger.info(f"Extracted {len(all_workloads)} total workloads")
         return all_workloads

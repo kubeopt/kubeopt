@@ -1,11 +1,18 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
+    <script>
+        // Apply theme immediately to prevent flash
+        (function() {
+            var theme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="log-level" content="{{ config.get('LOG_LEVEL', 'WARNING') }}">
     <meta name="production-mode" content="{{ config.get('PRODUCTION_MODE', 'false') }}">
-    <title>{% block title %}kubeopt - Your Third Eye for Kubernetes{% endblock %}</title>
+    <title>{% block title %}kubeopt - Your third eye for kubernetes costs{% endblock %}</title>
     
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kubeopt_eyecon.png') }}" />
@@ -24,6 +31,9 @@
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
+    <!-- Kubernetes Dashboard CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/kubernetes-dashboard.css') }}">
+    
     <!-- Centralized Logging Utility (load first) -->
     <script src="{{ url_for('static', filename='js/logger.js') }}"></script>
     
@@ -41,7 +51,7 @@
                         <img src="{{ url_for('static', filename='images/kubeopt_eyecon.png') }}" alt="kubeopt" class="brand-logo">
                         <div class="brand-text">
                             <span class="brand-name">kubeopt</span>
-                            <span class="brand-tagline">Your Third Eye for Kubernetes</span>
+                            <span class="brand-tagline">Your third eye for kubernetes costs</span>
                         </div>
                     </a>
                 </div>
@@ -187,6 +197,8 @@
     <script src="{{ url_for('static', filename='js/chart-manager.js') }}"></script>
     <script src="{{ url_for('static', filename='js/implementation-plan.js') }}"></script>
     <script src="{{ url_for('static', filename='js/alerts.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/kubernetes-charts.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/kubernetes-dashboard.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     

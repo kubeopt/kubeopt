@@ -999,20 +999,20 @@ class SelfLearningWorkloadClassifier:
                 confidence = 0.85
             
             # Medium-high utilization using standards
-            elif cpu_mean > cpu_optimal and memory_mean < (cpu_optimal * 0.71):
+            elif cpu_mean > cpu_optimal and memory_mean < (cpu_optimal * SystemPerformanceStandards.CLASSIFICATION_CPU_INTENSIVE_MEMORY_RATIO):
                 workload_type = 'CPU_INTENSIVE'
                 confidence = 0.8
-            elif memory_mean > cpu_high and cpu_mean < (cpu_optimal * 0.57):
+            elif memory_mean > cpu_high and cpu_mean < (cpu_optimal * SystemPerformanceStandards.CLASSIFICATION_MEMORY_INTENSIVE_CPU_RATIO):
                 workload_type = 'MEMORY_INTENSIVE'
                 confidence = 0.8
-            
+
             # Bursty patterns
-            elif burst_freq > 0.3 or cpu_cv > 0.5 or memory_cv > 0.5:
+            elif burst_freq > SystemPerformanceStandards.CLASSIFICATION_BURSTY_FREQ_THRESHOLD or cpu_cv > SystemPerformanceStandards.CLASSIFICATION_BURSTY_CV_THRESHOLD or memory_cv > SystemPerformanceStandards.CLASSIFICATION_BURSTY_CV_THRESHOLD:
                 workload_type = 'BURSTY'
                 confidence = 0.75
-            
+
             # Low utilization using standards
-            elif cpu_mean < (cpu_optimal * 0.36) and memory_mean < (cpu_optimal * 0.5):
+            elif cpu_mean < (cpu_optimal * SystemPerformanceStandards.CLASSIFICATION_LOW_UTIL_CPU_RATIO) and memory_mean < (cpu_optimal * SystemPerformanceStandards.CLASSIFICATION_LOW_UTIL_MEMORY_RATIO):
                 workload_type = 'LOW_UTILIZATION'
                 confidence = 0.85
             

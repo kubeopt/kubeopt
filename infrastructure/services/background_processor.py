@@ -32,6 +32,7 @@ ANALYSIS_THREAD_POOL = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_ANALYSES, t
 analysis_queue = queue.Queue(maxsize=50)
 active_analyses = {}
 analysis_semaphore = threading.Semaphore(MAX_CONCURRENT_ANALYSES)
+_status_lock = threading.Lock()  # Shared lock for analysis_status_tracker
 
 def run_subscription_aware_background_analysis(cluster_id: str, resource_group: str, cluster_name: str, 
                                               subscription_id: Optional[str] = None, days: int = 30, 
@@ -39,7 +40,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
     """Enhanced background analysis with thread management and subscription awareness"""
     
     # Thread-safe duplicate check with timeout
-    with threading.Lock():
+    with _status_lock:
         if cluster_id in analysis_status_tracker:
             current_status = analysis_status_tracker[cluster_id].get('status')
             if current_status in ['running', 'analyzing']:
@@ -69,7 +70,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
     
     try:
         # Track analysis start time and thread
-        with threading.Lock():
+        with _status_lock:
             analysis_status_tracker[cluster_id] = {
                 'status': 'starting',
                 'start_time': time.time(),
@@ -104,7 +105,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
         session_id = f"{subscription_id[:8]}_{str(uuid.uuid4())[:8]}"
         
         # Update active analysis tracking
-        with threading.Lock():
+        with _status_lock:
             active_analyses[cluster_id]['session_id'] = session_id
         
         # Track session in database
@@ -129,12 +130,9 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
         # Progress tracking function with subscription context
         def update_progress(progress: int, message: str):
             enhanced_message = f"[{subscription_name}] {message}"
-            
-            # Update cluster status
-            enhanced_cluster_manager.update_analysis_status(cluster_id, 'analyzing', progress, enhanced_message)
-            
-            # Thread-safe update of in-memory tracker
-            with threading.Lock():
+
+            # Thread-safe update of both in-memory tracker and database
+            with _status_lock:
                 analysis_status_tracker[cluster_id] = {
                     'status': 'analyzing',
                     'progress': progress,
@@ -143,16 +141,20 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
                     'subscription_id': subscription_id,
                     'subscription_name': subscription_name,
                     'session_id': session_id,
-                    'start_time': analysis_status_tracker[cluster_id].get('start_time', time.time())
+                    'start_time': analysis_status_tracker.get(cluster_id, {}).get('start_time', time.time())
                 }
-            
-            # Update session in database
-            enhanced_cluster_manager.update_subscription_analysis_session(session_id, {
-                'progress': progress,
-                'message': enhanced_message,
-                'status': 'running'
-            })
-            
+
+            # Database updates outside lock (non-critical, best-effort)
+            try:
+                enhanced_cluster_manager.update_analysis_status(cluster_id, 'analyzing', progress, enhanced_message)
+                enhanced_cluster_manager.update_subscription_analysis_session(session_id, {
+                    'progress': progress,
+                    'message': enhanced_message,
+                    'status': 'running'
+                })
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to update DB status for {cluster_id}: {e}")
+
             logger.info(f"🌐 Session {session_id[:8]}: Progress {progress}% - {enhanced_message}")
         
         # Simulate analysis steps with enhanced progress updates
@@ -255,7 +257,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
             )
             
             # Thread-safe completion update
-            with threading.Lock():
+            with _status_lock:
                 analysis_status_tracker[cluster_id] = {
                     'status': 'completed',
                     'progress': 100,
@@ -309,7 +311,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
             error_message = result.get('message', 'Subscription-aware analysis failed')
             enhanced_cluster_manager.update_analysis_status(cluster_id, 'failed', 0, error_message)
             
-            with threading.Lock():
+            with _status_lock:
                 analysis_status_tracker[cluster_id] = {
                     'status': 'failed',
                     'progress': 0,
@@ -365,7 +367,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
         except Exception as cache_error:
             logger.warning(f"⚠️ Failed to clear cache for {cluster_name}: {cache_error}")
         
-        with threading.Lock():
+        with _status_lock:
             analysis_status_tracker[cluster_id] = {
                 'status': 'failed',
                 'progress': 0,
@@ -383,7 +385,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
     finally:
         # Always clean up resources
         try:
-            with threading.Lock():
+            with _status_lock:
                 active_analyses.pop(cluster_id, None)
             analysis_semaphore.release()
             logger.info(f"🧹 Released analysis slot for {cluster_id}")

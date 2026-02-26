@@ -50,13 +50,36 @@ def create_wsgi_app():
     # Create Flask app
     app = create_app()
     
-    # Start background services for WSGI deployment
+    # Add performance monitoring for Railway
     try:
-        from infrastructure.services.auto_analysis_scheduler import auto_scheduler
-        auto_scheduler.start_scheduler()
-        print("✅ Background services started for WSGI")
+        from performance_monitor import add_performance_monitoring
+        add_performance_monitoring(app)
+        print("✅ Performance monitoring enabled")
     except Exception as e:
-        print(f"⚠️ Background services warning: {e}")
+        print(f"⚠️ Performance monitoring warning: {e}")
+    
+    # Start background services for WSGI deployment (delayed for faster startup)
+    try:
+        # Delay background services to speed up initial startup
+        import threading
+        import time
+        
+        def delayed_background_start():
+            time.sleep(10)  # Wait 10s after startup
+            try:
+                from infrastructure.services.auto_analysis_scheduler import auto_scheduler
+                auto_scheduler.start_scheduler()
+                print("✅ Background services started (delayed)")
+            except Exception as e:
+                print(f"⚠️ Background services warning: {e}")
+        
+        # Start background services in separate thread
+        background_thread = threading.Thread(target=delayed_background_start, daemon=True)
+        background_thread.start()
+        print("⏰ Background services scheduled for delayed start")
+        
+    except Exception as e:
+        print(f"⚠️ Background services error: {e}")
     
     print("✅ KubeOpt WSGI application ready")
     return app

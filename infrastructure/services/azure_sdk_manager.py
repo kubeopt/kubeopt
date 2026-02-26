@@ -257,22 +257,30 @@ class AzureSDKManager:
         self.subscription_id = None
     
     def is_authenticated(self) -> bool:
-        """Check if Azure credentials are available and valid - optimized"""
+        """Check if Azure credentials are available and valid"""
         if not AZURE_SDK_AVAILABLE or not self.credential:
             return False
-        
-        # Check if authentication is recent (extended to 4 hours for performance)
-        if self._auth_time and datetime.now() - self._auth_time < timedelta(hours=4):
+
+        # Check if authentication is recent (1 hour cache — tokens typically expire at 1h)
+        if self._auth_time and datetime.now() - self._auth_time < timedelta(hours=1):
             return True
-        
-        # Test authentication only if needed
-        try:
-            token = self.credential.get_token("https://management.azure.com/.default")
-            self._auth_time = datetime.now()
-            return True
-        except Exception as e:
-            logger.debug(f"Authentication failed: {e}")
-            return False
+
+        # Test authentication with retry
+        for attempt in range(2):
+            try:
+                token = self.credential.get_token("https://management.azure.com/.default")
+                self._auth_time = datetime.now()
+                return True
+            except Exception as e:
+                if attempt == 0:
+                    logger.warning(f"⚠️ Authentication attempt {attempt + 1} failed: {e}, retrying...")
+                else:
+                    logger.error(f"❌ Authentication failed after {attempt + 1} attempts: {e}")
+        return False
+
+    def invalidate_auth_cache(self):
+        """Force re-authentication on next call"""
+        self._auth_time = None
     
     def get_client(self, client_type: str, subscription_id: Optional[str] = None) -> Optional[Any]:
         """Get Azure client by type and subscription, with caching"""
@@ -533,26 +541,27 @@ class AzureSDKManager:
                 return output.strip()
             else:
                 # Handle expected failures gracefully
-                if "kubectl top" in kubectl_command and "Metrics not available" in command_result.logs:
+                logs = command_result.logs or ""
+                if "kubectl top" in kubectl_command and "Metrics not available" in logs:
                     logger.debug(f"⚠️ Server-side kubectl top command failed (metrics not available): {kubectl_command}")
-                    if command_result.logs:
-                        logger.debug(f"Metrics error details: {command_result.logs}")
-                elif "kubectl get" in kubectl_command and ("NotFound" in command_result.logs or "not found" in command_result.logs):
+                    if logs:
+                        logger.debug(f"Metrics error details: {logs}")
+                elif "kubectl get" in kubectl_command and ("NotFound" in logs or "not found" in logs):
                     logger.debug(f"📋 Server-side kubectl get failed (resource not found): {kubectl_command}")
-                elif "error executing jsonpath" in command_result.logs.lower():
+                elif "error executing jsonpath" in logs.lower():
                     # Handle JSONPath errors specifically
-                    if "unrecognized identifier len(" in command_result.logs:
+                    if "unrecognized identifier len(" in logs:
                         logger.error(f"❌ JSONPath error: len() function is not supported in kubectl JSONPath. Command: {kubectl_command}")
                         logger.error("Please use alternative JSONPath expressions without len() function")
                     else:
                         logger.error(f"❌ JSONPath syntax error in command: {kubectl_command}")
-                    if command_result.logs:
-                        logger.error(f"Error details: {command_result.logs}")
+                    if logs:
+                        logger.error(f"Error details: {logs}")
                 else:
                     # Unexpected failures should still be logged as errors
                     logger.error(f"❌ Server-side kubectl command failed (exit {command_result.exit_code}): {kubectl_command}")
-                    if command_result.logs:
-                        logger.error(f"Error logs: {command_result.logs}")
+                    if logs:
+                        logger.error(f"Error logs: {logs}")
                 
                 return None
                 
@@ -567,38 +576,37 @@ class AzureSDKManager:
     
     
     def _get_cluster_token_for_aad(self, subscription_id: str, resource_group: str, cluster_name: str) -> Optional[str]:
-        """Get cluster token for AAD-enabled AKS clusters"""
+        """Get cluster token for AAD-enabled AKS clusters. Returns None for non-AAD clusters."""
         try:
-            # Get a token scoped to the AKS cluster
-            # This is equivalent to what 'az aks get-credentials' does for AAD clusters
-            cluster_resource_id = f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.ContainerService/managedClusters/{cluster_name}"
-            
-            # Try to get an AAD token for the cluster
+            # First check if the cluster actually has AAD enabled
+            # Without this check, we'd always get a token (credential.get_token succeeds
+            # for any authenticated user) and send it to non-AAD clusters, which reject it
+            # with InvalidAADClusterToken.
+            aks_client = self.get_aks_client(subscription_id)
+            if not aks_client:
+                logger.debug(f"⚠️ Cannot get AKS client to check AAD status for {cluster_name}")
+                return None
+
+            cluster = aks_client.managed_clusters.get(resource_group, cluster_name)
+            if not cluster.aad_profile or not (getattr(cluster.aad_profile, 'managed', False) or getattr(cluster.aad_profile, 'enabled', False)):
+                logger.debug(f"🔓 {cluster_name}: No AAD integration - skipping cluster token")
+                return None
+
+            # Cluster has AAD enabled - get a token
             try:
-                # Get token for AKS cluster access
                 token = self.credential.get_token("6dae42f8-4368-4678-94ff-3960e28e3630/.default")  # AKS AAD Server App ID
-                
+
                 if token and token.token:
                     logger.debug(f"✅ Successfully obtained AAD cluster token for {cluster_name}")
                     return token.token
                 else:
                     logger.debug(f"⚠️ No AAD token obtained for {cluster_name}")
                     return None
-                    
+
             except Exception as token_error:
                 logger.debug(f"⚠️ AAD token acquisition failed for {cluster_name}: {token_error}")
-                
-                # Try alternative token scope
-                try:
-                    token = self.credential.get_token("https://management.azure.com/.default")
-                    if token and token.token:
-                        logger.debug(f"✅ Using management token as fallback for {cluster_name}")
-                        return token.token
-                except Exception:
-                    pass
-                    
                 return None
-                
+
         except Exception as e:
             logger.debug(f"⚠️ Cluster token acquisition failed: {e}")
             return None
