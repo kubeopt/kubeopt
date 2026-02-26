@@ -500,6 +500,7 @@ class ClusterPortfolio {
                         this.resetAnalyzeButton(clusterId, 'completed');
                         showToast(`Analysis completed for ${clusterId}`, 'success');
                         this.updateClusterMetrics(clusterId, data);
+                        this.loadPortfolioStats();
                         return;
                         
                     } else if (data.analysis_status === 'failed') {
@@ -909,7 +910,22 @@ class ClusterPortfolio {
                 statusIndicator.title = 'Analysis pending';
             }
         }
-        
+
+        // Update last analyzed timestamp
+        if (cluster.last_analyzed) {
+            let footer = clusterCard.querySelector('.cluster-footer');
+            if (!footer) {
+                footer = document.createElement('div');
+                footer.className = 'cluster-footer';
+                footer.innerHTML = '<div class="last-analyzed"></div>';
+                clusterCard.appendChild(footer);
+            }
+            const lastAnalyzed = footer.querySelector('.last-analyzed');
+            if (lastAnalyzed) {
+                lastAnalyzed.textContent = `Last analyzed: ${cluster.last_analyzed}`;
+            }
+        }
+
         window.logger.debug(`✅ Updated cluster card: ${cluster.name} - $${cluster.last_cost?.toFixed(2) || 0}`);
     }
 

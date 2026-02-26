@@ -25,6 +25,7 @@ sys.path.insert(0, str(project_root))
 # Configure enhanced logging for multi-subscription with environment-based log level
 log_level = os.getenv('LOG_LEVEL', 'WARNING').upper()
 log_level_mapping = {
+    'ALL': logging.DEBUG,  # ALL maps to most verbose (DEBUG)
     'DEBUG': logging.DEBUG,
     'INFO': logging.INFO,
     'WARNING': logging.WARNING,
@@ -35,20 +36,29 @@ log_level_mapping = {
 # Use WARNING as default for production to reduce noise
 effective_log_level = log_level_mapping.get(log_level, logging.WARNING)
 
+# For ALL level, also enable verbose Azure logging
+if log_level == 'ALL':
+    azure_log_level = logging.DEBUG
+else:
+    azure_log_level = logging.WARNING
+
+# Get absolute path for log file
+log_file_path = str(project_root / 'app.log')
+
 logging.basicConfig(
     level=effective_log_level,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('app.log')
+        logging.FileHandler(log_file_path)
     ]
 )
 
-# Suppress verbose Azure SDK HTTP logging
-logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(logging.WARNING)
-logging.getLogger('azure.core.pipeline').setLevel(logging.WARNING)
-logging.getLogger('azure.mgmt').setLevel(logging.WARNING)
-logging.getLogger('azure.identity').setLevel(logging.WARNING)
+# Configure Azure SDK logging based on level
+logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(azure_log_level)
+logging.getLogger('azure.core.pipeline').setLevel(azure_log_level)
+logging.getLogger('azure.mgmt').setLevel(azure_log_level)
+logging.getLogger('azure.identity').setLevel(azure_log_level)
 logger = logging.getLogger(__name__)
 
 ALERTS_AVAILABLE = True

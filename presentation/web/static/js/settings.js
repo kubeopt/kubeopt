@@ -870,10 +870,17 @@ function testAzure() {
     // Get current form values without saving them
     const testData = new FormData();
     testData.append('test_azure', 'true');
-    testData.append('azure_tenant_id', document.querySelector('input[name="azure_tenant_id"]').value);
-    testData.append('azure_subscription_id', document.querySelector('input[name="azure_subscription_id"]').value);
-    testData.append('azure_client_id', document.querySelector('input[name="azure_client_id"]').value);
-    testData.append('azure_client_secret', document.querySelector('input[name="azure_client_secret"]').value);
+    
+    // Get form values (subscription_id is optional)
+    const tenantField = document.querySelector('input[name="azure_tenant_id"]');
+    const subscriptionField = document.querySelector('input[name="azure_subscription_id"]'); // Optional
+    const clientIdField = document.querySelector('input[name="azure_client_id"]');
+    const clientSecretField = document.querySelector('input[name="azure_client_secret"]');
+    
+    testData.append('azure_tenant_id', tenantField ? tenantField.value : '');
+    testData.append('azure_subscription_id', subscriptionField ? subscriptionField.value : ''); // Optional
+    testData.append('azure_client_id', clientIdField ? clientIdField.value : '');
+    testData.append('azure_client_secret', clientSecretField ? clientSecretField.value : '');
     
     // Test Azure connection with form values (without saving)
     fetch('/test_azure', {

@@ -10,6 +10,7 @@ Unified API Routes for Multi-Subscription AKS Cost Optimization Tool
 with Enhanced Alerts Integration - FIXED REGISTRATION
 """
 
+import re
 import traceback
 from datetime import datetime
 from flask import request, jsonify, Response
@@ -436,7 +437,8 @@ def sanitize_for_json(obj):
             # Don't try to serialize module or class objects
             if not isinstance(obj, type) and not str(type(obj)).startswith("<class 'module"):
                 return sanitize_for_json(obj.__dict__)
-        except:
+        except Exception as e:
+            logger.debug(f"Failed to serialize object via __dict__: {e}")
             pass
     
     # Skip functions and callables
@@ -526,6 +528,10 @@ def trigger_alert_checking_after_analysis(cluster_id: str, analysis_results: dic
 
 def register_api_routes(app):
     """Register all API routes with multi-subscription support and complete alerts integration"""
+    
+    # Import and register Kubernetes dashboard routes
+    from presentation.api.kubernetes_routes import register_kubernetes_routes
+    register_kubernetes_routes(app, hybrid_auth)
     
     # Enhanced Health Check with Azure Status
     @app.route('/api/health')
@@ -799,11 +805,20 @@ def register_api_routes(app):
             
             resource_group = data.get('resource_group', '').strip()  # Now optional
             cluster_name = data.get('cluster_name', '').strip()
-            
-            if not cluster_name:
+
+            # Validate Azure resource names (alphanumeric, hyphens, underscores, periods, max 63 chars)
+            _azure_name_re = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._-]{0,62}$')
+
+            if not cluster_name or not _azure_name_re.match(cluster_name):
                 return jsonify({
                     'status': 'error',
-                    'message': 'Cluster name is required'
+                    'message': 'Invalid cluster name: must be 1-63 alphanumeric characters, hyphens, underscores, or periods'
+                }), 400
+
+            if resource_group and not _azure_name_re.match(resource_group):
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid resource group name'
                 }), 400
             
             # Log with more context

@@ -376,25 +376,35 @@ class EnhancedMultiSubscriptionClusterManager:
     def __init__(self, db_path=None):
         import os
         from pathlib import Path
-        # REQUIRE persistent volume - no fallbacks
+        
         if db_path is None:
-            # Check for Railway volume mount path (auto-provided)
-            volume_mount = os.getenv('RAILWAY_VOLUME_MOUNT_PATH')
-            if volume_mount:
-                # Using Railway-provided volume path
-                db_path = os.path.join(volume_mount, 'clusters.db')
-                print(f"✅ Using persistent volume: {db_path}")
-            elif Path('/data').exists():
-                # Standard volume mount at /data
-                db_path = '/data/clusters.db'
-                print(f"✅ Using mounted volume: {db_path}")
+            # Check for local development mode
+            is_local_dev = os.getenv('LOCAL_DEV', 'false').lower() in ('true', '1', 'yes')
+            
+            if is_local_dev:
+                # Local development: use local directory
+                local_db_path = os.path.join(os.getcwd(), 'infrastructure', 'persistence', 'database', 'clusters.db')
+                os.makedirs(os.path.dirname(local_db_path), exist_ok=True)
+                db_path = local_db_path
+                print(f"✅ LOCAL DEVELOPMENT: Using local database: {db_path}")
             else:
-                # NO FALLBACK - volume is required
-                raise ValueError(
-                    "CRITICAL: No persistent volume detected! "
-                    "Please attach a volume to this service at /data mount path. "
-                    "Without a volume, all data will be lost on restart."
-                )
+                # Production: require persistent volume
+                volume_mount = os.getenv('RAILWAY_VOLUME_MOUNT_PATH')
+                if volume_mount:
+                    # Using Railway-provided volume path
+                    db_path = os.path.join(volume_mount, 'clusters.db')
+                    print(f"✅ Using persistent volume: {db_path}")
+                elif Path('/data').exists():
+                    # Standard volume mount at /data
+                    db_path = '/data/clusters.db'
+                    print(f"✅ Using mounted volume: {db_path}")
+                else:
+                    # NO FALLBACK for production - volume is required
+                    raise ValueError(
+                        "CRITICAL: No persistent volume detected! "
+                        "Please attach a volume to this service at /data mount path. "
+                        "Without a volume, all data will be lost on restart."
+                    )
         self.db_path = db_path
         self.logger = logging.getLogger(__name__)
         
@@ -412,13 +422,20 @@ class EnhancedMultiSubscriptionClusterManager:
         # Initialize subscription tracking
         self.initialize_subscription_tracking()
 
+    def _connect(self) -> sqlite3.Connection:
+        """Create a database connection with WAL mode and busy timeout for concurrency."""
+        conn = sqlite3.connect(self.db_path, timeout=30)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=10000")  # Wait up to 10s for locks
+        return conn
+
     def init_database(self):
         """Initialize SQLite database with complete multi-subscription schema"""
         try:
             # Ensure directory exists
             os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-            
-            with sqlite3.connect(self.db_path) as conn:
+
+            with self._connect() as conn:
                 # Create main clusters table with ALL required columns
                 conn.execute('''
                     CREATE TABLE IF NOT EXISTS clusters (
@@ -492,6 +509,9 @@ class EnhancedMultiSubscriptionClusterManager:
                 conn.commit()
                 self.logger.info("✅ Complete multi-subscription database initialized successfully")
                 
+                # Railway env file creation removed - not needed for local development
+                # self._create_env_file_for_railway()
+                
         except Exception as e:
             self.logger.error(f"❌ Database initialization failed: {e}")
             raise
@@ -499,7 +519,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def touch_cluster(self, cluster_id: str):
         """Update cluster timestamp to invalidate cache"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.execute('''
                     UPDATE clusters 
                     SET last_analyzed = ? 
@@ -516,7 +536,7 @@ class EnhancedMultiSubscriptionClusterManager:
             cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
             cleaned_count = 0
             
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 # Clean up stale cluster analyses
                 cursor = conn.execute('''
                     SELECT id FROM clusters 
@@ -569,7 +589,7 @@ class EnhancedMultiSubscriptionClusterManager:
         try:
             cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
             
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 # Find stale sessions
                 cursor = conn.execute('''
                     SELECT session_id, cluster_id FROM subscription_analysis_sessions 
@@ -633,7 +653,7 @@ class EnhancedMultiSubscriptionClusterManager:
                 subscriptions = azure_subscription_manager.get_available_subscriptions(force_refresh=True)
                 
                 # Update subscriptions table
-                with sqlite3.connect(self.db_path) as conn:
+                with self._connect() as conn:
                     for sub in subscriptions:
                         conn.execute('''
                             INSERT OR REPLACE INTO subscriptions 
@@ -667,7 +687,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def get_clusters_by_subscription(self, subscription_id: str) -> List[Dict]:
         """Get all clusters for a specific subscription (required by api_routes.py)"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
                     SELECT id, name, resource_group, environment, region, description, 
@@ -705,7 +725,7 @@ class EnhancedMultiSubscriptionClusterManager:
             
             # Get all clusters without subscription info
             clusters_to_update = []
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
                     SELECT id, name, resource_group 
@@ -750,7 +770,7 @@ class EnhancedMultiSubscriptionClusterManager:
                             raise
                         
                         # Update the cluster with subscription info
-                        with sqlite3.connect(self.db_path) as conn:
+                        with self._connect() as conn:
                             conn.execute('''
                                 UPDATE clusters 
                                 SET subscription_id = ?, subscription_name = ?
@@ -788,7 +808,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def track_subscription_analysis_session(self, session_data: Dict) -> bool:
         """Track subscription-aware analysis session"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.execute('''
                     INSERT OR REPLACE INTO subscription_analysis_sessions
                     (session_id, cluster_id, subscription_id, resource_group, cluster_name,
@@ -820,7 +840,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def update_subscription_analysis_session(self, session_id: str, updates: Dict) -> bool:
         """Update subscription analysis session"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 # Build dynamic update query
                 set_clauses = []
                 values = []
@@ -846,7 +866,7 @@ class EnhancedMultiSubscriptionClusterManager:
                                           status: Optional[str] = None) -> List[Dict]:
         """Get subscription analysis sessions with filtering"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 
                 where_clauses = []
@@ -881,7 +901,7 @@ class EnhancedMultiSubscriptionClusterManager:
         try:
             cutoff_time = datetime.now() - timedelta(hours=hours_back)
             
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
                     SELECT metric_name, metric_value, measured_at
@@ -911,7 +931,7 @@ class EnhancedMultiSubscriptionClusterManager:
                                              metric_name: str, metric_value: float) -> bool:
         """Record a performance metric for subscription"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.execute('''
                     INSERT INTO subscription_performance
                     (subscription_id, metric_name, metric_value, measured_at)
@@ -928,7 +948,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def get_subscription_portfolio_summary(self) -> Dict:
         """Get comprehensive portfolio summary with subscription breakdown"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 
                 # Overall portfolio metrics
@@ -1039,7 +1059,7 @@ class EnhancedMultiSubscriptionClusterManager:
             try:
                 from infrastructure.services.subscription_manager import azure_subscription_manager
                 
-                with sqlite3.connect(self.db_path) as conn:
+                with self._connect() as conn:
                     conn.row_factory = sqlite3.Row
                     cursor = conn.execute('''
                         SELECT id, name, resource_group, subscription_id, subscription_name
@@ -1121,7 +1141,7 @@ class EnhancedMultiSubscriptionClusterManager:
         try:
             cluster_id = f"{cluster_config['resource_group']}_{cluster_config['cluster_name']}"
             
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.execute('''
                     INSERT OR REPLACE INTO clusters 
                     (id, name, resource_group, environment, region, description, status, created_at, metadata)
@@ -1184,7 +1204,7 @@ class EnhancedMultiSubscriptionClusterManager:
             
             cluster_id = f"{cluster_config['resource_group']}_{cluster_config['cluster_name']}"
             
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 # Check if cluster already exists to preserve analysis data
                 cursor = conn.execute('SELECT id, last_cost, last_savings, last_analyzed FROM clusters WHERE id = ?', (cluster_id,))
                 existing_cluster = cursor.fetchone()
@@ -1266,7 +1286,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def get_cluster(self, cluster_id: str) -> Optional[Dict]:
         """Get cluster configuration"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
                     SELECT id, name, resource_group, environment, region, description, 
@@ -1292,7 +1312,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def list_clusters(self) -> List[Dict]:
         """List all configured clusters"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
                     SELECT id, name, resource_group, environment, region, description, 
@@ -1320,7 +1340,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def get_clusters_with_subscription_info(self) -> List[Dict]:
         """Get all clusters with subscription information"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
                     SELECT c.id, c.name, c.resource_group, c.environment, c.region, c.description, 
@@ -1354,7 +1374,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def get_cluster_subscription_info(self, cluster_id: str) -> Optional[Dict]:
         """Get stored subscription info for a cluster"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
                     SELECT subscription_id, subscription_name 
@@ -1378,7 +1398,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def update_cluster_subscription_info(self, cluster_id: str, subscription_id: str, subscription_name: str):
         """Update cluster with its actual subscription information"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.execute('''
                     UPDATE clusters 
                     SET subscription_id = ?, subscription_name = ?
@@ -1909,7 +1929,7 @@ class EnhancedMultiSubscriptionClusterManager:
             else:
                 self.logger.warning(f"⚠️ No enhanced analysis data to save for {cluster_id}")
 
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 # Set cost_fetched_at timestamp only when cost data is actually present and updated
                 current_time = datetime.now().isoformat()
                 cost_fetched_time = current_time if total_cost > 0 else None
@@ -1957,7 +1977,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def get_latest_analysis(self, cluster_id: str) -> Optional[Dict[str, Any]]:
         """Get latest analysis with enhanced data when available"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 
                 # First try to get enhanced analysis data from clusters table
@@ -2084,7 +2104,7 @@ class EnhancedMultiSubscriptionClusterManager:
         This is the method that should be called for plan generation.
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
                     SELECT enhanced_analysis_data, analysis_data, last_analyzed
@@ -2158,7 +2178,7 @@ class EnhancedMultiSubscriptionClusterManager:
         try:
             enhanced_blob = json.dumps(enhanced_input).encode('utf-8')
             
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.execute('''
                     UPDATE clusters
                     SET enhanced_analysis_data = ?
@@ -2197,7 +2217,7 @@ class EnhancedMultiSubscriptionClusterManager:
             self.logger.warning(f"🚨 Message: {message}")
         
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 # DEBUG: Check data before update
                 cursor = conn.execute('SELECT last_cost, last_savings, last_analyzed FROM clusters WHERE id = ?', (cluster_id,))
                 before_data = cursor.fetchone()
@@ -2316,7 +2336,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def get_analysis_status(self, cluster_id: str) -> Optional[Dict]:
         """Get current analysis status for a cluster"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
                     SELECT analysis_status, analysis_progress, analysis_message, 
@@ -2346,7 +2366,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def get_clusters_by_status(self, status: str) -> List[Dict]:
         """Get all clusters with a specific analysis status"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
                     SELECT id, name, resource_group, environment, region, description, 
@@ -2375,7 +2395,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def get_analysis_queue_status(self) -> Dict:
         """Get overview of analysis queue and status"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 
                 # Get status counts
@@ -2428,7 +2448,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def get_portfolio_summary(self) -> Dict:
         """Get portfolio-wide summary statistics"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
                     SELECT 
@@ -2477,7 +2497,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def get_enhanced_portfolio_summary(self) -> Dict:
         """Get enhanced portfolio summary with analysis status"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 
                 # Basic portfolio metrics
@@ -2552,7 +2572,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def remove_cluster(self, cluster_id: str) -> bool:
         """Remove a cluster and all its analysis data"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 # Remove analysis results first
                 conn.execute('DELETE FROM analysis_results WHERE cluster_id = ?', (cluster_id,))
                 
@@ -2575,7 +2595,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def get_analysis_history(self, cluster_id: str, limit: int = 10) -> List[Dict]:
         """Get analysis history for a cluster"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
                     SELECT analysis_date, total_cost, total_savings, confidence_level
@@ -2596,7 +2616,7 @@ class EnhancedMultiSubscriptionClusterManager:
         try:
             cutoff_date = datetime.now() - timedelta(days=days_to_keep)
             
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 cursor = conn.execute('''
                     DELETE FROM analysis_results 
                     WHERE analysis_date < ? 
@@ -2624,7 +2644,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def list_plans_for_cluster(self, cluster_id: str, limit: int = 10) -> List[Dict]:
         """List recent plans for a cluster"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 cursor = conn.execute("""
                     SELECT plan_id, generated_at, total_savings, total_actions, 
                            executed, execution_status, version, generated_by
@@ -2656,7 +2676,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def mark_plan_executed(self, plan_id: str, execution_status: str = "completed"):
         """Mark a plan as executed"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.execute("""
                     UPDATE implementation_plans 
                     SET executed = 1, execution_status = ?
@@ -2674,7 +2694,7 @@ class EnhancedMultiSubscriptionClusterManager:
         try:
             cutoff_date = datetime.now() - timedelta(days=days_to_keep)
             
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 cursor = conn.execute('''
                     DELETE FROM implementation_plans 
                     WHERE generated_at < ? 
@@ -2698,7 +2718,7 @@ class EnhancedMultiSubscriptionClusterManager:
     def get_latest_plan(self, cluster_id: str) -> Optional[Dict]:
         """Retrieve most recent plan for cluster as raw dict (markdown format)"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 cursor = conn.execute("""
                     SELECT plan_data FROM implementation_plans
                     WHERE cluster_id = ?
@@ -2747,7 +2767,7 @@ class EnhancedMultiSubscriptionClusterManager:
             if 'total_monthly_savings' in plan_data:
                 total_savings = plan_data['total_monthly_savings']
             
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connect() as conn:
                 conn.execute("""
                     INSERT INTO implementation_plans 
                     (plan_id, cluster_id, analysis_id, plan_data, generated_at, 
