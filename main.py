@@ -144,6 +144,15 @@ def main():
     except Exception as e:
         print(f"⚠️ Auto-analysis scheduler failed to start: {e}")
     
+    # Start database cleanup service
+    from infrastructure.services.database_cleanup_service import DatabaseCleanupService
+    try:
+        db_cleanup = DatabaseCleanupService()
+        db_cleanup.start()
+        print("✅ Database cleanup service started")
+    except Exception as e:
+        print(f"⚠️ Database cleanup service failed to start: {e}")
+    
     print("=" * 60)
     print("✅ AKS Cost Optimizer is ready!")
     print("🌐 Access the application at: http://localhost:5001")

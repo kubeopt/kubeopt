@@ -27,25 +27,72 @@ logger = logging.getLogger(__name__)
 
 class SettingsManager:
     """
-    Centralized settings and configuration management
+    Hybrid Settings Manager
+    ======================
+    
+    Simple priority system:
+    1. Volume/File Settings (customer changes) - HIGHEST PRIORITY
+    2. Environment Variables (Railway defaults, local vars) - MIDDLE PRIORITY  
+    3. .env file defaults - LOWEST PRIORITY
+    
+    Deployment scenarios:
+    - Local: .env file in current directory
+    - Docker: Volume mount at /app/config
+    - Railway: Volume storage + Railway env vars as defaults
     """
     
     def __init__(self):
-        # Use persistent settings path if configured, otherwise default to current directory
-        settings_dir = os.getenv('SETTINGS_PATH', os.getcwd())
-        
-        # Ensure the settings directory exists
-        if not os.path.exists(settings_dir):
-            os.makedirs(settings_dir, exist_ok=True)
-            
-        self.settings_file = os.path.join(settings_dir, '.env')
-        self.backup_settings_file = os.path.join(settings_dir, '.env.backup')
         self.config_cache = {}
+        self.deployment_type = self._detect_deployment_type()
+        self.settings_file, self.backup_settings_file = self._get_settings_paths()
+        
+        logger.info(f"🔧 Hybrid Settings Manager initialized for: {self.deployment_type}")
         self.load_settings()
+    
+    def _detect_deployment_type(self) -> str:
+        """Detect which deployment environment we're running in"""
+        if os.getenv('RAILWAY_ENVIRONMENT'):
+            return 'railway'
+        elif os.path.exists('/app/config') and os.access('/app/config', os.W_OK):
+            return 'docker_volume'
+        elif os.getenv('SETTINGS_PATH'):
+            return 'custom_path'
+        else:
+            return 'local'
+    
+    def _get_settings_paths(self) -> tuple:
+        """Get appropriate settings file paths based on deployment type"""
+        if self.deployment_type == 'railway':
+            # Railway: Use volume if available, fall back to app directory
+            if os.getenv('RAILWAY_VOLUME_MOUNT_PATH'):
+                settings_dir = os.getenv('RAILWAY_VOLUME_MOUNT_PATH')
+                logger.info(f"🚂 Railway volume detected: {settings_dir}")
+            else:
+                settings_dir = '/app'
+                logger.info("🚂 Railway without volume - using /app")
+        elif self.deployment_type == 'docker_volume':
+            settings_dir = '/app/config'
+            logger.info(f"🐳 Docker volume: {settings_dir}")
+        elif self.deployment_type == 'custom_path':
+            settings_dir = os.getenv('SETTINGS_PATH')
+            logger.info(f"📁 Custom path: {settings_dir}")
+        else:
+            settings_dir = os.getcwd()
+            logger.info(f"💻 Local development: {settings_dir}")
+        
+        # Ensure directory exists
+        os.makedirs(settings_dir, exist_ok=True)
+        
+        settings_file = os.path.join(settings_dir, '.env')  # Use standard .env file
+        backup_file = os.path.join(settings_dir, '.env.backup')
+        
+        return settings_file, backup_file
     
     def load_settings(self) -> Dict[str, str]:
         """
-        Load settings from environment and .env file
+        Hybrid Priority Loading:
+        1. Environment Variables (Railway defaults, system vars) - BASE LAYER
+        2. Customer Settings File (volume/file overrides) - TOP LAYER
         
         Returns:
             Dict of current configuration
@@ -53,31 +100,50 @@ class SettingsManager:
         try:
             config = {}
             
-            # Load from .env file if it exists
+            # LAYER 1: Environment Variables (Railway defaults, system settings)
+            env_count = 0
+            for key, value in os.environ.items():
+                if key.startswith(('AZURE_', 'SLACK_', 'EMAIL_', 'SMTP_', 'LOG_', 'PRODUCTION_', 'COST_', 'ANALYSIS_', 'AUTO_', 'DATABASE_', 'USER_', 'KUBEOPT_')):
+                    config[key] = value
+                    env_count += 1
+            logger.info(f"📋 Loaded {env_count} environment variables")
+            
+            # LAYER 2: Customer Settings File (overrides environment)  
+            customer_count = 0
             if os.path.exists(self.settings_file):
+                logger.info(f"📄 Loading customer settings: {self.settings_file}")
                 with open(self.settings_file, 'r') as f:
                     for line in f:
                         line = line.strip()
                         if line and not line.startswith('#') and '=' in line:
                             key, value = line.split('=', 1)
-                            config[key.strip()] = value.strip().strip('"\'')
-            
-            # Override with actual environment variables
-            for key, value in os.environ.items():
-                if key.startswith(('AZURE_', 'SLACK_', 'EMAIL_', 'SMTP_', 'LOG_', 'PRODUCTION_', 'COST_', 'ANALYSIS_', 'AUTO_', 'DATABASE_', 'USER_', 'KUBEOPT_')):
-                    config[key] = value
+                            key = key.strip()
+                            value = value.strip().strip('"\'')
+                            config[key] = value  # This OVERWRITES environment values
+                            # Also update os.environ so Azure SDK and other services can access it
+                            os.environ[key] = value
+                            customer_count += 1
+                logger.info(f"📄 Loaded {customer_count} customer overrides")
+            else:
+                logger.info(f"📄 No customer settings file found (using defaults only)")
             
             self.config_cache = config
-            logger.info(f"Settings loaded: {len(config)} configuration items")
+            logger.info(f"✅ Hybrid settings loaded ({self.deployment_type}): {env_count} env + {customer_count} custom = {len(config)} total")
             return config
             
         except Exception as e:
-            logger.error(f"Error loading settings: {e}")
+            logger.error(f"❌ Error loading settings: {e}")
             return {}
     
     def save_settings(self, new_settings: Dict[str, str]) -> bool:
         """
-        Save settings to .env file and environment - MERGES with existing settings
+        Multi-Environment Settings Save
+        ===============================
+        
+        Saves settings based on deployment type:
+        - Local: Saves to .env file
+        - Docker: Saves to volume mount
+        - Railway: Saves to file AND syncs to Railway API
         
         Args:
             new_settings: Dictionary of new settings to save
@@ -180,6 +246,13 @@ class SettingsManager:
             # Reload settings cache
             self.config_cache = merged_settings
             
+            # Update os.environ with the saved settings so Azure SDK can access them
+            for key, value in merged_settings.items():
+                os.environ[key] = str(value)
+            
+            # Note: Customer settings are saved to file and loaded into environment
+            logger.debug("💾 Settings saved to .env file and loaded into environment")
+            
             # Check if auto-analysis setting changed and restart scheduler if needed
             if 'auto_analysis_enabled' in new_settings:
                 try:
@@ -189,7 +262,7 @@ class SettingsManager:
                 except Exception as e:
                     logger.warning(f"⚠️ Could not restart auto-analysis scheduler: {e}")
             
-            logger.info("Settings saved successfully")
+            logger.info(f"✅ Settings saved successfully ({getattr(self, 'deployment_type', 'standard')} mode)")
             return True
             
         except Exception as e:
@@ -258,17 +331,32 @@ class SettingsManager:
     
     def get_setting(self, key: str, default: str = '') -> str:
         """
-        Get individual setting value
+        Get individual setting value with case-insensitive lookup
         
         Args:
-            key: Setting key
+            key: Setting key (case-insensitive)
             default: Default value if not found
             
         Returns:
             str: Setting value
         """
         config = self.get_settings()
-        return config.get(key, default)
+        
+        # Try exact match first
+        if key in config:
+            return config.get(key, default)
+        
+        # Try uppercase version
+        upper_key = key.upper()
+        if upper_key in config:
+            return config.get(upper_key, default)
+        
+        # Try lowercase version
+        lower_key = key.lower()
+        if lower_key in config:
+            return config.get(lower_key, default)
+        
+        return default
     
     def update_setting(self, key: str, value: str) -> None:
         """
@@ -324,6 +412,41 @@ class SettingsManager:
                 
         except Exception as e:
             logger.error(f"Error testing Slack integration: {e}")
+            return {'success': False, 'message': str(e)}
+    
+    def test_slack_integration_with_values(self, webhook_url: str, channel: str = '#general') -> Dict[str, Any]:
+        """
+        Test Slack webhook integration with provided values (allows testing before saving)
+        
+        Args:
+            webhook_url: Slack webhook URL to test
+            channel: Slack channel for the test message
+        
+        Returns:
+            Dict with test results
+        """
+        try:
+            if not webhook_url:
+                return {'success': False, 'message': 'Slack webhook URL not provided'}
+            
+            message = {
+                'channel': channel,
+                'username': 'AKS Cost Optimizer',
+                'text': f'🧪 Test message from AKS Cost Optimizer - {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
+                'icon_emoji': ':cloud:'
+            }
+            
+            response = requests.post(webhook_url, json=message, timeout=10)
+            
+            if response.status_code == 200:
+                logger.info("Slack test message sent successfully with provided values")
+                return {'success': True, 'message': 'Test message sent to Slack successfully!'}
+            else:
+                logger.error(f"Slack test failed: {response.status_code} - {response.text}")
+                return {'success': False, 'message': f'Slack API error: {response.status_code} - {response.text}'}
+                
+        except Exception as e:
+            logger.error(f"Error testing Slack integration with provided values: {e}")
             return {'success': False, 'message': str(e)}
     
     def test_email_configuration(self, smtp_server: str, smtp_port: int, username: str, password: str, recipients: List[str]) -> Dict[str, Any]:
@@ -509,6 +632,36 @@ class SettingsManager:
         except Exception as e:
             logger.error(f"Error getting custom env vars: {e}")
             return ""
+
+    def get_deployment_summary(self) -> str:
+        """Get a human-readable summary of the current deployment configuration"""
+        info = self.get_deployment_info()
+        
+        summary_lines = [
+            f"🔧 Deployment: {info['deployment_type']}",
+            f"📄 Settings File: {info['settings_file']}",
+            f"✏️ Writable: {'Yes' if info['can_write_files'] else 'No'}"
+        ]
+        
+        if info['deployment_type'] == 'railway':
+            volume_status = "Yes" if info.get('railway_volume') else "No"
+            summary_lines.append(f"🚂 Railway Volume: {volume_status}")
+        
+        return " | ".join(summary_lines)
+    
+    def get_deployment_info(self) -> Dict[str, Any]:
+        """Get deployment type and configuration info for debugging"""
+        info = {
+            'deployment_type': getattr(self, 'deployment_type', 'unknown'),
+            'settings_file': getattr(self, 'settings_file', 'unknown'),
+            'can_write_files': os.access(os.path.dirname(getattr(self, 'settings_file', '.')), os.W_OK) if hasattr(self, 'settings_file') else False
+        }
+        
+        if hasattr(self, 'deployment_type') and self.deployment_type == 'railway':
+            info['railway_volume'] = os.getenv('RAILWAY_VOLUME_MOUNT_PATH')
+            info['railway_environment'] = os.getenv('RAILWAY_ENVIRONMENT')
+        
+        return info
 
 # Global settings manager instance
 settings_manager = SettingsManager()

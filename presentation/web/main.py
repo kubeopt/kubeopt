@@ -67,7 +67,7 @@ def register_all_routes_with_multi_subscription():
         register_routes(app)
         
         # Register enhanced API routes with subscription awareness
-        from presentation.api.api_routes import register_api_routes
+        from presentation.api.api_routes import register_api_routes, hybrid_auth
         register_api_routes(app)
         
         # Register authentication routes
@@ -138,6 +138,7 @@ def register_enhanced_utility_routes():
         return app.send_static_file('database_cache_management.html')
 
     @app.route('/api/subscriptions/health', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def api_subscription_health():
         """Get health status of all subscriptions"""
         try:
@@ -160,6 +161,7 @@ def register_enhanced_utility_routes():
             }), 500
 
     @app.route('/api/cache/subscription-status', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def cache_subscription_status():
         """Get detailed cache status with subscription breakdown"""
         try:
@@ -225,6 +227,7 @@ def register_enhanced_utility_routes():
 
     # Enhanced analysis sessions monitoring with subscription awareness
     @app.route('/api/analysis-sessions/subscription', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def get_subscription_analysis_sessions():
         """Monitor subscription-aware analysis sessions"""
         try:
@@ -255,6 +258,7 @@ def register_enhanced_utility_routes():
 
     # Batch analysis management
     @app.route('/api/analysis/batch', methods=['POST'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def api_batch_analysis():
         """Trigger batch analysis across multiple subscriptions"""
         try:
@@ -306,6 +310,7 @@ def register_enhanced_utility_routes():
 
     # Performance metrics
     @app.route('/api/subscriptions/<subscription_id>/metrics', methods=['GET'])
+    @hybrid_auth  # 🔒 JWT/API Key Authentication Required
     def get_subscription_metrics(subscription_id: str):
         """Get performance metrics for specific subscription"""
         try:

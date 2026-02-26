@@ -115,6 +115,17 @@ class SystemPerformanceStandards:
     MEMORY_PAGE_FAULTS_PER_SEC = 1000     # Page faults per second threshold
     MEMORY_SWAP_USAGE_MAX_PERCENT = 10    # Maximum 10% swap usage
     MEMORY_CACHE_HIT_RATIO_TARGET = 95    # 95% cache hit ratio target
+
+    # =============================================
+    # ML WORKLOAD CLASSIFICATION THRESHOLDS
+    # =============================================
+    # Ratios relative to CPU_UTILIZATION_OPTIMAL for workload type classification
+    CLASSIFICATION_CPU_INTENSIVE_MEMORY_RATIO = 0.71   # Memory below optimal*0.71 → CPU_INTENSIVE
+    CLASSIFICATION_MEMORY_INTENSIVE_CPU_RATIO = 0.57   # CPU below optimal*0.57 → MEMORY_INTENSIVE
+    CLASSIFICATION_LOW_UTIL_CPU_RATIO = 0.36           # CPU below optimal*0.36 → LOW_UTILIZATION
+    CLASSIFICATION_LOW_UTIL_MEMORY_RATIO = 0.50        # Memory below optimal*0.50 → LOW_UTILIZATION
+    CLASSIFICATION_BURSTY_FREQ_THRESHOLD = 0.3         # Burst frequency > 0.3 → BURSTY
+    CLASSIFICATION_BURSTY_CV_THRESHOLD = 0.5           # Coefficient of variation > 0.5 → BURSTY
     
     # =============================================
     # DISK PERFORMANCE STANDARDS

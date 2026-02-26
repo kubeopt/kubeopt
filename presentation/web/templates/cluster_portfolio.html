@@ -143,18 +143,18 @@ Cluster Portfolio - AKS Cost Optimizer
                         
                         <div class="action-buttons">
                             {% if cluster.last_analyzed %}
-                            <button class="btn-icon analyze-btn" onclick="analyzeCluster('{{ cluster.id }}')" title="Re-analyze" data-cluster-id="{{ cluster.id }}">
+                            <button class="btn-icon analyze-btn" onclick='analyzeCluster({{ cluster.id|tojson }})' title="Re-analyze" data-cluster-id="{{ cluster.id }}">
                                 <i class="fas fa-refresh analyze-icon"></i>
                                 <i class="fas fa-spinner fa-spin analyzing-spinner hidden"></i>
                             </button>
                             {% else %}
-                            <button class="btn-icon analyze-btn" onclick="analyzeCluster('{{ cluster.id }}')" title="Analyze" data-cluster-id="{{ cluster.id }}">
+                            <button class="btn-icon analyze-btn" onclick='analyzeCluster({{ cluster.id|tojson }})' title="Analyze" data-cluster-id="{{ cluster.id }}">
                                 <i class="fas fa-play analyze-icon"></i>
                                 <i class="fas fa-spinner fa-spin analyzing-spinner hidden"></i>
                             </button>
                             {% endif %}
-                            
-                            <button class="btn-icon btn-danger" onclick="deleteClusterConfirm('{{ cluster.id }}')" title="Delete cluster">
+
+                            <button class="btn-icon btn-danger" onclick='deleteClusterConfirm({{ cluster.id|tojson }})' title="Delete cluster">
                                 <i class="fas fa-trash-alt"></i>
                             </button>
                         </div>

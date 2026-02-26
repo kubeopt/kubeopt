@@ -13,3 +13,11 @@ PYTHONUNBUFFERED = "1"
 PYTHONPATH = "/app"
 DATABASE_PATH = "/app/data/aks_optimizer.db"
 AZURE_CONFIG_DIR = "/app/.azure"
+# Performance optimizations
+DATABASE_POOL_SIZE = "5"
+DATABASE_TIMEOUT = "30"
+CACHE_TIMEOUT = "300"
+LOG_LEVEL = "WARNING"
+# Disable heavy startup features for faster cold starts
+AUTO_ANALYSIS_ENABLED = "false"
+DATABASE_CLEANUP_ENABLED = "false"

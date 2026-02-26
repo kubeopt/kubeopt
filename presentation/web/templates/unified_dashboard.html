@@ -21,6 +21,21 @@
                         <i class="fas fa-chart-line"></i>
                     </a>
                 </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link" data-view="pods" data-tooltip="Pods">
+                        <i class="fas fa-cube"></i>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link" data-view="workloads" data-tooltip="Workloads">
+                        <i class="fas fa-layer-group"></i>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link" data-view="resources" data-tooltip="Resources">
+                        <i class="fas fa-server"></i>
+                    </a>
+                </div>
                 {% if feature_flags.show_ai_plans %}
                 <div class="nav-item">
                     <a href="#" class="nav-link" data-view="implementation" data-tooltip="Implementation">
@@ -62,6 +77,24 @@
                     <a href="#" class="nav-link active" data-view="overview">
                         <i class="fas fa-chart-line"></i>
                         <span>Overview</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link" data-view="pods">
+                        <i class="fas fa-cube"></i>
+                        <span>Pods</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link" data-view="workloads">
+                        <i class="fas fa-layer-group"></i>
+                        <span>Workloads</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link" data-view="resources">
+                        <i class="fas fa-server"></i>
+                        <span>Resources</span>
                     </a>
                 </div>
                 {% if feature_flags.show_ai_plans %}
@@ -116,25 +149,25 @@
         <!-- Cluster information for JavaScript -->
         <script>
             window.AppState = {
-                currentClusterId: "{{ cluster.id }}",
-                currentClusterName: "{{ cluster.name }}",
-                currentResourceGroup: "{{ cluster.resource_group }}",
+                currentClusterId: {{ cluster.id|tojson }},
+                currentClusterName: {{ cluster.name|tojson }},
+                currentResourceGroup: {{ cluster.resource_group|tojson }},
                 featureFlags: {
                     showAiPlans: {{ feature_flags.show_ai_plans|tojson }},
-                    tier: "{{ feature_flags.tier }}",
+                    tier: {{ feature_flags.tier|tojson }},
                     hasLicense: {{ feature_flags.has_license|tojson }}
                 }
             };
-            
+
             {% if cluster %}
             window.clusterInfo = {
-                id: '{{ cluster.id }}',
-                name: '{{ cluster.name }}',
-                cluster_name: '{{ cluster.name }}',
-                resource_group: '{{ cluster.resource_group }}',
-                environment: '{{ cluster.environment }}',
-                region: '{{ cluster.region }}',
-                subscription_id: '{{ cluster.subscription_id }}'
+                id: {{ cluster.id|tojson }},
+                name: {{ cluster.name|tojson }},
+                cluster_name: {{ cluster.name|tojson }},
+                resource_group: {{ cluster.resource_group|tojson }},
+                environment: {{ cluster.environment|tojson }},
+                region: {{ cluster.region|tojson }},
+                subscription_id: {{ cluster.subscription_id|tojson }}
             };
             {% endif %}
         </script>
@@ -455,11 +488,25 @@
                             </span>
                         </div>
                     </div>
-                    
-                    <div class="recommendations-grid" id="node-recommendations-grid">
-                        <!-- Node recommendations will be populated by JavaScript -->
+
+                    <div class="node-recommendations-table-wrapper" id="node-recommendations-table-wrapper">
+                        <table class="node-rec-table" id="node-recommendations-table">
+                            <thead>
+                                <tr>
+                                    <th class="node-rec-th sortable" data-sort="current_vm_size">Current VM <span class="sort-icon"></span></th>
+                                    <th class="node-rec-th sortable" data-sort="node_count">Nodes <span class="sort-icon"></span></th>
+                                    <th class="node-rec-th">Utilization</th>
+                                    <th class="node-rec-th sortable" data-sort="recommended_vm_size">Recommended <span class="sort-icon"></span></th>
+                                    <th class="node-rec-th sortable" data-sort="monthly_savings">Savings <span class="sort-icon"></span></th>
+                                    <th class="node-rec-th sortable" data-sort="priority">Priority <span class="sort-icon"></span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="node-recommendations-tbody">
+                                <!-- Rows populated by JavaScript -->
+                            </tbody>
+                        </table>
                     </div>
-                    
+
                     <div class="no-recommendations hidden" id="no-node-recommendations">
                         <div class="no-recommendations-content">
                             <i class="fas fa-check-circle success-icon"></i>
@@ -469,6 +516,27 @@
                     </div>
                 </div>
                 
+            </div>
+            
+            <!-- Pods Section -->
+            <div id="pods-section" class="dashboard-section">
+                <div id="pod-overview-content">
+                    <!-- Pods content will be loaded by JavaScript -->
+                </div>
+            </div>
+            
+            <!-- Workloads Section -->
+            <div id="workloads-section" class="dashboard-section">
+                <div id="workload-cards-container">
+                    <!-- Workloads content will be loaded by JavaScript -->
+                </div>
+            </div>
+            
+            <!-- Resources Section -->
+            <div id="resources-section" class="dashboard-section">
+                <div id="resource-charts-container">
+                    <!-- Resources content will be loaded by JavaScript -->
+                </div>
             </div>
             
             <!-- Implementation Section -->

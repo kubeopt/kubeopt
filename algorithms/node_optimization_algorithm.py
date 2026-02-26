@@ -173,20 +173,26 @@ class NodeOptimizationAlgorithm:
                 raise KeyError("VM option missing required 'vm_size' field")
             if "cost_per_hour" not in vm_option:
                 raise KeyError("VM option missing required 'cost_per_hour' field")
-            
+
             vm_size = vm_option["vm_size"]
             vm_cost = vm_option["cost_per_hour"]
-            
+
             # Skip current VM size
             if vm_size == current_vm_size:
                 continue
-            
+
+            # Filter by recommendation direction
+            if recommendation_type == self.standards.RECOMMENDATION_TYPE_DOWNSIZE and vm_cost >= current_cost:
+                continue  # Downsizing: only recommend cheaper VMs
+            if recommendation_type == self.standards.RECOMMENDATION_TYPE_UPSIZE and vm_cost <= current_cost:
+                continue  # Upsizing: only recommend larger VMs
+
             # Calculate potential savings
             cost_difference = current_cost - vm_cost
             savings_percentage = (cost_difference / current_cost * 100.0) if current_cost > 0 else 0.0
-            
+
             # Only recommend if there are meaningful savings or performance improvements
-            min_impact_threshold = 5.0  # Use standards instead of hardcoded value
+            min_impact_threshold = 5.0
             if abs(savings_percentage) < min_impact_threshold:
                 continue
             

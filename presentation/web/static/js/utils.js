@@ -157,10 +157,9 @@ window.showToast = function(message, type = 'info', duration = 5000) {
  * Format number with appropriate units
  */
 window.formatNumber = function(value, decimals = 1) {
+    if (value === null || value === undefined || value === '') return '--';
     const num = parseFloat(value);
-    if (isNaN(num)) {
-        throw new Error(`Invalid number for formatting: ${value}`);
-    }
+    if (isNaN(num)) return '--';
     
     if (num >= 1000000) {
         return (num / 1000000).toFixed(decimals) + 'M';
@@ -175,10 +174,9 @@ window.formatNumber = function(value, decimals = 1) {
  * Format currency with appropriate symbol
  */
 window.formatCurrency = function(value, currency = 'USD') {
+    if (value === null || value === undefined || value === '') return '--';
     const num = parseFloat(value);
-    if (isNaN(num)) {
-        throw new Error(`Invalid number for currency formatting: ${value}`);
-    }
+    if (isNaN(num)) return '--';
     
     const formatter = new Intl.NumberFormat('en-US', {
         style: 'currency',
@@ -194,10 +192,9 @@ window.formatCurrency = function(value, currency = 'USD') {
  * Format percentage
  */
 window.formatPercentage = function(value, decimals = 1) {
+    if (value === null || value === undefined || value === '') return '--';
     const num = parseFloat(value);
-    if (isNaN(num)) {
-        throw new Error(`Invalid number for percentage formatting: ${value}`);
-    }
+    if (isNaN(num)) return '--';
     
     return `${num.toFixed(decimals)}%`;
 };
@@ -206,10 +203,9 @@ window.formatPercentage = function(value, decimals = 1) {
  * Format value based on type
  */
 window.formatValue = function(value, format) {
+    if (value === null || value === undefined || value === '') return '--';
     const num = parseFloat(value);
-    if (isNaN(num)) {
-        throw new Error(`Invalid number for formatting: ${value}`);
-    }
+    if (isNaN(num)) return '--';
     
     switch(format) {
         case 'currency':
