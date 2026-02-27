@@ -999,6 +999,225 @@ input:checked + .toggle-slider:before {
     cursor: not-allowed;
 }
 
+/* ==========================================
+   Service Principal Setup Guide / Accordion
+   ========================================== */
+
+.setup-guide {
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    margin: 1rem 0;
+    overflow: hidden;
+    background: var(--bg-primary);
+}
+
+.setup-guide-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1.25rem;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.setup-guide-header i {
+    color: var(--primary-color);
+    font-size: 0.875rem;
+}
+
+.accordion-item {
+    border-bottom: 1px solid var(--border-color-light);
+}
+
+.accordion-item:last-child {
+    border-bottom: none;
+}
+
+.accordion-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.75rem 1.25rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    text-align: left;
+    transition: background 0.2s ease;
+}
+
+.accordion-header:hover {
+    background: var(--bg-tertiary);
+}
+
+.accordion-step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.25rem;
+    background: rgba(127, 176, 105, 0.15);
+    color: var(--primary-color);
+    flex-shrink: 0;
+}
+
+.accordion-chevron {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    transition: transform 0.25s ease;
+    flex-shrink: 0;
+}
+
+.accordion-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.accordion-content.expanded {
+    max-height: 2000px;
+}
+
+.accordion-content > p,
+.accordion-content > pre,
+.accordion-content > table {
+    margin-left: 1.25rem;
+    margin-right: 1.25rem;
+}
+
+.accordion-content > p {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.accordion-content > p:first-child {
+    margin-top: 0.75rem;
+}
+
+.accordion-content > *:last-child {
+    margin-bottom: 1rem;
+}
+
+.accordion-content code {
+    background: var(--bg-tertiary);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.8125rem;
+}
+
+.code-block {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color-light);
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.75rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--text-primary);
+}
+
+.role-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.role-table th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.role-table td {
+    padding: 0.5rem 0.75rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color-light);
+}
+
+.role-table tr:last-child td {
+    border-bottom: none;
+}
+
+.role-table em {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+/* Dark theme for accordion */
+[data-theme="dark"] .setup-guide {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .setup-guide-header {
+    background: var(--bg-primary);
+    border-bottom-color: var(--border-color);
+}
+
+[data-theme="dark"] .accordion-header:hover {
+    background: var(--bg-primary);
+}
+
+[data-theme="dark"] .code-block {
+    background: var(--bg-primary);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .role-table th {
+    background: var(--bg-primary);
+}
+
+[data-theme="dark"] .accordion-content code {
+    background: var(--bg-primary);
+}
+
+/* Responsive accordion */
+@media (max-width: 768px) {
+    .setup-guide {
+        margin: 0.75rem 0;
+    }
+
+    .accordion-content > p,
+    .accordion-content > pre,
+    .accordion-content > table {
+        margin-left: 0.75rem;
+        margin-right: 0.75rem;
+    }
+
+    .code-block {
+        font-size: 0.6875rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .role-table {
+        font-size: 0.75rem;
+    }
+}
+
 /* Dark Theme Support for New Elements */
 [data-theme="dark"] .info-box-primary {
     background: rgba(59, 130, 246, 0.1);
