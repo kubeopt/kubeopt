@@ -29,7 +29,8 @@ window.Dashboard = (function() {
         const hash = window.location.hash.substring(1); // Remove the #
         let initialView = 'overview'; // Default
         
-        if (hash === 'implementation' || hash === 'alerts') {
+        const validViews = ['overview', 'pods', 'workloads', 'resources', 'implementation', 'alerts'];
+        if (validViews.includes(hash)) {
             initialView = hash;
             window.logger.debug(`📍 URL hash detected: ${hash}, setting initial view to: ${initialView}`);
         } else if (hash) {
@@ -61,7 +62,8 @@ window.Dashboard = (function() {
             const hash = window.location.hash.substring(1);
             window.logger.debug(`#️⃣ Hash changed to: ${hash}`);
             
-            if (hash === 'implementation' || hash === 'alerts' || hash === 'overview') {
+            const validViews = ['overview', 'pods', 'workloads', 'resources', 'implementation', 'alerts'];
+            if (validViews.includes(hash)) {
                 switchView(hash);
             }
         });
@@ -90,7 +92,12 @@ window.Dashboard = (function() {
         
         currentView = viewName;
         setActiveNavigation(viewName);
-        
+
+        // Update URL hash so the view persists across navigation
+        if (window.location.hash !== `#${viewName}`) {
+            history.replaceState(null, '', `#${viewName}`);
+        }
+
         // Hide all sections
         const sections = document.querySelectorAll('.dashboard-section');
         window.logger.debug(`📋 Found ${sections.length} dashboard sections`);

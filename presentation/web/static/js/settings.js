@@ -1078,7 +1078,7 @@ function showSection(sectionName) {
 // Handle hash navigation on page load
 function handleHashNavigation() {
     const hash = window.location.hash.substring(1); // Remove the #
-    if (hash && ['general', 'notifications', 'azure', 'security', 'advanced', 'user', 'support'].includes(hash)) {
+    if (hash && ['general', 'notifications', 'azure', 'aws', 'gcp', 'security', 'advanced', 'user', 'support'].includes(hash)) {
         showSection(hash);
     } else {
         // Default to general section if no valid hash
@@ -1094,6 +1094,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Small delay to ensure DOM is fully ready
     setTimeout(handleHashNavigation, 100);
 });
+
+// Accordion toggle for Service Principal Setup Guide
+function toggleAccordion(id) {
+    const content = document.getElementById(id);
+    if (!content) return;
+    const header = content.previousElementSibling;
+    const chevron = header ? header.querySelector('.accordion-chevron') : null;
+
+    content.classList.toggle('expanded');
+    if (chevron) {
+        chevron.style.transform = content.classList.contains('expanded') ? 'rotate(90deg)' : '';
+    }
+}
 
 // Reset profile form function
 function resetProfileForm() {

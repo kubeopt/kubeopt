@@ -53,36 +53,42 @@ az ad sp create-for-rbac \
 
 ### Core Permissions (Organization-Wide)
 
-#### 1. Subscription-Level Permissions
-Apply these roles to **all subscriptions** containing AKS clusters:
+#### 1. Organization-Level Permissions (Recommended)
+Apply these roles at the **management group level** to cover all subscriptions:
 
 ```bash
-# Replace {service-principal-id} with your service principal's appId
-# Replace {subscription-id} with each subscription ID
+SP={service-principal-id}
+MG={management-group-id}
 
-# Basic read access to resources
-az role assignment create \
-  --assignee {service-principal-id} \
-  --role "Reader" \
-  --scope "/subscriptions/{subscription-id}"
+for role in "Reader" "Cost Management Reader" \
+           "Monitoring Reader" \
+           "Azure Kubernetes Service RBAC Reader"; do
+  az role assignment create --assignee $SP --role "$role" \
+    --scope "/providers/Microsoft.Management/managementGroups/$MG"
+done
+```
 
-# Cost management access
-az role assignment create \
-  --assignee {service-principal-id} \
-  --role "Cost Management Reader" \
-  --scope "/subscriptions/{subscription-id}"
+To find your management group ID: `az account management-group list --output table`
 
-# Monitor and metrics access
-az role assignment create \
-  --assignee {service-principal-id} \
-  --role "Monitoring Reader" \
-  --scope "/subscriptions/{subscription-id}"
+| Role | Purpose |
+|------|---------|
+| Reader | Basic read access to resources |
+| Cost Management Reader | Access cost and billing data |
+| Monitoring Reader | Access metrics and monitoring data |
+| Azure Kubernetes Service RBAC Reader | AKS cluster metadata access |
 
-# AKS cluster metadata access (REQUIRED for cluster operations)
-az role assignment create \
-  --assignee {service-principal-id} \
-  --role "Azure Kubernetes Service RBAC Reader" \
-  --scope "/subscriptions/{subscription-id}"
+**Alternative: Per-subscription scope** (if management group access is not available):
+
+```bash
+SP={service-principal-id}
+SUB={subscription-id}
+
+for role in "Reader" "Cost Management Reader" \
+           "Monitoring Reader" \
+           "Azure Kubernetes Service RBAC Reader"; do
+  az role assignment create --assignee $SP --role "$role" \
+    --scope "/subscriptions/$SUB"
+done
 ```
 
 #### 2. AKS-Specific Permissions
@@ -90,7 +96,7 @@ For each AKS cluster or resource group:
 
 ```bash
 # STEP 1: Create custom role for kubectl runCommand operations (REQUIRED)
-# Based on latest Azure documentation (2024-2025), built-in roles do NOT include runCommand permissions
+# Built-in roles do NOT include runCommand permissions
 az role definition create --role-definition '{
   "Name": "AKS Run Command Role",
   "Description": "Custom role for AKS kubectl run command operations",
@@ -102,40 +108,25 @@ az role definition create --role-definition '{
   "AssignableScopes": ["/subscriptions/{subscription-id}"]
 }'
 
-# STEP 2: Assign the custom runCommand role to your cluster
-az role assignment create \
-  --assignee {service-principal-id} \
-  --role "AKS Run Command Role" \
-  --scope "/subscriptions/{subscription-id}/resourceGroups/{resource-group}/providers/Microsoft.ContainerService/managedClusters/{cluster-name}"
+# STEP 2: Assign cluster-level roles (per cluster or per resource group)
+CLUSTER_SCOPE="/subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.ContainerService/managedClusters/{cluster}"
 
-# STEP 3: Also assign cluster user role for additional AKS operations
-az role assignment create \
-  --assignee {service-principal-id} \
-  --role "Azure Kubernetes Service Cluster User Role" \
-  --scope "/subscriptions/{subscription-id}/resourceGroups/{resource-group}/providers/Microsoft.ContainerService/managedClusters/{cluster-name}"
-
-# STEP 4: Grant Kubernetes RBAC permissions (REQUIRED for kubectl operations inside cluster)
-# This is needed for clusters with Azure RBAC integration enabled
-az role assignment create \
-  --assignee {service-principal-id} \
-  --role "Azure Kubernetes Service RBAC Cluster Admin" \
-  --scope "/subscriptions/{subscription-id}/resourceGroups/{resource-group}/providers/Microsoft.ContainerService/managedClusters/{cluster-name}"
+for role in "AKS Run Command Role" \
+           "Azure Kubernetes Service Cluster User Role" \
+           "Azure Kubernetes Service RBAC Cluster Admin"; do
+  az role assignment create --assignee $SP --role "$role" \
+    --scope "$CLUSTER_SCOPE"
+done
 
 # Alternative: Apply to entire resource group (recommended for multiple clusters)
-az role assignment create \
-  --assignee {service-principal-id} \
-  --role "AKS Run Command Role" \
-  --scope "/subscriptions/{subscription-id}/resourceGroups/{resource-group}"
+RG_SCOPE="/subscriptions/{sub-id}/resourceGroups/{rg}"
 
-az role assignment create \
-  --assignee {service-principal-id} \
-  --role "Azure Kubernetes Service Cluster User Role" \
-  --scope "/subscriptions/{subscription-id}/resourceGroups/{resource-group}"
-
-az role assignment create \
-  --assignee {service-principal-id} \
-  --role "Azure Kubernetes Service RBAC Cluster Admin" \
-  --scope "/subscriptions/{subscription-id}/resourceGroups/{resource-group}"
+for role in "AKS Run Command Role" \
+           "Azure Kubernetes Service Cluster User Role" \
+           "Azure Kubernetes Service RBAC Cluster Admin"; do
+  az role assignment create --assignee $SP --role "$role" \
+    --scope "$RG_SCOPE"
+done
 ```
 
 **⚠️ IMPORTANT NOTES**: 
@@ -144,21 +135,8 @@ az role assignment create \
 3. **Azure Kubernetes Service RBAC Cluster Admin** is REQUIRED for clusters with Azure RBAC integration enabled. This grants Kubernetes cluster-admin permissions through Azure RBAC instead of traditional Kubernetes RBAC.
 
 #### 3. Management Group Level (Enterprise Setup)
-For organization-wide access across all subscriptions:
 
-```bash
-# Apply Reader role at Management Group level
-az role assignment create \
-  --assignee {service-principal-id} \
-  --role "Reader" \
-  --scope "/providers/Microsoft.Management/managementGroups/{management-group-id}"
-
-# Apply Cost Management Reader at Management Group level
-az role assignment create \
-  --assignee {service-principal-id} \
-  --role "Cost Management Reader" \
-  --scope "/providers/Microsoft.Management/managementGroups/{management-group-id}"
-```
+See [Organization-Level Permissions](#1-organization-level-permissions-recommended) above — management group scope is now the recommended default for all 4 core roles (Reader, Cost Management Reader, Monitoring Reader, AKS RBAC Reader).
 
 ### Advanced Permissions (Optional)
 
