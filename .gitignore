@@ -129,3 +129,5 @@ config_sensitive.yaml
 *.swo
 .DS_Store
 Thumbs.db
+infrastructure/persistence/database/clusters.db-shm
+infrastructure/persistence/database/clusters.db-wal
