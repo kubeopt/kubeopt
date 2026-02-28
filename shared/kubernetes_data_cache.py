@@ -35,12 +35,14 @@ logger = logging.getLogger(__name__)
 class KubernetesDataCache:
     """Centralized cache for all Kubernetes cluster data - always fresh, no static caching"""
     
-    def __init__(self, cluster_name: str, resource_group: str, subscription_id: str, auto_fetch: bool = False, command_executor=None, region: str = ''):
+    def __init__(self, cluster_name: str, resource_group: str, subscription_id: str, auto_fetch: bool = False, command_executor=None, region: str = '', infrastructure_inspector=None, cloud_provider: str = 'azure'):
         self.cluster_name = cluster_name
         self.resource_group = resource_group
         self.subscription_id = subscription_id
         self.region = region
+        self.cloud_provider = cloud_provider
         self.command_executor = command_executor  # Optional KubernetesCommandExecutor from cloud_providers
+        self.infrastructure_inspector = infrastructure_inspector  # Optional CloudInfrastructureInspector
         self.data = {}  # Fresh data storage (no TTL, no persistence)
         self.cache_timestamps = {}  # Track when each resource was last fetched
         
@@ -233,15 +235,22 @@ class KubernetesDataCache:
                 cpu_cores = self._parse_cpu_millicores(allocatable.get('cpu', '0'))
                 memory_bytes = self._parse_memory_bytes(allocatable.get('memory', '0Ki'))
                 
-                # Detect spot instances from labels
+                # Detect spot instances from labels (Azure, EKS, Karpenter)
                 is_spot = (
                     labels.get('kubernetes.azure.com/scalesetpriority') == 'Spot' or
                     labels.get('node.kubernetes.io/instance-type', '').lower().find('spot') != -1 or
-                    labels.get('karpenter.sh/capacity-type') == 'spot'
+                    labels.get('karpenter.sh/capacity-type') == 'spot' or
+                    labels.get('eks.amazonaws.com/capacityType') == 'SPOT'
                 )
-                
-                # Node pool and instance type
-                node_pool = labels.get('agentpool', labels.get('nodepool', 'unknown'))
+
+                # Node pool and instance type (Azure agentpool, EKS nodegroup, GKE nodepool)
+                node_pool = (
+                    labels.get('agentpool')
+                    or labels.get('eks.amazonaws.com/nodegroup')
+                    or labels.get('cloud.google.com/gke-nodepool')
+                    or labels.get('nodepool')
+                    or 'unknown'
+                )
                 instance_type = labels.get('node.kubernetes.io/instance-type', 'unknown')
                 
                 processed_node = {
@@ -510,38 +519,89 @@ class KubernetesDataCache:
             "ingress_usage": '''kubectl get ingress --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,HOSTS:.spec.rules[*].host,BACKEND:.spec.rules[*].http.paths[*].backend.service.name"''',
         }
     
-    def _execute_kubectl_command(self, cmd: str, timeout: int = None) -> Optional[str]:
-        """Execute single kubectl or az command via cloud provider executor or Azure SDK"""
+    def _get_cluster_identifier(self):
+        """Build a ClusterIdentifier for the current cluster."""
+        from infrastructure.cloud_providers.types import ClusterIdentifier, CloudProvider
+        provider = CloudProvider.from_string(self.cloud_provider)
+        if provider == CloudProvider.AWS:
+            return ClusterIdentifier(
+                provider=provider,
+                cluster_name=self.cluster_name,
+                region=self.region,
+                account_id=self.subscription_id,  # subscription_id reused for AWS account_id
+            )
+        elif provider == CloudProvider.GCP:
+            return ClusterIdentifier(
+                provider=provider,
+                cluster_name=self.cluster_name,
+                region=self.region,
+                project_id=self.subscription_id,
+            )
+        return ClusterIdentifier(
+            provider=provider,
+            cluster_name=self.cluster_name,
+            region=self.region,
+            resource_group=self.resource_group,
+            subscription_id=self.subscription_id,
+        )
 
-        # If a cloud provider command executor is available, try it first
+    def _try_infrastructure_query(self, cmd: str) -> Optional[str]:
+        """Dispatch infrastructure queries to the CloudInfrastructureInspector."""
+        if not self.infrastructure_inspector:
+            return None
+        cluster_id = self._get_cluster_identifier()
+        dispatch = {
+            'az aks show --query currentKubernetesVersion': lambda: self.infrastructure_inspector.get_cluster_version(cluster_id),
+            'az aks show --query identity': lambda: self.infrastructure_inspector.get_cluster_identity(cluster_id),
+            'az aks show': lambda: self.infrastructure_inspector.get_cluster_details(cluster_id),
+            'az aks nodepool list': lambda: self.infrastructure_inspector.get_node_pools(cluster_id),
+            'log_analytics_workspaces': lambda: self.infrastructure_inspector.get_log_analytics_resources(cluster_id),
+            'application_insights_components': lambda: self.infrastructure_inspector.get_application_monitoring(cluster_id),
+            'observability_costs_billing': lambda: self.infrastructure_inspector.get_observability_costs(cluster_id),
+            'consumption_usage_observability': lambda: self.infrastructure_inspector.get_consumption_usage(cluster_id),
+            'cluster_orphaned_disks': lambda: self.infrastructure_inspector.get_orphaned_disks(cluster_id),
+            'cluster_storage_tiers': lambda: self.infrastructure_inspector.get_storage_tier_analysis(cluster_id, self.get("pvcs")),
+            'cluster_unused_public_ips': lambda: self.infrastructure_inspector.get_unused_public_ips(cluster_id),
+            'cluster_load_balancer_analysis': lambda: self.infrastructure_inspector.get_load_balancer_analysis(cluster_id),
+            'cluster_network_waste': lambda: self.infrastructure_inspector.get_network_waste_analysis(cluster_id, self.get("services")),
+        }
+        # Check most specific match first (e.g. 'az aks show --query currentKubernetesVersion' before 'az aks show')
+        for pattern, handler in dispatch.items():
+            if cmd.startswith(pattern) if pattern.startswith('az ') else cmd == pattern:
+                try:
+                    return handler()
+                except NotImplementedError:
+                    return None
+                except Exception as e:
+                    logger.warning(f"Infrastructure inspector failed for '{cmd[:50]}...': {e}")
+                    return None
+        return None
+
+    def _execute_kubectl_command(self, cmd: str, timeout: int = None) -> Optional[str]:
+        """Execute single kubectl or az command via cloud provider abstraction."""
+
+        # 1. Try infrastructure inspector for specialized queries (az aks show, observability, waste)
+        inspector_result = self._try_infrastructure_query(cmd)
+        if inspector_result is not None:
+            return inspector_result
+
+        # 2. Try cloud provider command executor for kubectl/managed commands
         if self.command_executor:
             try:
-                from infrastructure.cloud_providers.types import ClusterIdentifier, CloudProvider
-                import os
-                provider_str = os.getenv('CLOUD_PROVIDER', 'azure').lower()
-                provider = CloudProvider.from_string(provider_str)
-                cluster_id = ClusterIdentifier(
-                    provider=provider,
-                    cluster_name=self.cluster_name,
-                    region=self.region,
-                    resource_group=self.resource_group,
-                    subscription_id=self.subscription_id,
-                )
+                cluster_id = self._get_cluster_identifier()
                 if cmd.startswith('az '):
                     result = self.command_executor.execute_managed_command(cluster_id, cmd, timeout or 180)
                 else:
                     result = self.command_executor.execute_kubectl(cluster_id, cmd, timeout or 180)
                 if result is not None:
                     return result
-                # Fall through to existing execution path on None
                 logger.debug(f"Cloud provider executor returned None for '{cmd[:50]}...', falling back")
             except NotImplementedError:
-                # Provider stub not yet implemented — fall through to existing path
                 pass
             except Exception as e:
                 logger.warning(f"Cloud provider executor failed for '{cmd[:50]}...': {e}, falling back")
 
-        # First, check if we can use Azure Metric Collector for high-impact queries
+        # 3. Check if we can use Azure Metric Collector for high-impact queries
         if self.azure_collector:
             try:
                 # Replace kubectl top nodes (35-40% load reduction) - TEMPORARILY DISABLED
@@ -622,246 +682,98 @@ class KubernetesDataCache:
         return self._execute_kubectl_via_sdk(cmd, timeout)
     
     def _execute_kubectl_via_sdk(self, cmd: str, timeout: int = None) -> Optional[str]:
-        """Execute kubectl or Azure CLI commands via Azure SDK (Azure-only fallback)"""
-        # This method uses the Azure ARM begin_run_command API.
-        # For non-Azure providers, the cloud provider executor (wired in __init__)
-        # handles command execution; this method is only for Azure.
+        """Execute kubectl commands via Azure SDK begin_run_command (Azure-only fallback).
+
+        Specialized queries (az aks show, observability, waste detection) are now handled
+        by _try_infrastructure_query() via CloudInfrastructureInspector. This method only
+        handles plain kubectl commands.
+        """
         provider = os.getenv('CLOUD_PROVIDER', 'azure').lower()
         if provider != 'azure':
             logger.debug(f"Skipping Azure SDK execution for provider '{provider}'")
             return None
 
         try:
-            # Import Azure SDK manager
             from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            
+
             cmd_start = time.time()
-            
-            # Handle Azure CLI commands through direct SDK calls
-            if cmd.startswith('az aks show') and '--query currentKubernetesVersion' in cmd:
-                result_output = self._execute_aks_cluster_version_via_sdk()
-            elif cmd.startswith('az aks show') and '--query identity' in cmd:
-                result_output = self._execute_aks_identity_via_sdk()
-            elif cmd.startswith('az aks show'):
-                result_output = self._execute_aks_show_via_sdk()
-            elif cmd.startswith('az aks nodepool list'):
-                result_output = self._execute_aks_nodepool_list_via_sdk()
-            elif cmd == "log_analytics_workspaces":
-                result_output = self._execute_log_analytics_workspaces_via_sdk()
-            elif cmd == "application_insights_components":
-                result_output = self._execute_application_insights_via_sdk()
-            elif cmd == "observability_costs_billing":
-                result_output = self._execute_observability_costs_via_sdk()
-            elif cmd == "consumption_usage_observability":
-                result_output = self._execute_consumption_usage_via_sdk()
-            elif cmd == "cluster_orphaned_disks":
-                result_output = self._execute_cluster_orphaned_disks_via_sdk()
-            elif cmd == "cluster_storage_tiers":
-                result_output = self._execute_cluster_storage_tiers_via_sdk()
-            elif cmd == "cluster_unused_public_ips":
-                result_output = self._execute_cluster_unused_public_ips_via_sdk()
-            elif cmd == "cluster_load_balancer_analysis":
-                result_output = self._execute_cluster_load_balancer_analysis_via_sdk()
-            elif cmd == "cluster_network_waste":
-                result_output = self._execute_cluster_network_waste_via_sdk()
-            else:
-                # Handle kubectl commands through server-side execution
-                # Smart timeout based on command type
-                if timeout is None:
-                    if "kubectl version" in cmd:
-                        timeout = 30   # Version commands should be quick
-                    elif "kubectl top" in cmd:
-                        timeout = 45  # Metrics server commands are faster but can fail
-                    elif "get namespaces" in cmd or "get nodes" in cmd:
-                        timeout = 120  # Basic cluster info - allow more time
-                    elif "get pods --all-namespaces" in cmd:
-                        timeout = 180  # Large clusters may have many pods
-                    elif "get services --all-namespaces" in cmd or "get pvc --all-namespaces" in cmd:
-                        timeout = 150  # Service/storage queries can be slow
-                    elif "-o json" in cmd and ("events" in cmd or "secrets" in cmd):
-                        timeout = 90   # JSON queries with potential large output
-                    else:
-                        timeout = 75   # Default increased from 60 to 75
-                        
-                    logger.info(f"🕐 {self.cluster_name}: Using {timeout}s timeout for: {cmd[:50]}...")
-                
-                # Use SDK server-side execution (same as az aks command invoke)
-                result_output = azure_sdk_manager.execute_aks_command(
-                    subscription_id=self.subscription_id,
-                    resource_group=self.resource_group,
-                    cluster_name=self.cluster_name,
-                    kubectl_command=cmd
-                )
-            
+
+            # Smart timeout based on command type
+            if timeout is None:
+                if "kubectl version" in cmd:
+                    timeout = 30
+                elif "kubectl top" in cmd:
+                    timeout = 45
+                elif "get namespaces" in cmd or "get nodes" in cmd:
+                    timeout = 120
+                elif "get pods --all-namespaces" in cmd:
+                    timeout = 180
+                elif "get services --all-namespaces" in cmd or "get pvc --all-namespaces" in cmd:
+                    timeout = 150
+                elif "-o json" in cmd and ("events" in cmd or "secrets" in cmd):
+                    timeout = 90
+                else:
+                    timeout = 75
+
+                logger.info(f"🕐 {self.cluster_name}: Using {timeout}s timeout for: {cmd[:50]}...")
+
+            result_output = azure_sdk_manager.execute_aks_command(
+                subscription_id=self.subscription_id,
+                resource_group=self.resource_group,
+                cluster_name=self.cluster_name,
+                kubectl_command=cmd
+            )
+
             cmd_duration = time.time() - cmd_start
-            
+
             if result_output:
                 logger.info(f"✅ {self.cluster_name}: Command succeeded in {cmd_duration:.1f}s: {cmd[:50]}...")
                 return result_output
             else:
-                # Command failed - handle gracefully based on command type
                 if "kubectl top" in cmd:
                     logger.warning(f"⚠️ {self.cluster_name}: kubectl top failed (metrics not available for some pods): {cmd[:60]}...")
-                    logger.info(f"📊 {self.cluster_name}: This is normal for old/restarted pods. Using resource requests as fallback for cost analysis")
                 elif "kubectl get hpa" in cmd:
                     logger.warning(f"⚠️ {self.cluster_name}: HPA command failed: {cmd[:60]}...")
-                    logger.info(f"🔍 DEBUGGING HPA ERROR: Used subscription: {self.subscription_id}")
-                    logger.debug(f"📈 {self.cluster_name}: HPA API unavailable (cluster may not have HPA enabled): {cmd[:60]}...")
                 elif "NotFound" in str(result_output) or "not found" in str(result_output):
-                    # Resource doesn't exist - this is expected for optional resources
                     logger.debug(f"📋 {self.cluster_name}: Optional resource not found: {cmd[:60]}...")
                     return None
                 elif "server doesn't have a resource type" in str(result_output).lower():
-                    # Resource type not available (e.g., ArgoCD applications, custom CRDs)
                     logger.debug(f"📋 {self.cluster_name}: Resource type not available: {cmd[:60]}...")
                     return None
                 elif "podsecuritypolicies" in cmd:
-                    # PSP deprecated in k8s 1.25+
                     logger.debug(f"📋 {self.cluster_name}: PodSecurityPolicy deprecated/removed: {cmd[:60]}...")
                     return None
                 else:
-                    # Handle different types of kubectl failures gracefully
                     logger.warning(f"⚠️ {self.cluster_name}: kubectl command failed: {cmd[:60]}...")
-                    
-                    # For critical commands, raise an error instead of returning None
                     if any(critical in cmd for critical in ["get nodes", "get namespaces", "version"]):
                         logger.error(f"❌ CRITICAL: kubectl command failed in {cmd_duration:.1f}s: {cmd[:60]}...")
                         raise RuntimeError(f"Critical kubectl command failed: {cmd[:60]}...")
-                        
+
                 return None
-                
+
         except Exception as e:
-            # Handle SDK execution errors
             error_str = str(e).lower()
-            
+
             if "timeout" in error_str:
                 logger.error(f"❌ CRITICAL: kubectl timeout after {timeout}s: {cmd[:60]}...")
-                # For critical commands, raise timeout error instead of returning None
                 if any(critical in cmd for critical in ["get nodes", "get namespaces", "version"]):
                     raise TimeoutError(f"Critical kubectl command timed out after {timeout}s: {cmd[:60]}...")
                 return None
             elif "NotFound" in str(e) or "not found" in str(e):
-                # Resource doesn't exist - this is expected for optional resources
                 logger.debug(f"📋 {self.cluster_name}: Optional resource not found (exception): {cmd[:60]}...")
                 return None
             elif "server doesn't have a resource type" in str(e).lower():
-                # Resource type not available (e.g., ArgoCD applications, custom CRDs)
                 logger.debug(f"📋 {self.cluster_name}: Resource type not available (exception): {cmd[:60]}...")
                 return None
             elif "podsecuritypolicies" in cmd:
-                # PSP deprecated in k8s 1.25+
                 logger.debug(f"📋 {self.cluster_name}: PodSecurityPolicy deprecated/removed (exception): {cmd[:60]}...")
                 return None
             else:
                 logger.error(f"❌ {self.cluster_name}: kubectl SDK error: {cmd[:60]}... - {e}")
-                # For critical commands, re-raise the error
                 if any(critical in cmd for critical in ["get nodes", "get namespaces", "version"]):
                     raise RuntimeError(f"kubectl execution failed: {cmd[:60]}... - {e}")
                 return None
     
-    def _execute_aks_show_via_sdk(self) -> Optional[str]:
-        """Execute 'az aks show' command via Azure SDK"""
-        try:
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            import json
-            
-            # Get AKS client
-            aks_client = azure_sdk_manager.get_aks_client(self.subscription_id)
-            if not aks_client:
-                logger.error(f"❌ Cannot get AKS client for {self.cluster_name}")
-                return None
-            
-            # Get cluster information
-            cluster = aks_client.managed_clusters.get(self.resource_group, self.cluster_name)
-            
-            # Convert to dictionary and serialize to JSON
-            cluster_dict = cluster.as_dict()
-            return json.dumps(cluster_dict, indent=2)
-            
-        except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: Failed to get AKS cluster info via SDK: {e}")
-            return None
-    
-    def _execute_aks_nodepool_list_via_sdk(self) -> Optional[str]:
-        """Execute 'az aks nodepool list' command via Azure SDK"""
-        try:
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            import json
-            
-            # Get AKS client
-            aks_client = azure_sdk_manager.get_aks_client(self.subscription_id)
-            if not aks_client:
-                logger.error(f"❌ Cannot get AKS client for {self.cluster_name}")
-                return None
-            
-            # List node pools
-            nodepools = list(aks_client.agent_pools.list(self.resource_group, self.cluster_name))
-            
-            # Convert to list of dictionaries and serialize to JSON
-            nodepools_list = [nodepool.as_dict() for nodepool in nodepools]
-            return json.dumps(nodepools_list, indent=2)
-            
-        except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: Failed to get AKS nodepool list via SDK: {e}")
-            return None
-    
-    def _execute_aks_identity_via_sdk(self) -> Optional[str]:
-        """Execute 'az aks show --query identity' command via Azure SDK"""
-        try:
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            import json
-            
-            # Get AKS client
-            aks_client = azure_sdk_manager.get_aks_client(self.subscription_id)
-            if not aks_client:
-                logger.error(f"❌ Cannot get AKS client for {self.cluster_name}")
-                return None
-            
-            # Get cluster information
-            cluster = aks_client.managed_clusters.get(self.resource_group, self.cluster_name)
-            
-            # Extract identity information
-            identity = cluster.identity
-            if identity:
-                identity_dict = identity.as_dict()
-                return json.dumps(identity_dict, indent=2)
-            else:
-                return json.dumps({}, indent=2)
-            
-        except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: Failed to get AKS identity via SDK: {e}")
-            return None
-    
-    def _execute_aks_cluster_version_via_sdk(self) -> Optional[str]:
-        """Execute 'az aks show --query currentKubernetesVersion' command via Azure SDK"""
-        try:
-            logger.info(f"🔍 {self.cluster_name}: Executing cluster_version_sdk via Azure SDK...")
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            
-            # Get AKS client
-            aks_client = azure_sdk_manager.get_aks_client(self.subscription_id)
-            if not aks_client:
-                logger.error(f"❌ {self.cluster_name}: Cannot get AKS client")
-                return None
-            
-            # Get cluster information
-            logger.debug(f"🔍 {self.cluster_name}: Getting cluster info from Azure API...")
-            cluster = aks_client.managed_clusters.get(self.resource_group, self.cluster_name)
-            
-            # Extract Kubernetes version - prefer current_kubernetes_version (actual running version)
-            # According to Azure SDK docs: current_kubernetes_version contains the full patch version
-            kubernetes_version = cluster.current_kubernetes_version or cluster.kubernetes_version
-            
-            if kubernetes_version:
-                logger.info(f"✅ {self.cluster_name}: Got Kubernetes version via SDK: {kubernetes_version} (type: {type(kubernetes_version)})")
-                return str(kubernetes_version)  # Ensure it's a string
-            else:
-                logger.error(f"❌ {self.cluster_name}: No Kubernetes version found in cluster info")
-                return None
-            
-        except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: Failed to get Kubernetes version via SDK: {e}")
-            return None
     
     def _extract_kubectl_output_from_azure_text(self, azure_output: str, cmd: str) -> Optional[str]:
         """Extract actual kubectl output from Azure CLI text response"""
@@ -1463,20 +1375,29 @@ class KubernetesDataCache:
         if 'cluster_info' in results:
             final_results['cluster_info'] = results['cluster_info']
         
-        # Get version and full cluster info from Azure SDK - NO FALLBACKS per .clauderc
-        if self.azure_collector:
+        # Get version and full cluster info via infrastructure inspector or Azure collector
+        if self.infrastructure_inspector:
+            cluster_id = self._get_cluster_identifier()
+            details_json = self.infrastructure_inspector.get_cluster_details(cluster_id)
+            if details_json:
+                cluster_info = json.loads(details_json)
+                version = cluster_info.get('current_kubernetes_version') or cluster_info.get('kubernetes_version')
+                if not version:
+                    raise ValueError(f"No Kubernetes version in cluster details for {self.cluster_name}")
+                final_results['version'] = version
+                final_results['cluster_version_sdk'] = version
+                final_results['aks_cluster_info'] = cluster_info
+            else:
+                raise ValueError(f"Infrastructure inspector returned no cluster details for {self.cluster_name}")
+        elif self.azure_collector:
             result = self.azure_collector.get_cluster_info()
-            # The get_cluster_info returns a wrapper with cluster_info inside
             cluster_info = result.get('cluster_info', {})
-            version = cluster_info['kubernetes_version']  # Will raise KeyError if missing
+            version = cluster_info['kubernetes_version']
             final_results['version'] = version
             final_results['cluster_version_sdk'] = version
-            
-            # Store the full Azure cluster info for analysis_engine to find
-            # The analysis_engine looks for 'aks_cluster_info' specifically
             final_results['aks_cluster_info'] = cluster_info
         else:
-            raise ValueError(f"Azure collector not available to get Kubernetes version for {self.cluster_name}")
+            raise ValueError(f"No infrastructure inspector or Azure collector available for {self.cluster_name}")
         
         # Create kubectl_data structure that analysis_engine expects
         # The analysis_engine specifically looks for kubectl_data['pods'] and kubectl_data['namespaces']
@@ -2406,30 +2327,10 @@ class KubernetesDataCache:
     
     def execute_kubectl_command(self, kubectl_cmd: str, timeout: int = 120) -> Optional[str]:
         """
-        Centralized kubectl command execution via Azure SDK
-        Replaces all subprocess/CLI methods across the codebase
+        Centralized kubectl command execution via cloud provider abstraction.
+        Routes through _execute_kubectl_command which uses the inspector + executor.
         """
-        try:
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            
-            # Use Azure SDK for kubectl execution
-            result = azure_sdk_manager.execute_aks_command(
-                subscription_id=self.subscription_id,
-                resource_group=self.resource_group,
-                cluster_name=self.cluster_name,
-                kubectl_command=kubectl_cmd
-            )
-            
-            if result:
-                logger.debug(f"✅ {self.cluster_name}: kubectl command executed via SDK: {kubectl_cmd[:60]}...")
-                return result
-            else:
-                logger.warning(f"⚠️ {self.cluster_name}: kubectl command returned empty result: {kubectl_cmd[:60]}...")
-                return None
-                
-        except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: kubectl command failed via SDK: {kubectl_cmd[:60]}... - {e}")
-            return None
+        return self._execute_kubectl_command(kubectl_cmd, timeout)
     
     def execute_kubectl_json(self, kubectl_args: List[str]) -> Optional[Dict]:
         """
@@ -2481,585 +2382,26 @@ class KubernetesDataCache:
         """
         return self.execute_kubectl_json(['config', 'view', '--output=json'])
     
-    def _execute_log_analytics_workspaces_via_sdk(self) -> Optional[str]:
-        """Execute Log Analytics workspace listing via Azure SDK"""
-        try:
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            import json
-            
-            logger.info(f"🔍 {self.cluster_name}: Getting Log Analytics workspaces via SDK...")
-            
-            # Get Log Analytics client
-            log_analytics_client = azure_sdk_manager.get_log_analytics_client(self.subscription_id)
-            
-            if log_analytics_client is None:
-                logger.warning(f"⚠️ {self.cluster_name}: Log Analytics client not available - package azure-mgmt-loganalytics not installed")
-                return "[]"  # Return empty JSON array
-            
-            # List workspaces in resource group
-            workspaces = log_analytics_client.workspaces.list_by_resource_group(self.resource_group)
-            
-            # Convert to list and serialize
-            workspace_list = []
-            for workspace in workspaces:
-                workspace_dict = {
-                    'id': workspace.id,
-                    'name': workspace.name,
-                    'location': workspace.location,
-                    'retentionInDays': workspace.retention_in_days,
-                    'tags': workspace.tags
-                }
-                workspace_list.append(workspace_dict)
-            
-            logger.info(f"✅ {self.cluster_name}: Found {len(workspace_list)} Log Analytics workspaces")
-            return json.dumps(workspace_list)
-            
-        except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: Failed to get Log Analytics workspaces via SDK: {e}")
-            return None
     
-    def _execute_application_insights_via_sdk(self) -> Optional[str]:
-        """Execute Application Insights listing via Azure SDK"""
-        try:
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            import json
-            
-            logger.info(f"🔍 {self.cluster_name}: Getting Application Insights components via SDK...")
-            
-            # Get Application Insights client  
-            app_insights_client = azure_sdk_manager.get_application_insights_client(self.subscription_id)
-            
-            if app_insights_client is None:
-                logger.warning(f"⚠️ {self.cluster_name}: Application Insights client not available - package azure-mgmt-applicationinsights not installed")
-                return "[]"  # Return empty JSON array
-            
-            # List components in resource group
-            components = app_insights_client.components.list_by_resource_group(self.resource_group)
-            
-            # Convert to list and serialize
-            component_list = []
-            for component in components:
-                component_dict = {
-                    'id': component.id,
-                    'name': component.name,
-                    'location': component.location,
-                    'appId': component.app_id,
-                    'instrumentationKey': component.instrumentation_key,
-                    'tags': component.tags
-                }
-                component_list.append(component_dict)
-            
-            logger.info(f"✅ {self.cluster_name}: Found {len(component_list)} Application Insights components")
-            return json.dumps(component_list)
-            
-        except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: Failed to get Application Insights components via SDK: {e}")
-            return None
     
-    def _execute_observability_costs_via_sdk(self) -> Optional[str]:
-        """Execute observability cost query via Azure SDK"""
-        try:
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            from datetime import datetime, timedelta
-            import json
-            
-            logger.info(f"🔍 {self.cluster_name}: Getting observability costs via SDK...")
-            
-            # Get Cost Management client
-            cost_client = azure_sdk_manager.get_cost_management_client(self.subscription_id)
-            
-            # Build query for observability costs
-            scope = f"/subscriptions/{self.subscription_id}/resourceGroups/{self.resource_group}"
-            
-            # Query parameters for last 30 days
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=30)
-            
-            query_definition = {
-                "type": "ActualCost",
-                "timeframe": "Custom",
-                "timePeriod": {
-                    "from": start_date.strftime("%Y-%m-%dT00:00:00Z"),
-                    "to": end_date.strftime("%Y-%m-%dT23:59:59Z")
-                },
-                "dataset": {
-                    "granularity": "Daily",
-                    "aggregation": {
-                        "totalCost": {
-                            "name": "PreTaxCost",
-                            "function": "Sum"
-                        }
-                    },
-                    "grouping": [
-                        {
-                            "type": "Dimension",
-                            "name": "MeterCategory"
-                        }
-                    ],
-                    "filter": {
-                        "dimensions": {
-                            "name": "MeterCategory",
-                            "operator": "In",
-                            "values": ["Log Analytics", "Application Insights", "Azure Monitor"]
-                        }
-                    }
-                }
-            }
-            
-            # Execute query
-            result = cost_client.query.usage(scope, query_definition)
-            
-            logger.info(f"✅ {self.cluster_name}: Retrieved observability cost data")
-            return json.dumps(result.as_dict())
-            
-        except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: Failed to get observability costs via SDK: {e}")
-            return None
     
-    def _execute_consumption_usage_via_sdk(self) -> Optional[str]:
-        """Execute consumption usage query via Azure SDK"""
-        try:
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            from datetime import datetime, timedelta
-            import json
-            
-            logger.info(f"🔍 {self.cluster_name}: Getting consumption usage via SDK...")
-            
-            # Get Consumption client
-            consumption_client = azure_sdk_manager.get_consumption_client(self.subscription_id)
-            
-            if consumption_client is None:
-                logger.warning(f"⚠️ {self.cluster_name}: Consumption client not available - package azure-mgmt-consumption not installed")
-                return "[]"  # Return empty JSON array
-            
-            # Query parameters for last 30 days
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=30)
-            
-            # Try multiple scope approaches for consumption API
-            scopes_to_try = [
-                f"/subscriptions/{self.subscription_id}/resourceGroups/{self.resource_group}",
-                f"/subscriptions/{self.subscription_id}",  # Fallback to subscription level
-            ]
-            
-            usage_details = None
-            for scope in scopes_to_try:
-                try:
-                    logger.info(f"🔍 {self.cluster_name}: Trying consumption API with scope: {scope}")
-                    # Method 1: Basic list without date parameters (gets recent data by default)
-                    usage_details = consumption_client.usage_details.list(scope=scope)
-                    logger.info(f"✅ {self.cluster_name}: Consumption API succeeded with scope: {scope}")
-                    break
-                except Exception as e1:
-                    logger.warning(f"⚠️ {self.cluster_name}: Scope {scope} failed: {e1}")
-                    try:
-                        # Method 2: Try with only scope and top parameter
-                        usage_details = consumption_client.usage_details.list(
-                            scope=scope,
-                            top=100  # Limit to recent 100 records
-                        )
-                        logger.info(f"✅ {self.cluster_name}: Consumption API succeeded with scope {scope} and top=100")
-                        break
-                    except Exception as e2:
-                        logger.warning(f"⚠️ {self.cluster_name}: Scope {scope} with top=100 failed: {e2}")
-                        continue
-            
-            if usage_details is None:
-                logger.info(f"📊 {self.cluster_name}: Consumption API not available (normal for some subscription types)")
-                return "[]"
-            
-            # Convert to list and serialize
-            usage_list = []
-            for usage in usage_details:
-                usage_dict = {
-                    'cost': usage.pretax_cost,
-                    'meter': usage.meter_name,
-                    'category': usage.meter_category,
-                    'subcategory': usage.meter_subcategory,
-                    'date': usage.date.isoformat() if usage.date else None
-                }
-                usage_list.append(usage_dict)
-            
-            logger.info(f"✅ {self.cluster_name}: Found {len(usage_list)} consumption usage records")
-            return json.dumps(usage_list)
-            
-        except Exception as e:
-            logger.warning(f"⚠️ {self.cluster_name}: Failed to get consumption usage via SDK: {e}")
-            logger.info(f"📊 {self.cluster_name}: Consumption API may not be accessible for this subscription/resource group")
-            return "[]"  # Return empty JSON array - no kubectl fallback needed
-    
-    def _get_cluster_region(self) -> str:
-        """Get the actual Azure region of the cluster"""
-        try:
-            # Try to get from cached AKS cluster info first
-            cluster_info = self.get("aks_cluster_info")
-            if cluster_info:
-                import json
-                cluster_data = json.loads(cluster_info)
-                location = cluster_data.get('location')
-                if location:
-                    return location
-            
-            # Fallback to asking Azure SDK directly
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            aks_client = azure_sdk_manager.get_aks_client(self.subscription_id)
-            if aks_client:
-                cluster = aks_client.managed_clusters.get(self.resource_group, self.cluster_name)
-                return cluster.location
-                
-        except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: Could not get cluster region: {e}")
-            raise ValueError(f"Could not determine cluster region for {self.cluster_name}. Region is required for accurate cost analysis.")
-    
-    def _get_actual_mc_resource_group(self) -> Optional[str]:
-        """Get the actual MC_ resource group name from AKS cluster properties"""
-        try:
-            # Try to get from cached AKS cluster info first
-            cluster_info = self.get("aks_cluster_info")
-            if cluster_info:
-                import json
-                cluster_data = json.loads(cluster_info)
-                # The MC_ resource group is stored in nodeResourceGroup property
-                node_resource_group = cluster_data.get('nodeResourceGroup')
-                if node_resource_group:
-                    logger.info(f"✅ {self.cluster_name}: Found actual MC_ resource group: {node_resource_group}")
-                    return node_resource_group
-            
-            # Fallback to asking Azure SDK directly
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            aks_client = azure_sdk_manager.get_aks_client(self.subscription_id)
-            if aks_client:
-                cluster = aks_client.managed_clusters.get(self.resource_group, self.cluster_name)
-                if cluster and cluster.node_resource_group:
-                    logger.info(f"✅ {self.cluster_name}: Found actual MC_ resource group via SDK: {cluster.node_resource_group}")
-                    return cluster.node_resource_group
-                    
-        except Exception as e:
-            logger.warning(f"⚠️ {self.cluster_name}: Could not get MC_ resource group: {e}")
-        
-        return None
-    
-    def _execute_cluster_orphaned_disks_via_sdk(self) -> Optional[str]:
-        """Find disks created by cluster but currently unattached"""
-        try:
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            import json
-            
-            logger.info(f"🔍 {self.cluster_name}: Analyzing cluster orphaned disks via SDK...")
-            
-            # Get compute management client
-            compute_client = azure_sdk_manager.get_compute_client(self.subscription_id)
-            if not compute_client:
-                logger.warning(f"⚠️ {self.cluster_name}: Could not get compute client")
-                return "[]"
-            
-            # Get all disks in both the cluster resource group and actual MC_ resource group
-            resource_groups = [self.resource_group]
-            
-            # Get actual MC_ resource group from AKS cluster info (don't guess the name!)
-            mc_resource_group = self._get_actual_mc_resource_group()
-            if mc_resource_group:
-                resource_groups.append(mc_resource_group)
-            else:
-                logger.warning(f"⚠️ {self.cluster_name}: Could not find MC_ resource group - will only check main resource group")
-            
-            orphaned_disks = []
-            
-            for rg in resource_groups:
-                try:
-                    disks = list(compute_client.disks.list_by_resource_group(rg))
-                    
-                    for disk in disks:
-                        # Check if disk is unattached
-                        if disk.managed_by is None and disk.managed_by_extended is None:
-                            # Check if it's cluster-related by tags or naming
-                            is_cluster_related = False
-                            
-                            # Check tags for kubernetes/cluster markers
-                            if disk.tags:
-                                for tag_key, tag_value in disk.tags.items():
-                                    if any(marker in tag_key.lower() or marker in str(tag_value).lower() 
-                                           for marker in ['kubernetes', 'k8s', self.cluster_name.lower(), 'pvc', 'persistent']):
-                                        is_cluster_related = True
-                                        break
-                            
-                            # Check naming patterns (pvc-, kubernetes-, cluster name)
-                            if not is_cluster_related:
-                                name_lower = disk.name.lower()
-                                if any(pattern in name_lower for pattern in ['pvc-', 'kubernetes-', self.cluster_name.lower()]):
-                                    is_cluster_related = True
-                            
-                            # If in MC_ resource group, it's definitely cluster-related
-                            if rg.startswith('MC_'):
-                                is_cluster_related = True
-                            
-                            if is_cluster_related:
-                                orphaned_disks.append({
-                                    'name': disk.name,
-                                    'resource_group': rg,
-                                    'size_gb': disk.disk_size_gb,
-                                    'sku': disk.sku.name if disk.sku else 'Unknown',
-                                    'created_time': disk.time_created.isoformat() if disk.time_created else None,
-                                    'tags': disk.tags or {},
-                                    'location': disk.location
-                                })
-                
-                except Exception as e:
-                    logger.warning(f"⚠️ {self.cluster_name}: Could not list disks in {rg}: {e}")
-                    continue
-            
-            logger.info(f"✅ {self.cluster_name}: Found {len(orphaned_disks)} cluster orphaned disks")
-            return json.dumps(orphaned_disks)
-            
-        except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: Failed to analyze orphaned disks: {e}")
-            return "[]"
-    
-    def _execute_cluster_storage_tiers_via_sdk(self) -> Optional[str]:
-        """Analyze storage tiers of cluster PVCs vs actual usage patterns"""
-        try:
-            import json
-            
-            logger.info(f"🔍 {self.cluster_name}: Analyzing cluster storage tiers...")
-            
-            # Get PVC data from cache (already collected)
-            pvcs_data = self.get("pvcs")
-            if not pvcs_data:
-                logger.warning(f"⚠️ {self.cluster_name}: No PVC data available")
-                return "[]"
-            
-            try:
-                pvcs = json.loads(pvcs_data)
-            except:
-                logger.warning(f"⚠️ {self.cluster_name}: Could not parse PVC data")
-                return "[]"
-            
-            storage_analysis = []
-            
-            for pvc in pvcs.get('items', []):
-                pvc_name = pvc.get('metadata', {}).get('name', 'unknown')
-                namespace = pvc.get('metadata', {}).get('namespace', 'unknown')
-                storage_class = pvc.get('spec', {}).get('storage_class_name', 'unknown')
-                
-                # Analyze storage class efficiency
-                if 'premium' in storage_class.lower():
-                    # This is a premium storage - check if it's actually needed
-                    # For now, flag for manual review - can be enhanced with actual IOPS monitoring
-                    storage_analysis.append({
-                        'pvc_name': pvc_name,
-                        'namespace': namespace,
-                        'current_storage_class': storage_class,
-                        'storage_tier': 'Premium_LRS',
-                        'recommended_tier': 'Standard_LRS',
-                        'reason': 'Premium storage detected - verify if high IOPS needed',
-                        'confidence': 'Medium'
-                    })
-            
-            logger.info(f"✅ {self.cluster_name}: Analyzed {len(storage_analysis)} storage tier opportunities")
-            return json.dumps(storage_analysis)
-            
-        except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: Failed to analyze storage tiers: {e}")
-            return "[]"
-    
-    def _execute_cluster_unused_public_ips_via_sdk(self) -> Optional[str]:
-        """Find public IPs allocated for cluster but currently unused"""
-        try:
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            import json
-            
-            logger.info(f"🔍 {self.cluster_name}: Analyzing cluster unused public IPs...")
-            
-            # Get network management client  
-            network_client = azure_sdk_manager.get_network_client(self.subscription_id)
-            if not network_client:
-                logger.warning(f"⚠️ {self.cluster_name}: Could not get network client")
-                return "[]"
-            
-            # Check both resource groups - get actual MC_ resource group  
-            resource_groups = [self.resource_group]
-            mc_resource_group = self._get_actual_mc_resource_group()
-            if mc_resource_group:
-                resource_groups.append(mc_resource_group)
-            unused_ips = []
-            
-            for rg in resource_groups:
-                try:
-                    public_ips = list(network_client.public_ip_addresses.list(rg))
-                    
-                    for pip in public_ips:
-                        # Check if IP is not associated with anything
-                        if not pip.ip_configuration:
-                            # Check if it's cluster-related
-                            is_cluster_related = False
-                            
-                            # Check tags
-                            if pip.tags:
-                                for tag_key, tag_value in pip.tags.items():
-                                    if any(marker in tag_key.lower() or marker in str(tag_value).lower() 
-                                           for marker in ['kubernetes', 'k8s', self.cluster_name.lower()]):
-                                        is_cluster_related = True
-                                        break
-                            
-                            # Check naming
-                            if not is_cluster_related:
-                                name_lower = pip.name.lower()
-                                if any(pattern in name_lower for pattern in ['kubernetes-', self.cluster_name.lower()]):
-                                    is_cluster_related = True
-                            
-                            # If in MC_ resource group, it's cluster-related
-                            if rg.startswith('MC_'):
-                                is_cluster_related = True
-                            
-                            if is_cluster_related:
-                                unused_ips.append({
-                                    'name': pip.name,
-                                    'resource_group': rg,
-                                    'ip_address': pip.ip_address,
-                                    'sku': pip.sku.name if pip.sku else 'Basic',
-                                    'allocation_method': pip.public_ip_allocation_method,
-                                    'tags': pip.tags or {},
-                                    'location': pip.location
-                                })
-                
-                except Exception as e:
-                    logger.warning(f"⚠️ {self.cluster_name}: Could not list public IPs in {rg}: {e}")
-                    continue
-            
-            logger.info(f"✅ {self.cluster_name}: Found {len(unused_ips)} cluster unused public IPs")
-            return json.dumps(unused_ips)
-            
-        except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: Failed to analyze unused public IPs: {e}")
-            return "[]"
-    
-    def _execute_cluster_load_balancer_analysis_via_sdk(self) -> Optional[str]:
-        """Analyze cluster load balancers for optimization opportunities"""
-        try:
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            import json
-            
-            logger.info(f"🔍 {self.cluster_name}: Analyzing cluster load balancers...")
-            
-            # Get network management client
-            network_client = azure_sdk_manager.get_network_client(self.subscription_id)
-            if not network_client:
-                logger.warning(f"⚠️ {self.cluster_name}: Could not get network client")
-                return "[]"
-            
-            # Get services data from cache to correlate
-            services_data = self.get("services")
-            service_count = 0
-            loadbalancer_services = 0
-            
-            if services_data:
-                try:
-                    services = json.loads(services_data)
-                    service_count = len(services.get('items', []))
-                    for svc in services.get('items', []):
-                        if svc.get('spec', {}).get('type') == 'LoadBalancer':
-                            loadbalancer_services += 1
-                except:
-                    pass
-            
-            # Check actual MC_ resource group for load balancers
-            mc_resource_group = self._get_actual_mc_resource_group()
-            if not mc_resource_group:
-                logger.warning(f"⚠️ {self.cluster_name}: Could not find MC_ resource group for load balancer analysis")
-                return "[]"
-            load_balancer_analysis = []
-            
-            try:
-                load_balancers = list(network_client.load_balancers.list(mc_resource_group))
-                
-                lb_analysis = {
-                    'total_load_balancers': len(load_balancers),
-                    'kubernetes_services_total': service_count,
-                    'loadbalancer_type_services': loadbalancer_services,
-                    'load_balancers': []
-                }
-                
-                for lb in load_balancers:
-                    lb_info = {
-                        'name': lb.name,
-                        'sku': lb.sku.name if lb.sku else 'Basic',
-                        'frontend_ip_count': len(lb.frontend_ip_configurations) if lb.frontend_ip_configurations else 0,
-                        'backend_pool_count': len(lb.backend_address_pools) if lb.backend_address_pools else 0,
-                        'tags': lb.tags or {},
-                        'location': lb.location
-                    }
-                    lb_analysis['load_balancers'].append(lb_info)
-                
-                load_balancer_analysis.append(lb_analysis)
-                
-            except Exception as e:
-                logger.warning(f"⚠️ {self.cluster_name}: Could not analyze load balancers in {mc_resource_group}: {e}")
-            
-            logger.info(f"✅ {self.cluster_name}: Analyzed cluster load balancer configuration")
-            return json.dumps(load_balancer_analysis)
-            
-        except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: Failed to analyze load balancers: {e}")
-            return "[]"
-    
-    def _execute_cluster_network_waste_via_sdk(self) -> Optional[str]:
-        """Analyze cluster network configuration for waste opportunities"""
-        try:
-            import json
-            
-            logger.info(f"🔍 {self.cluster_name}: Analyzing cluster network waste...")
-            
-            # Combine multiple network analyses
-            network_analysis = {
-                'analysis_type': 'cluster_network_waste',
-                'cluster_name': self.cluster_name,
-                'timestamp': datetime.now().isoformat(),
-                'recommendations': []
-            }
-            
-            # Get services and ingress data to understand traffic patterns
-            services_data = self.get("services")
-            if services_data:
-                try:
-                    services = json.loads(services_data)
-                    total_services = len(services.get('items', []))
-                    lb_services = sum(1 for svc in services.get('items', []) 
-                                     if svc.get('spec', {}).get('type') == 'LoadBalancer')
-                    
-                    if lb_services > 0:
-                        # Calculate ratio - opportunities for ingress consolidation
-                        lb_ratio = lb_services / total_services if total_services > 0 else 0
-                        
-                        if lb_ratio > 0.3:  # More than 30% of services use LoadBalancer
-                            network_analysis['recommendations'].append({
-                                'type': 'ingress_consolidation',
-                                'current_lb_services': lb_services,
-                                'total_services': total_services,
-                                'recommendation': 'Consider using Ingress controller to consolidate load balancers',
-                                'confidence': 'Medium'
-                            })
-                
-                except Exception as e:
-                    logger.warning(f"⚠️ {self.cluster_name}: Could not analyze services for network waste: {e}")
-            
-            logger.info(f"✅ {self.cluster_name}: Completed cluster network waste analysis")
-            return json.dumps(network_analysis)
-            
-        except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: Failed to analyze network waste: {e}")
-            return "[]"
 
 
 # === GLOBAL CACHE MANAGER ===
 _active_caches: Dict[str, KubernetesDataCache] = {}
 
-def get_or_create_cache(cluster_name: str, resource_group: str, subscription_id: str, force_fetch: bool = True) -> KubernetesDataCache:
+def get_or_create_cache(cluster_name: str, resource_group: str, subscription_id: str,
+                        force_fetch: bool = True, cloud_provider: str = 'azure',
+                        command_executor=None, infrastructure_inspector=None,
+                        region: str = '') -> KubernetesDataCache:
     """
     Get or create cache instance for a cluster.
     Reuses existing cache if available, creates fresh cache with pre-populated data if needed.
+    When command_executor/infrastructure_inspector are provided, they are used directly
+    instead of pulling from the global ProviderRegistry singleton (thread-safe for multi-cloud).
     """
-    cache_key = f"{subscription_id}:{resource_group}:{cluster_name}"
-    
+    cache_key = f"{cloud_provider}:{subscription_id}:{resource_group}:{cluster_name}"
+
     # Check if cache already exists and reuse it
     if cache_key in _active_caches:
         existing_cache = _active_caches[cache_key]
@@ -3067,32 +2409,38 @@ def get_or_create_cache(cluster_name: str, resource_group: str, subscription_id:
         if force_fetch and not existing_cache.data:
             logger.info(f"🔄 {cluster_name}: Cache exists but empty, fetching all data...")
             existing_cache.fetch_all_data()
-        #else:
-            #logger.info(f"♻️ Reusing existing cache for {cluster_name} (data already available)")
         return existing_cache
-    
-    # Wire cloud provider executor if available
-    command_executor = None
-    try:
-        from infrastructure.cloud_providers.registry import ProviderRegistry
-        registry = ProviderRegistry()
-        command_executor = registry.get_executor()
-    except Exception as e:
-        logger.debug(f"Cloud provider executor not available: {e}")
+
+    # Use provided adapters, or fall back to global registry
+    if not command_executor or not infrastructure_inspector:
+        try:
+            from infrastructure.cloud_providers.registry import ProviderRegistry
+            registry = ProviderRegistry()
+            command_executor = command_executor or registry.get_executor()
+            infrastructure_inspector = infrastructure_inspector or registry.get_infrastructure_inspector()
+        except Exception as e:
+            logger.debug(f"Cloud provider adapters not available: {e}")
 
     # Create fresh cache with pre-populated data
-    logger.info(f"🆕 Creating cache for {cluster_name} with pre-populated data...")
+    logger.info(f"🆕 Creating cache for {cluster_name} ({cloud_provider}) with pre-populated data...")
     _active_caches[cache_key] = KubernetesDataCache(
         cluster_name, resource_group, subscription_id,
         auto_fetch=force_fetch, command_executor=command_executor,
+        region=region, infrastructure_inspector=infrastructure_inspector,
+        cloud_provider=cloud_provider,
     )
 
     return _active_caches[cache_key]
 
-def fetch_cluster_data(cluster_name: str, resource_group: str, subscription_id: str) -> KubernetesDataCache:
+def fetch_cluster_data(cluster_name: str, resource_group: str, subscription_id: str,
+                       cloud_provider: str = 'azure', command_executor=None,
+                       infrastructure_inspector=None, region: str = '') -> KubernetesDataCache:
     """Convenience function to get cache with pre-populated data (no duplicate execution)"""
-    # Use get_or_create_cache which now handles data fetching automatically
-    return get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=True)
+    return get_or_create_cache(
+        cluster_name, resource_group, subscription_id, force_fetch=True,
+        cloud_provider=cloud_provider, command_executor=command_executor,
+        infrastructure_inspector=infrastructure_inspector, region=region,
+    )
 
 def clear_all_caches():
     """Clear all active caches"""
@@ -3100,15 +2448,21 @@ def clear_all_caches():
     _active_caches.clear()
     logger.info("🗑️ All caches cleared")
 
-def clear_cluster_cache(cluster_name: str, resource_group: str, subscription_id: str):
+def clear_cluster_cache(cluster_name: str, resource_group: str, subscription_id: str, cloud_provider: str = 'azure'):
     """Clear cache for a specific cluster after analysis completion"""
-    cache_key = f"{subscription_id}:{resource_group}:{cluster_name}"
-    
+    cache_key = f"{cloud_provider}:{subscription_id}:{resource_group}:{cluster_name}"
+
     if cache_key in _active_caches:
         del _active_caches[cache_key]
         logger.info(f"🗑️ Cleared cache for {cluster_name}")
     else:
-        logger.debug(f"🗑️ No cache found for {cluster_name} (already cleared or never created)")
+        # Try legacy key format (without cloud_provider prefix) for backward compat
+        legacy_key = f"{subscription_id}:{resource_group}:{cluster_name}"
+        if legacy_key in _active_caches:
+            del _active_caches[legacy_key]
+            logger.info(f"🗑️ Cleared cache for {cluster_name} (legacy key)")
+        else:
+            logger.debug(f"🗑️ No cache found for {cluster_name} (already cleared or never created)")
 
 def execute_cluster_command(cluster_name: str, resource_group: str, subscription_id: str, kubectl_cmd: str) -> Optional[str]:
     """

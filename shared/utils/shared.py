@@ -158,131 +158,66 @@ def get_shared_globals():
         return {}, threading.Lock(), {'clusters': {}}, None
 
 def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, Any]], str]:
-    """ENTERPRISE: HPA-aware analysis data loading with subscription awareness and NO deduplication for race condition safety"""
+    """Load analysis data for a cluster. Tries: session → cache → database."""
     if not cluster_id:
-        logger.warning("⚠️ No cluster_id provided for analysis data")
         return None, "no_cluster_id"
 
-    # REMOVED: Deduplication to prevent race conditions between parallel cluster analyses
-    # Each cluster should get its own unique data, not shared cached results
-    logger.info(f"🔍 RACE CONDITION FIX: Fetching unique analysis data for {cluster_id}")
-    
-    def _fetch_analysis_data_internal():
-        """Internal function to fetch analysis data"""
-        # Check if enhanced_cluster_manager is available
-        if not enhanced_cluster_manager:
-            logger.error("❌ Enhanced cluster manager not available")
-            return None, "no_cluster_manager"
+    if not enhanced_cluster_manager:
+        logger.error("Enhanced cluster manager not available")
+        return None, "no_cluster_manager"
 
-        # Get cluster info for subscription context
-        cluster_info = enhanced_cluster_manager.get_cluster(cluster_id)
-        subscription_id = cluster_info.get('subscription_id') if cluster_info else None
-        logger.info(f"🔍 RACE CONDITION FIX: Cluster {cluster_id} has subscription {subscription_id}")
+    cluster_info = enhanced_cluster_manager.get_cluster(cluster_id)
+    subscription_id = cluster_info.get('subscription_id') if cluster_info else None
 
-        # PRIORITY 0: Check for fresh session data first with STRICT validation
-        fresh_session_data = None
-        data_source = "none"
-        
-        with _analysis_lock:
-            logger.info(f"🔍 ENTERPRISE CHART API: Checking {len(_analysis_sessions)} active sessions for cluster {cluster_id}")
-            for session_id, session_info in _analysis_sessions.items():
-                # STRICT cluster ID matching - must be exact match
-                session_cluster_id = session_info.get('cluster_id')
-                if (session_cluster_id == cluster_id and 
-                    session_info.get('status') == 'completed' and 
-                    'results' in session_info):
-                    # Enterprise validation: Ensure data integrity for parallel operations
-                    results_data = session_info['results']
-                    if isinstance(results_data, dict) and results_data.get('cluster_name') and results_data.get('resource_group'):
-                        expected_cluster_id = f"{results_data.get('resource_group')}_{results_data.get('cluster_name')}"
-                        if expected_cluster_id == cluster_id:
-                            fresh_session_data = results_data
-                            data_source = "fresh_session"
-                            logger.info(f"🎯 ENTERPRISE CHART API: Found validated fresh session data for {cluster_id}")
-                            logger.info(f"🎯 RACE CONDITION FIX: Session {session_id[:16]} validated for {cluster_id}")
-                            break
-                        else:
-                            logger.warning(f"⚠️ RACE CONDITION PREVENTED: Session data cluster mismatch - expected {cluster_id}, got {expected_cluster_id}")
-                    else:
-                        logger.warning(f"⚠️ RACE CONDITION PREVENTED: Session data missing cluster identification fields for {cluster_id}")
-                elif session_cluster_id != cluster_id:
-                    logger.debug(f"🔍 RACE CONDITION CHECK: Skipping session for different cluster {session_cluster_id}")
-
-        if fresh_session_data:
-            if 'hpa_recommendations' in fresh_session_data:
-                logger.info(f"✅ ENTERPRISE CHART API: Using fresh session data with HPA for {cluster_id}")
-                return fresh_session_data, "fresh_session"
-
-        # PRIORITY 1: Enterprise cache with subscription awareness
-        try:
-            from infrastructure.services.cache_manager import load_from_cache, clear_analysis_cache
-            cached_data = load_from_cache(cluster_id, subscription_id)
-            if cached_data and cached_data.get('total_cost', 0) > 0:
-                # Use same validation as other features - only require basic fields
-                if 'total_cost' in cached_data and cached_data.get('total_cost', 0) > 0:
-                    # Debug node count data from cache
-                    current_node_count = cached_data.get('current_node_count')
-                    total_nodes = cached_data.get('total_nodes')
-                    node_count = cached_data.get('node_count')
-                    logger.info(f"✅ ENTERPRISE CACHE: Valid analysis data for {cluster_id} - ${cached_data.get('total_cost', 0):.2f}")
-                    return cached_data, "enterprise_cache"
-                else:
-                    logger.warning(f"⚠️ ENTERPRISE CACHE: Data exists but missing total_cost for {cluster_id}")
-        except Exception as e:
-            logger.warning(f"⚠️ Enterprise cache fetch failed for {cluster_id}: {e}")
-
-        # PRIORITY 2: Database analysis results (NOT enhanced input)
-        try:
-            logger.info(f"🔄 Loading analysis results from database for cluster: {cluster_id}")
-            
-            # Direct query to analysis_results table (not enhanced input)
-            import sqlite3
-            import json
-            from infrastructure.persistence.cluster_database import deserialize_implementation_plan
-            
-            db_path = enhanced_cluster_manager.db_path
-            with sqlite3.connect(db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.execute('''
-                    SELECT results, analysis_date, total_cost, total_savings
-                    FROM analysis_results 
-                    WHERE cluster_id = ? AND results IS NOT NULL
-                    ORDER BY analysis_date DESC
-                    LIMIT 1
-                ''', (cluster_id,))
-                
-                row = cursor.fetchone()
-                if row and row['results']:
-                    raw_data = row['results']
-                    if isinstance(raw_data, bytes):
-                        serialized_data = json.loads(raw_data.decode('utf-8'))
-                    else:
-                        serialized_data = json.loads(raw_data)
-                    
-                    db_data = deserialize_implementation_plan(serialized_data)
-                    
-                    if db_data and db_data.get('total_cost', 0) > 0:
-                        # Debug node count data from database
-                        current_node_count = db_data.get('current_node_count')
-                        total_nodes = db_data.get('total_nodes')
-                        node_count = db_data.get('node_count')
-                        logger.info(f"✅ DATABASE: Found analysis results for {cluster_id} - ${db_data.get('total_cost', 0):.2f}")
-                        # Cache with subscription context
-                        from infrastructure.services.cache_manager import save_to_cache
-                        save_to_cache(cluster_id, db_data, subscription_id)
-                        return db_data, "analysis_results_table"
-        except Exception as e:
-            logger.error(f"❌ Database error for cluster {cluster_id}: {e}")
-
-        logger.warning(f"⚠️ No analysis data found for cluster: {cluster_id}")
-        return None, "no_data"
-    
-    # RACE CONDITION FIX: Call directly without deduplication to ensure each cluster gets unique data
     try:
-        return _fetch_analysis_data_internal()
+        # 1. Fresh session data (in-memory, from recent analysis)
+        with _analysis_lock:
+            for session_id, session_info in _analysis_sessions.items():
+                if (session_info.get('cluster_id') == cluster_id and
+                    session_info.get('status') == 'completed' and
+                    'results' in session_info):
+                    results = session_info['results']
+                    if isinstance(results, dict) and results.get('cluster_name') and results.get('resource_group'):
+                        expected_id = f"{results['resource_group']}_{results['cluster_name']}"
+                        if expected_id == cluster_id:
+                            logger.info(f"Using fresh session data for {cluster_id}")
+                            return results, "fresh_session"
+
+        # 2. Cache
+        from infrastructure.services.cache_manager import load_from_cache
+        cached_data = load_from_cache(cluster_id, subscription_id)
+        if cached_data and cached_data.get('total_cost', 0) > 0:
+            logger.info(f"Using cached data for {cluster_id}")
+            return cached_data, "enterprise_cache"
+
+        # 3. Database
+        import sqlite3
+        import json
+        from infrastructure.persistence.cluster_database import deserialize_implementation_plan
+
+        db_path = enhanced_cluster_manager.db_path
+        with sqlite3.connect(db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                'SELECT results FROM analysis_results WHERE cluster_id = ? AND results IS NOT NULL ORDER BY analysis_date DESC LIMIT 1',
+                (cluster_id,),
+            )
+            row = cursor.fetchone()
+            if row and row['results']:
+                raw = row['results']
+                serialized = json.loads(raw.decode('utf-8') if isinstance(raw, bytes) else raw)
+                db_data = deserialize_implementation_plan(serialized)
+                if db_data and db_data.get('total_cost', 0) > 0:
+                    logger.info(f"Using database data for {cluster_id}")
+                    from infrastructure.services.cache_manager import save_to_cache
+                    save_to_cache(cluster_id, db_data, subscription_id)
+                    return db_data, "analysis_results_table"
+
     except Exception as e:
-        logger.error(f"❌ Analysis data fetch failed for {cluster_id}: {e}")
+        logger.error(f"Analysis data fetch failed for {cluster_id}: {e}")
         return None, "fetch_error"
+
+    return None, "no_data"
 
 def ensure_float(value: Any) -> float:
     """Safely convert value to float"""
@@ -292,25 +227,6 @@ def ensure_float(value: Any) -> float:
         return float(value)
     except (ValueError, TypeError):
         return 0.0
-
-# ============================================================================
-# CHART DATA
-# ============================================================================
-
-# def get_chart_data_deduplicated(cluster_id: str, operation_func, *args, **kwargs):
-#     """Get chart data with deduplication to prevent duplicate expensive operations"""
-    
-#     dedup_key = f"chart_data_{cluster_id}_{int(time.time() // 45)}"  # 45-second dedup window for charts
-    
-#     logger.info(f"📊 CHART  Requesting chart data for {cluster_id}")
-    
-#     try:
-#         result = request_deduplicator.get_or_execute(dedup_key, operation_func, *args, **kwargs)
-#         logger.info(f"✅ CHART  Chart data delivered for {cluster_id}")
-#         return result
-#     except Exception as e:
-#         logger.error(f"❌ CHART  Chart data generation failed for {cluster_id}: {e}")
-#         raise
 
 # ============================================================================
 # ML OPERATION

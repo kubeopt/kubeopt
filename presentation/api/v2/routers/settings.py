@@ -29,7 +29,7 @@ async def get_settings(
         all_settings = settings_mgr.get_all_settings()
         # Redact sensitive values
         safe_settings = {}
-        sensitive_keys = {'client_secret', 'password_hash', 'secret_access_key', 'service_account_json'}
+        sensitive_keys = {'client_secret', 'password_hash', 'secret_access_key', 'service_account_json', 'access_key_id', 'api_key', 'jwt_secret'}
         for k, v in (all_settings or {}).items():
             key_lower = k.lower()
             if any(s in key_lower for s in sensitive_keys) and v:
@@ -51,6 +51,24 @@ async def save_setting(
     """Save a single setting."""
     try:
         settings_mgr.save_settings({body.key: body.value})
+
+        # If AWS credentials changed, invalidate cached auth so adapters pick up new creds
+        if body.key in ('aws_access_key_id', 'aws_secret_access_key', 'aws_region'):
+            try:
+                from infrastructure.cloud_providers.aws.accounts import AWSAccountManager
+                from infrastructure.cloud_providers.aws.executor import AWSKubernetesExecutor
+                from infrastructure.cloud_providers.aws.inspector import AWSInfrastructureInspector
+                from infrastructure.cloud_providers.aws.metrics import AWSMetricsCollector
+                from infrastructure.cloud_providers.aws.costs import AWSCostManager
+                AWSAccountManager._auth_instance = None
+                AWSKubernetesExecutor._auth_instance = None
+                AWSInfrastructureInspector._auth_instance = None
+                AWSMetricsCollector._auth_instance = None
+                AWSCostManager._auth_instance = None
+                logger.info("Invalidated cached AWS authenticators after credential change")
+            except Exception:
+                pass
+
         return {"message": f"Setting '{body.key}' saved successfully"}
     except Exception as e:
         logger.error(f"Failed to save setting: {e}")
@@ -81,16 +99,35 @@ async def test_aws_connection(
     body: AWSSettings = AWSSettings(),
     user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """Test AWS connection with provided credentials."""
+    """Test AWS connection with provided or saved credentials."""
+    import os
     try:
+        # If creds provided in request, temporarily set them for this test
+        if body.access_key_id:
+            os.environ['AWS_ACCESS_KEY_ID'] = body.access_key_id
+        if body.secret_access_key:
+            os.environ['AWS_SECRET_ACCESS_KEY'] = body.secret_access_key
+        if body.region:
+            os.environ['AWS_DEFAULT_REGION'] = body.region
+            os.environ['AWS_REGION'] = body.region
+
         from infrastructure.cloud_providers.aws.authenticator import AWSAuthenticator
         auth = AWSAuthenticator()
-        connected = auth.is_authenticated()
-        return {"connected": connected, "message": "AWS connection successful" if connected else "AWS not implemented yet"}
-    except NotImplementedError:
-        return {"connected": False, "message": "AWS support not yet implemented (Phase 6)"}
+        connected = auth.authenticate()  # Force fresh auth attempt
+        if connected:
+            return {
+                "connected": True,
+                "message": f"AWS connection successful — Account: {auth.account_id}, Region: {auth.region}",
+            }
+        else:
+            return {"connected": False, "message": "AWS authentication failed — check Access Key ID and Secret Access Key"}
     except Exception as e:
-        return {"connected": False, "message": f"AWS connection test failed: {e}"}
+        error_msg = str(e)
+        # Sanitize — don't leak credentials in error messages
+        for secret_var in ('AWS_SECRET_ACCESS_KEY', 'AWS_ACCESS_KEY_ID'):
+            if secret_var in os.environ:
+                error_msg = error_msg.replace(os.environ[secret_var], '***')
+        return {"connected": False, "message": f"AWS connection test failed: {error_msg}"}
 
 
 @router.post("/test-gcp")

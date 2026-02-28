@@ -56,20 +56,50 @@ async def add_cluster(
 ):
     """Register a new cluster for monitoring."""
     try:
-        cluster_data = {
+        cloud_provider = body.cloud_provider.value
+        cluster_config = {
             'cluster_name': body.cluster_name,
-            'cloud_provider': body.cloud_provider.value,
-            'subscription_id': body.subscription_id or '',
+            'cloud_provider': cloud_provider,
             'resource_group': body.resource_group or '',
-            'account_id': body.account_id or '',
-            'project_id': body.project_id or '',
             'region': body.region or body.zone or '',
         }
+        # Attach provider-specific IDs for cluster_id generation
+        if body.account_id:
+            cluster_config['account_id'] = body.account_id
+        if body.project_id:
+            cluster_config['project_id'] = body.project_id
 
-        result = cluster_manager.add_cluster(**cluster_data)
+        # Map provider-specific account ID into subscription flow
+        subscription_id = body.subscription_id or ''
+        if cloud_provider == 'aws' and body.account_id:
+            subscription_id = body.account_id
+        elif cloud_provider == 'gcp' and body.project_id:
+            subscription_id = body.project_id
+
+        subscription_name = ''
+
+        # Use subscription-aware add when subscription is provided
+        if subscription_id:
+            # Resolve account/subscription name from provider-specific adapter
+            from infrastructure.cloud_providers.types import CloudProvider
+            target = CloudProvider.from_string(cloud_provider)
+            if target == CloudProvider.AWS:
+                from infrastructure.cloud_providers.aws.accounts import AWSAccountManager
+                account_mgr = AWSAccountManager()
+            else:
+                from infrastructure.cloud_providers.registry import ProviderRegistry
+                account_mgr = ProviderRegistry().get_account_manager()
+            account_info = account_mgr.get_account_info(subscription_id)
+            subscription_name = account_info.get('name', '') if account_info else ''
+
+            cluster_id = cluster_manager.add_cluster_with_subscription(
+                cluster_config, subscription_id, subscription_name
+            )
+        else:
+            cluster_id = cluster_manager.add_cluster(cluster_config)
 
         return ClusterResponse(
-            cluster_id=result.get('cluster_id', ''),
+            cluster_id=cluster_id,
             cluster_name=body.cluster_name,
             cloud_provider=body.cloud_provider.value,
             region=body.region or body.zone or '',
@@ -110,7 +140,7 @@ async def get_cluster_info(
         return {
             'cluster_id': c.get('id', cluster_id),
             'cluster_name': c.get('name', ''),
-            'cloud_provider': 'azure',
+            'cloud_provider': c.get('cloud_provider', 'azure'),
             'region': c.get('region', ''),
             'subscription_id': c.get('subscription_id', ''),
             'resource_group': c.get('resource_group', ''),

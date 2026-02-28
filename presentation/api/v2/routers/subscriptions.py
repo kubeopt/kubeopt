@@ -3,7 +3,7 @@
 import logging
 from typing import Dict, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from presentation.api.v2.schemas.subscriptions import SubscriptionInfo, SubscriptionListResponse
 from presentation.api.v2.dependencies.auth import get_current_user
@@ -40,12 +40,26 @@ async def list_subscriptions(
 
 @router.get("/dropdown")
 async def subscriptions_dropdown(
+    provider: str = Query('azure'),
     user: Dict[str, Any] = Depends(get_current_user),
     account_mgr=Depends(get_account_manager),
 ):
-    """Get subscriptions formatted for dropdown selector."""
+    """Get subscriptions/accounts formatted for dropdown selector.
+
+    Pass ?provider=aws to get AWS accounts instead of Azure subscriptions.
+    """
     try:
-        accounts = account_mgr.list_accounts()
+        from infrastructure.cloud_providers.types import CloudProvider
+        target = CloudProvider.from_string(provider)
+
+        # Create provider-specific account manager (thread-safe, no singleton mutation)
+        if target == CloudProvider.AWS:
+            from infrastructure.cloud_providers.aws.accounts import AWSAccountManager
+            mgr = AWSAccountManager()
+        else:
+            mgr = account_mgr  # Azure default from DI
+
+        accounts = mgr.list_accounts()
         return {
             "subscriptions": [
                 {
@@ -57,7 +71,7 @@ async def subscriptions_dropdown(
             ]
         }
     except Exception as e:
-        logger.error(f"Failed to get subscription dropdown: {e}")
+        logger.error(f"Failed to get subscription dropdown (provider={provider}): {e}")
         return {"subscriptions": []}
 
 
@@ -69,15 +83,8 @@ async def validate_subscription(
 ):
     """Validate access to a subscription and its clusters."""
     try:
-        from infrastructure.cloud_providers.types import ClusterIdentifier, CloudProvider
-        cluster_id = ClusterIdentifier(
-            provider=CloudProvider.AZURE,
-            subscription_id=subscription_id,
-            cluster_name="",
-            region="",
-        )
-        result = account_mgr.validate_cluster_access(cluster_id)
-        return {"accessible": bool(result)}
+        info = account_mgr.get_account_info(subscription_id)
+        return {"accessible": info is not None}
     except Exception as e:
         logger.error(f"Failed to validate subscription {subscription_id}: {e}")
         return {"accessible": False, "error": str(e)}

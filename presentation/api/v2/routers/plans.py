@@ -76,16 +76,33 @@ async def generate_plan(
     user: Dict[str, Any] = Depends(get_current_user),
     license_info: Dict[str, Any] = Depends(check_license),
     api_client=Depends(get_external_api_client),
+    cluster_manager=Depends(get_cluster_manager),
 ):
     """Generate an AI implementation plan for a cluster (requires license)."""
     try:
+        from shared.utils.shared import _get_analysis_data
+
+        # Get cluster name from DB
+        cluster_info = cluster_manager.get_cluster(cluster_id)
+        cluster_name = (cluster_info or {}).get('name', cluster_id)
+
+        # Get latest analysis data — required for plan generation
+        analysis_data, _ = _get_analysis_data(cluster_id)
+        if not analysis_data:
+            raise HTTPException(status_code=400, detail="No analysis data available. Run an analysis first.")
+
         if hasattr(api_client, 'generate_plan'):
-            result = api_client.generate_plan(
+            success, result = api_client.generate_plan(
                 cluster_id=cluster_id,
-                strategy=body.strategy,
-                force=body.force_regenerate,
+                cluster_name=cluster_name,
+                analysis_data=analysis_data,
             )
-            return result or {"status": "error", "message": "Plan generation returned no result"}
+            if success:
+                return result
+            return {"status": "error", "message": result.get('error', 'Plan generation failed'), **result}
+        raise HTTPException(status_code=500, detail="Plan generation service not configured")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to generate plan for {cluster_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Plan generation failed: {e}")
