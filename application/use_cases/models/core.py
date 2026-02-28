@@ -36,7 +36,9 @@ class ExecutableCommand:
     risk_level: str = "low"
     monitoring_metrics: List[str] = None
     variable_substitutions: Dict[str, Any] = None
-    azure_specific: bool = False
+    cloud_provider: str = ""
+    cloud_specific: bool = False
+    azure_specific: bool = False  # Kept for backwards compatibility
     kubectl_specific: bool = False
     cluster_specific: bool = False
     real_workload_targets: Optional[List[str]] = None
@@ -99,9 +101,17 @@ class ComprehensiveExecutionPlan:
     estimated_savings: float
     
     subscription_id: Optional[str] = None
+    cloud_context: Optional[Dict[str, Any]] = None
     cluster_intelligence: Optional[Dict[str, Any]] = None
     config_enhanced: bool = False
     phase_commands: Optional[Dict[str, List[ExecutableCommand]]] = None
+
+    @property
+    def cloud_provider(self) -> str:
+        """Get cloud provider from cloud_context or default to azure."""
+        if self.cloud_context:
+            return self.cloud_context.get('provider', 'azure')
+        return 'azure'
 
     @property
     def total_timeline_weeks(self) -> int:

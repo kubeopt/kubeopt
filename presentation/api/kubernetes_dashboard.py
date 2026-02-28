@@ -12,7 +12,6 @@ Project: AKS Cost Optimizer
 
 import logging
 from typing import Dict, List, Any, Optional
-from flask import jsonify
 from infrastructure.services.kubernetes_data_service import KubernetesDataService
 
 
