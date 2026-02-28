@@ -18,6 +18,7 @@ from infrastructure.cloud_providers.base import (
     CloudMetricsCollector,
     CloudCostManager,
     CloudAccountManager,
+    CloudInfrastructureInspector,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,7 @@ class ProviderRegistry:
         self._metrics: Optional[CloudMetricsCollector] = None
         self._costs: Optional[CloudCostManager] = None
         self._accounts: Optional[CloudAccountManager] = None
+        self._inspector: Optional[CloudInfrastructureInspector] = None
 
     @property
     def provider(self) -> CloudProvider:
@@ -70,6 +72,7 @@ class ProviderRegistry:
         self._metrics = None
         self._costs = None
         self._accounts = None
+        self._inspector = None
         logger.info(f"Cloud provider set to: {provider.value}")
 
     def _detect_provider(self) -> CloudProvider:
@@ -126,6 +129,12 @@ class ProviderRegistry:
         if self._accounts is None:
             self._accounts = self._create_account_manager()
         return self._accounts
+
+    def get_infrastructure_inspector(self) -> CloudInfrastructureInspector:
+        """Get the infrastructure inspector for the active cloud provider."""
+        if self._inspector is None:
+            self._inspector = self._create_infrastructure_inspector()
+        return self._inspector
 
     # --- Factory methods ---
 
@@ -188,3 +197,15 @@ class ProviderRegistry:
             from infrastructure.cloud_providers.gcp.accounts import GCPAccountManager
             return GCPAccountManager()
         raise ValueError(f"No account manager for provider: {self.provider}")
+
+    def _create_infrastructure_inspector(self) -> CloudInfrastructureInspector:
+        if self.provider == CloudProvider.AZURE:
+            from infrastructure.cloud_providers.azure.inspector import AzureInfrastructureInspector
+            return AzureInfrastructureInspector()
+        elif self.provider == CloudProvider.AWS:
+            from infrastructure.cloud_providers.aws.inspector import AWSInfrastructureInspector
+            return AWSInfrastructureInspector()
+        elif self.provider == CloudProvider.GCP:
+            from infrastructure.cloud_providers.gcp.inspector import GCPInfrastructureInspector
+            return GCPInfrastructureInspector()
+        raise ValueError(f"No infrastructure inspector for provider: {self.provider}")

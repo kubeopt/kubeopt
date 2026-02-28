@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { clsx } from 'clsx'
 import Modal from '../common/Modal'
 import Button from '../common/Button'
 import { addCluster } from '../../api/clusters'
+import { getSubscriptionDropdown, type DropdownSubscription } from '../../api/subscriptions'
 
 interface AddClusterModalProps {
   open: boolean
@@ -23,6 +24,32 @@ export default function AddClusterModal({ open, onClose, onAdded }: AddClusterMo
   const [zone, setZone] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Subscription dropdown state
+  const [subscriptions, setSubscriptions] = useState<DropdownSubscription[]>([])
+  const [subsLoading, setSubsLoading] = useState(false)
+
+  // Fetch subscriptions/accounts when modal opens (Azure or AWS)
+  useEffect(() => {
+    if (!open || (provider !== 'azure' && provider !== 'aws')) {
+      setSubscriptions([])
+      return
+    }
+    setSubsLoading(true)
+    getSubscriptionDropdown(provider)
+      .then((res) => {
+        setSubscriptions(res.subscriptions || [])
+        // Auto-select default for Azure, or first account for AWS
+        if (provider === 'azure' && !subscriptionId) {
+          const defaultSub = res.subscriptions?.find((s) => s.is_default)
+          if (defaultSub) setSubscriptionId(defaultSub.id)
+        } else if (provider === 'aws' && !accessKeyId && res.subscriptions?.length) {
+          setAccessKeyId(res.subscriptions[0].id)
+        }
+      })
+      .catch(() => setSubscriptions([]))
+      .finally(() => setSubsLoading(false))
+  }, [open, provider])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -93,12 +120,38 @@ export default function AddClusterModal({ open, onClose, onAdded }: AddClusterMo
         {provider === 'azure' && (
           <>
             <div>
-              <label className="mb-1 block text-sm font-medium text-dark-700 dark:text-dark-300">Subscription ID</label>
-              <input type="text" value={subscriptionId} onChange={(e) => setSubscriptionId(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-800 dark:text-white" />
+              <label className="mb-1 block text-sm font-medium text-dark-700 dark:text-dark-300">Subscription</label>
+              {subsLoading ? (
+                <div className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-dark-400 dark:border-dark-600 dark:bg-dark-800">
+                  Loading subscriptions...
+                </div>
+              ) : subscriptions.length > 0 ? (
+                <select
+                  value={subscriptionId}
+                  onChange={(e) => setSubscriptionId(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-800 dark:text-white"
+                >
+                  <option value="">Select a subscription</option>
+                  {subscriptions.map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.name} ({sub.id.slice(0, 8)}...)
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={subscriptionId}
+                  onChange={(e) => setSubscriptionId(e.target.value)}
+                  placeholder="Enter subscription ID"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-800 dark:text-white"
+                />
+              )}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-dark-700 dark:text-dark-300">Resource Group</label>
+              <label className="mb-1 block text-sm font-medium text-dark-700 dark:text-dark-300">
+                Resource Group <span className="text-dark-400 dark:text-dark-500">(auto-detected if blank)</span>
+              </label>
               <input type="text" value={resourceGroup} onChange={(e) => setResourceGroup(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-800 dark:text-white" />
             </div>
@@ -108,9 +161,29 @@ export default function AddClusterModal({ open, onClose, onAdded }: AddClusterMo
         {provider === 'aws' && (
           <>
             <div>
-              <label className="mb-1 block text-sm font-medium text-dark-700 dark:text-dark-300">Account ID</label>
-              <input type="text" value={accessKeyId} onChange={(e) => setAccessKeyId(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-800 dark:text-white" />
+              <label className="mb-1 block text-sm font-medium text-dark-700 dark:text-dark-300">AWS Account</label>
+              {subsLoading ? (
+                <div className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-dark-400 dark:border-dark-600 dark:bg-dark-800">
+                  Loading accounts...
+                </div>
+              ) : subscriptions.length > 0 ? (
+                <select
+                  value={accessKeyId}
+                  onChange={(e) => setAccessKeyId(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-800 dark:text-white"
+                >
+                  <option value="">Select an account</option>
+                  {subscriptions.map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.name || sub.id} ({sub.id})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input type="text" value={accessKeyId} onChange={(e) => setAccessKeyId(e.target.value)}
+                  placeholder="Enter AWS account ID"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-800 dark:text-white" />
+              )}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-dark-700 dark:text-dark-300">Region</label>

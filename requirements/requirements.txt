@@ -19,13 +19,16 @@ azure-core==1.35.1
 azure-mgmt-core>=1.5.0
 azure-common==1.1.28
 
+# AWS SDK (for EKS integration)
+boto3>=1.28.0
+
 # Data Processing (essential only)
-pandas==2.0.3
-numpy==1.24.3
+pandas>=2.1.0,<3.0
+numpy>=1.26.0,<2.0
 
 # Machine Learning (for optimization algorithms)
-scikit-learn==1.3.0
-joblib==1.3.2
+scikit-learn>=1.3.2,<2.0
+joblib>=1.3.2
 
 # HTTP & Utilities
 requests==2.31.0
@@ -36,6 +39,7 @@ pyyaml==6.0.1
 # Security
 cryptography==41.0.3
 PyJWT==2.8.0
+bcrypt>=4.0.0
 
 # Database
 sqlalchemy==2.0.19

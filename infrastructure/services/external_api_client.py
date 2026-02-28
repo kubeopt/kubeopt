@@ -72,24 +72,22 @@ class ExternalAPIClient:
         return f"ko_{secrets.token_urlsafe(24)}"
     
     def _generate_jwt_token(self) -> str:
-        """
-        Generate a JWT token for API authentication
-        
-        Returns:
-            JWT token string
-        """
-        payload = {
-            'iss': 'kubeopt',  # Issuer
-            'sub': 'api_client',  # Subject
-            'aud': ['license-manager', 'plan-generation'],  # Audience
-            'exp': datetime.utcnow() + timedelta(minutes=self.jwt_expiry_minutes),
-            'iat': datetime.utcnow(),
-            'jti': secrets.token_urlsafe(16),  # JWT ID for uniqueness
-            'api_key': self.api_key,
-            'license_key': self.license_key
-        }
-        
-        return jwt.encode(payload, self.jwt_secret, algorithm=self.jwt_algorithm)
+        """Generate a JWT token for API authentication using shared auth module."""
+        try:
+            from presentation.api.v2.dependencies.auth import create_service_jwt_token
+            return create_service_jwt_token(license_key=self.license_key)
+        except ImportError:
+            # Fallback for standalone usage
+            payload = {
+                'iss': 'kubeopt',
+                'sub': 'api_client',
+                'aud': ['license-manager', 'plan-generation'],
+                'exp': datetime.utcnow() + timedelta(minutes=self.jwt_expiry_minutes),
+                'iat': datetime.utcnow(),
+                'jti': secrets.token_urlsafe(16),
+                'license_key': self.license_key,
+            }
+            return jwt.encode(payload, self.jwt_secret, algorithm=self.jwt_algorithm)
     
     def _derive_encryption_key(self) -> bytes:
         """

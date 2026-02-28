@@ -59,6 +59,12 @@ logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(a
 logging.getLogger('azure.core.pipeline').setLevel(azure_log_level)
 logging.getLogger('azure.mgmt').setLevel(azure_log_level)
 logging.getLogger('azure.identity').setLevel(azure_log_level)
+
+# Silence AWS/boto3 debug logs — they dump full HTTP headers including Authorization credentials
+logging.getLogger('botocore').setLevel(logging.WARNING)
+logging.getLogger('boto3').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger('s3transfer').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Cloud provider configuration (azure | aws | gcp)
@@ -105,21 +111,22 @@ def initialize_multi_subscription_environment():
     try:
         logger.info("🌐 Initializing multi-subscription AKS Cost Optimization environment...")
         
-        # Initialize subscription manager
-        from infrastructure.services.subscription_manager import azure_subscription_manager
-        
-        # Get available subscriptions and initialize tracking
-        subscriptions = azure_subscription_manager.get_available_subscriptions(force_refresh=True)
-        logger.info(f"🌐 Discovered {len(subscriptions)} Azure subscriptions")
-        
+        # Initialize account manager via cloud provider registry
+        from infrastructure.cloud_providers.registry import ProviderRegistry
+        account_mgr = ProviderRegistry().get_account_manager()
+
+        # Get available subscriptions/accounts and initialize tracking
+        subscriptions = account_mgr.list_accounts()
+        logger.info(f"🌐 Discovered {len(subscriptions)} cloud accounts")
+
         # Initialize subscription tracking in cache
         for sub in subscriptions:
-            analysis_cache['subscriptions'][sub.subscription_id] = {
-                'subscription_name': sub.subscription_name,
+            analysis_cache['subscriptions'][sub['id']] = {
+                'subscription_name': sub['name'],
                 'clusters': [],
                 'last_updated': datetime.now().isoformat(),
-                'is_default': sub.is_default,
-                'state': sub.state
+                'is_default': sub.get('is_default', False),
+                'state': sub.get('state', 'unknown')
             }
         
         # Initialize background maintenance
@@ -243,9 +250,9 @@ def validate_multi_subscription_configuration():
     }
     
     try:
-        # Validate subscription manager
-        from infrastructure.services.subscription_manager import azure_subscription_manager
-        subscriptions = azure_subscription_manager.get_available_subscriptions()
+        # Validate account manager via cloud provider registry
+        from infrastructure.cloud_providers.registry import ProviderRegistry
+        subscriptions = ProviderRegistry().get_account_manager().list_accounts()
         validation_results['subscription_manager'] = len(subscriptions) > 0
         
         # Validate analysis engine
@@ -293,14 +300,14 @@ def get_multi_subscription_status():
             'timestamp': datetime.now().isoformat()
         }
         
-        # Subscription manager status
+        # Subscription/account manager status
         try:
-            from infrastructure.services.subscription_manager import azure_subscription_manager
-            subscriptions = azure_subscription_manager.get_available_subscriptions()
+            from infrastructure.cloud_providers.registry import ProviderRegistry
+            subscriptions = ProviderRegistry().get_account_manager().list_accounts()
             status['subscriptions'] = {
                 'total_count': len(subscriptions),
-                'enabled_count': len([s for s in subscriptions if s.state.lower() == 'enabled']),
-                'default_subscription': next((s.subscription_id for s in subscriptions if s.is_default), None)
+                'enabled_count': len([s for s in subscriptions if s.get('state', '').lower() == 'enabled']),
+                'default_subscription': next((s['id'] for s in subscriptions if s.get('is_default')), None)
             }
         except Exception as e:
             status['subscriptions'] = {'error': str(e)}

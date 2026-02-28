@@ -18,6 +18,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 # Ensure project root is in sys.path
 project_root = Path(__file__).parent
@@ -106,6 +107,56 @@ async def lifespan(app: FastAPI):
             logger.warning(f"Error stopping scheduler: {e}")
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if not os.getenv('LOCAL_DEV'):
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Simple in-memory rate limiter: 60 requests/minute per IP on /api/* routes."""
+
+    def __init__(self, app, requests_per_minute: int = 60):
+        super().__init__(app)
+        self.rpm = requests_per_minute
+        self._buckets: dict = {}  # ip -> [timestamps]
+        self._lock = threading.Lock()
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if not path.startswith("/api/") or path == "/api/health":
+            return await call_next(request)
+
+        client_ip = request.client.host if request.client else "unknown"
+        now = time.time()
+        window_start = now - 60
+
+        with self._lock:
+            timestamps = self._buckets.get(client_ip, [])
+            timestamps = [t for t in timestamps if t > window_start]
+            if len(timestamps) >= self.rpm:
+                from fastapi.responses import JSONResponse as JR
+                retry_after = int(60 - (now - timestamps[0]))
+                return JR(
+                    status_code=429,
+                    content={"error": "Too many requests"},
+                    headers={"Retry-After": str(max(retry_after, 1))},
+                )
+            timestamps.append(now)
+            self._buckets[client_ip] = timestamps
+
+        return await call_next(request)
+
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
@@ -117,18 +168,21 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    # Security middleware (outermost — runs first on response)
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
+
     # CORS — allow React dev server and production
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
             "http://localhost:5173",   # Vite dev server
             "http://localhost:5001",   # FastAPI production
-            "http://localhost:5002",   # FastAPI dev
             "https://demo.kubeopt.com",
         ],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
 
     # Global exception handler

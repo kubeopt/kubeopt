@@ -15,6 +15,7 @@ from infrastructure.cloud_providers.azure.executor import AzureKubernetesExecuto
 from infrastructure.cloud_providers.azure.metrics import AzureMetricsAdapter
 from infrastructure.cloud_providers.azure.costs import AzureCostAdapter
 from infrastructure.cloud_providers.azure.accounts import AzureAccountAdapter
+from infrastructure.cloud_providers.azure.inspector import AzureInfrastructureInspector
 
 __all__ = [
     'AzureAuthenticator',
@@ -22,4 +23,5 @@ __all__ = [
     'AzureMetricsAdapter',
     'AzureCostAdapter',
     'AzureAccountAdapter',
+    'AzureInfrastructureInspector',
 ]

@@ -47,8 +47,8 @@ from shared.standards.cost_optimization_standards import (
 import asyncio
 import os
 
-# Import the subscription manager
-from infrastructure.services.subscription_manager import azure_subscription_manager
+# Import cloud provider registry (replaces direct azure_subscription_manager usage)
+from infrastructure.cloud_providers.registry import ProviderRegistry
 
 # NOTE: Enhanced cost attribution and resource validation modules 
 
@@ -65,6 +65,8 @@ class AnalysisConfig:
     enable_enhanced_fallback: bool = True
     strict_validation: bool = True
     update_global_state: bool = True
+    cloud_provider: str = 'azure'
+    region: str = ''
 
 @dataclass
 class SubscriptionAnalysisSession:
@@ -99,11 +101,27 @@ class MultiSubscriptionAnalysisEngine:
         self.subscription_locks = {}
         self.cluster_locks = {}
 
+    def _get_account_manager(self, cloud_provider: str = 'azure'):
+        """Get the correct account manager based on cloud provider.
+
+        IMPORTANT: Do NOT use ProviderRegistry() here — it auto-detects from env vars
+        and returns the wrong provider once multi-cloud creds are set.
+        """
+        if cloud_provider == 'aws':
+            from infrastructure.cloud_providers.aws.accounts import AWSAccountManager
+            return AWSAccountManager()
+        elif cloud_provider == 'gcp':
+            from infrastructure.cloud_providers.gcp.accounts import GCPAccountManager
+            return GCPAccountManager()
+        else:
+            from infrastructure.cloud_providers.azure.accounts import AzureAccountAdapter
+            return AzureAccountAdapter()
+
     def get_cluster_lock(self, cluster_id: str) -> threading.Lock:
         """Get or create a lock for specific cluster"""
         if cluster_id not in self.cluster_locks:
             self.cluster_locks[cluster_id] = threading.Lock()
-        return self.cluster_locks[cluster_id]    
+        return self.cluster_locks[cluster_id]
     
     def get_subscription_lock(self, subscription_id: str) -> threading.Lock:
         """Get or create a lock for specific subscription"""
@@ -115,31 +133,34 @@ class MultiSubscriptionAnalysisEngine:
     # Cache checking is now handled in the main flow without API validation
 
     def run_subscription_aware_analysis(
-        self, 
-        resource_group: str, 
+        self,
+        resource_group: str,
         cluster_name: str,
         subscription_id: Optional[str] = None,
-        days: int = 30, 
+        days: int = 30,
         enable_pod_analysis: bool = True,
-        config: Optional[AnalysisConfig] = None
+        config: Optional[AnalysisConfig] = None,
+        cloud_provider: str = 'azure',
+        region: str = ''
     ) -> Dict[str, Any]:
         """
         Run analysis with subscription awareness and cluster config support
         ENHANCED: Ensures cluster config info is available for implementation generator
         """
-        
+
         cluster_id = f"{resource_group}_{cluster_name}"
-        
+
         # Step 1: Determine subscription if not provided
         cluster_lock = self.get_cluster_lock(cluster_id)
-        
+
         with cluster_lock:
             logger.info(f"🔒 Acquired cluster lock for {cluster_id}")
-            
+
             if not subscription_id:
                 logger.info(f"🔍 Auto-detecting subscription for cluster {cluster_name}")
-                subscription_id = azure_subscription_manager.find_cluster_subscription(resource_group, cluster_name)
-                
+                account_mgr = self._get_account_manager(cloud_provider)
+                subscription_id = account_mgr.find_cluster_account(cluster_name, resource_group)
+
                 if not subscription_id:
                     return {
                         'status': 'error',
@@ -185,9 +206,11 @@ class MultiSubscriptionAnalysisEngine:
             
             # Step 3: Create subscription-aware config
             if config is None:
-                config = AnalysisConfig(AnalysisType.MULTI_SUBSCRIPTION, subscription_id)
+                config = AnalysisConfig(AnalysisType.MULTI_SUBSCRIPTION, subscription_id, cloud_provider=cloud_provider, region=region)
             else:
                 config.subscription_id = subscription_id
+                config.cloud_provider = cloud_provider
+                config.region = region
             
             # Step 4: Run analysis with subscription context and cluster config support
             return self._run_analysis_with_subscription_context(
@@ -244,8 +267,9 @@ class MultiSubscriptionAnalysisEngine:
                         session_id, log_prefix, config
                     )
                 
-                # Execute with subscription context
-                analysis_result = azure_subscription_manager.execute_with_subscription_context(
+                # Execute with provider-specific account context
+                account_mgr = self._get_account_manager(config.cloud_provider)
+                analysis_result = account_mgr.execute_with_account_context(
                     subscription_id, analysis_function
                 )
                 
@@ -255,20 +279,22 @@ class MultiSubscriptionAnalysisEngine:
                 # ENHANCED: Add comprehensive subscription and cluster metadata for implementation generator
                 analysis_result['results']['subscription_metadata'] = {
                     'subscription_id': subscription_id,
-                    'subscription_name': self._get_subscription_name(subscription_id),
+                    'subscription_name': self._get_subscription_name(subscription_id, config.cloud_provider),
                     'cluster_validation': validation_result.get('cluster_info', {}),
                     'analysis_session_id': session_id,
                     'multi_subscription_enabled': True
                 }
-                
+
                 # ENHANCED: Add cluster configuration metadata for implementation generator
+                resource_id = self._build_resource_id(config.cloud_provider, subscription_id, resource_group, cluster_name)
                 analysis_result['results']['cluster_metadata'] = {
                     'resource_group': resource_group,
                     'cluster_name': cluster_name,
                     'cluster_id': cluster_id,
                     'subscription_id': subscription_id,
-                    'azure_resource_id': f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.ContainerService/managedClusters/{cluster_name}",
-                    'cluster_config_available': True,  # Signal that config fetching is available
+                    'cloud_provider': config.cloud_provider,
+                    'resource_id': resource_id,
+                    'cluster_config_available': True,
                     'analysis_timestamp': datetime.now().isoformat()
                 }
                 
@@ -298,7 +324,7 @@ class MultiSubscriptionAnalysisEngine:
             # CACHE-FIRST ARCHITECTURE: Create single cache instance at the very beginning
             logger.info(f"🚀 Session {session_id}: Creating single cache instance for {cluster_name} - executing all kubectl commands")
             from shared.kubernetes_data_cache import fetch_cluster_data
-            shared_cache = fetch_cluster_data(cluster_name, resource_group, config.subscription_id)
+            shared_cache = fetch_cluster_data(cluster_name, resource_group, config.subscription_id, cloud_provider=config.cloud_provider, region=config.region)
             logger.info(f"✅ Session {session_id}: Cache ready - all components will now use cached data")
             
             # DEBUG: Inspect cache contents
@@ -449,15 +475,17 @@ class MultiSubscriptionAnalysisEngine:
         final_results['ml_analysis_metadata'] = ml_metadata
         
         # ENHANCED: Add comprehensive cluster context for implementation generator
+        resource_id = self._build_resource_id(config.cloud_provider, config.subscription_id, resource_group, cluster_name)
         final_results['cluster_context'] = {
             'resource_group': resource_group,
             'cluster_name': cluster_name,
             'subscription_id': config.subscription_id,
+            'cloud_provider': config.cloud_provider,
             'cluster_id': f"{resource_group}_{cluster_name}",
-            'azure_resource_id': f"/subscriptions/{config.subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.ContainerService/managedClusters/{cluster_name}",
+            'resource_id': resource_id,
             'analysis_session': session_id,
-            'supports_cluster_config_fetch': True,  # NEW: Implementation generator can fetch cluster config
-            'cluster_config_fetch_params': {  # NEW: Parameters for cluster config fetching
+            'supports_cluster_config_fetch': True,
+            'cluster_config_fetch_params': {
                 'resource_group': resource_group,
                 'cluster_name': cluster_name,
                 'subscription_id': config.subscription_id
@@ -502,9 +530,11 @@ class MultiSubscriptionAnalysisEngine:
         final_results.update({
             'resource_group': resource_group,
             'cluster_name': cluster_name,
-            'subscription_id': config.subscription_id,  # Add subscription_id at root level for backward compatibility
+            'subscription_id': config.subscription_id,
+            'region': config.region,
+            'cloud_provider': config.cloud_provider,
             'cost_period': f"{datetime.now().strftime('%Y-%m-%d')} ({days} days analysis)",
-            'cost_data_source': 'Azure Cost Management API',
+            'cost_data_source': {'aws': 'AWS Cost Explorer', 'gcp': 'GCP BigQuery Billing'}.get(config.cloud_provider, 'Azure Cost Management API'),
             'metrics_data_source': metadata['metrics_source'],
             'analysis_timestamp': datetime.now().isoformat(),
             'session_id': session_id,
@@ -557,10 +587,21 @@ class MultiSubscriptionAnalysisEngine:
     
     # Include all existing helper methods unchanged (maintaining signatures)
     
-    def _get_subscription_name(self, subscription_id: str) -> str:
-        """Get subscription display name"""
-        sub_info = azure_subscription_manager.get_subscription_info(subscription_id)
-        return sub_info.subscription_name if sub_info else subscription_id[:8]
+    def _get_subscription_name(self, subscription_id: str, cloud_provider: str = 'azure') -> str:
+        """Get subscription/account display name"""
+        account_mgr = self._get_account_manager(cloud_provider)
+        account_info = account_mgr.get_account_info(subscription_id)
+        return account_info.get('name', subscription_id[:8]) if account_info else subscription_id[:8]
+
+    @staticmethod
+    def _build_resource_id(cloud_provider: str, account_id: str, resource_group: str, cluster_name: str) -> str:
+        """Build provider-specific resource identifier."""
+        if cloud_provider == 'aws':
+            return f"arn:aws:eks:{resource_group}:{account_id}:cluster/{cluster_name}"
+        elif cloud_provider == 'gcp':
+            return f"projects/{account_id}/locations/{resource_group}/clusters/{cluster_name}"
+        else:
+            return f"/subscriptions/{account_id}/resourceGroups/{resource_group}/providers/Microsoft.ContainerService/managedClusters/{cluster_name}"
     
     def _update_session_state_with_subscription(self, session_id: str, results: Dict, config: AnalysisConfig) -> None:
         """Update session tracking state with subscription info"""
@@ -729,8 +770,11 @@ class MultiSubscriptionAnalysisEngine:
         # PASS SUBSCRIPTION ID to cost fetching with 12-hour cache
         try:
             # Cost processor now handles all caching internally
+            _cloud_provider = config.cloud_provider if config else 'azure'
+            _region = config.region if config else ''
             cost_df = get_aks_specific_cost_data(
-                resource_group, cluster_name, start_date, end_date, subscription_id, cluster_id
+                resource_group, cluster_name, start_date, end_date, subscription_id, cluster_id,
+                cloud_provider=_cloud_provider, region=_region
             )
                     
         except Exception as e:
@@ -843,7 +887,7 @@ class MultiSubscriptionAnalysisEngine:
                 cost_breakdown['networking_cost'] = 0.0
                 
             try:
-                cost_breakdown['control_plane_cost'] = float(cost_df[cost_df['Category'] == 'AKS Control Plane']['Cost'].sum())
+                cost_breakdown['control_plane_cost'] = float(cost_df[cost_df['Category'].isin(['AKS Control Plane', 'EKS Control Plane', 'GKE Control Plane'])]['Cost'].sum())
             except:
                 cost_breakdown['control_plane_cost'] = 0.0
                 
@@ -2911,6 +2955,12 @@ class MultiSubscriptionAnalysisEngine:
 
     def _extract_cluster_location(self, basic_analysis: dict) -> str:
         """Extract cluster location/region from analysis data and kubernetes cache"""
+        # Check if region is directly available in analysis results (set by AnalysisConfig)
+        region = basic_analysis.get('region', '')
+        if region:
+            logger.info(f"✅ Using cluster location from analysis config: {region}")
+            return region
+
         # Try to get from kubernetes cache if cluster info is available
         cluster_name = basic_analysis.get('cluster_name')
         resource_group = basic_analysis.get('resource_group') 

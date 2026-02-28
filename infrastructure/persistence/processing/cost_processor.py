@@ -20,7 +20,7 @@ import time
 import os
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from shared.config.config import logger
@@ -1034,7 +1034,7 @@ class EnhancedAKSCostProcessor:
         # Basic components (enhanced)
         node_cost = float(cost_df[cost_df['Category'] == 'Node Pools']['Cost'].sum()) * multiplier
         storage_cost = float(cost_df[cost_df['Category'] == 'Storage']['Cost'].sum()) * multiplier
-        control_plane_cost = float(cost_df[cost_df['Category'] == 'AKS Control Plane']['Cost'].sum()) * multiplier
+        control_plane_cost = float(cost_df[cost_df['Category'].isin(['AKS Control Plane', 'EKS Control Plane', 'GKE Control Plane'])]['Cost'].sum()) * multiplier
         
         # Enhanced networking breakdown
         networking_df = cost_df[cost_df['Category'] == 'Networking']
@@ -1064,11 +1064,12 @@ class EnhancedAKSCostProcessor:
         
         # Remaining uncategorized costs
         categorized_categories = [
-            'Node Pools', 'Storage', 'Networking', 'AKS Control Plane', 
+            'Node Pools', 'Storage', 'Networking',
+            'AKS Control Plane', 'EKS Control Plane', 'GKE Control Plane',
             'Container Registry', 'Monitoring', 'Security', 'Key Vault',
             'Application Services', 'Data Services', 'Integration Services',
             'DevOps & CI/CD', 'Backup & Recovery', 'Governance & Compliance',
-            'Support & Management', 'Data Transfer'
+            'Support & Management', 'Data Transfer', 'Other Services'
         ]
         other_categories = cost_df[~cost_df['Category'].isin(categorized_categories)]
         other_cost = float(other_categories['Cost'].sum()) * multiplier
@@ -1254,8 +1255,9 @@ def _merge_cost_data(aks_cost_data: Dict, additional_cost_data: Dict, thread_id:
     
     return merged_data
 
-def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_date, 
-                              subscription_id, cluster_id=None):
+def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_date,
+                              subscription_id, cluster_id=None,
+                              cloud_provider='azure', region=''):
     """
     Comprehensive AKS cost collection with intelligent caching - captures ACTUAL cluster costs across entire subscription.
     
@@ -1276,8 +1278,9 @@ def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_dat
     date_range = f"{start_date} to {end_date}"
     
     def _fetch_cost_data_internal(cluster_id, subscription_id, date_range):
-        """Internal function that does the actual Azure SDK cost fetching"""
-        return _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, end_date, subscription_id, cluster_id)
+        """Internal function that does the actual cost fetching (Azure SDK or AWS Cost Explorer)"""
+        return _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, end_date, subscription_id, cluster_id,
+                                                  cloud_provider=cloud_provider, region=region)
     
     # Use cached cost fetch with DataFrame support
     try:
@@ -1300,35 +1303,51 @@ def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_dat
         logger.error(f"❌ Cached cost fetch failed for {cluster_name}: {e}")
         raise
 
-def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, end_date, subscription_id, cluster_id=None):
+def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, end_date, subscription_id, cluster_id=None,
+                                       cloud_provider='azure', region=''):
     """
-    Execute the actual comprehensive cost query (internal function for caching)
+    Execute the actual comprehensive cost query (internal function for caching).
+    Routes to AWS Cost Explorer or Azure Cost Management based on cloud_provider.
     """
+    from infrastructure.cloud_providers.types import ClusterIdentifier, CloudProvider
+
+    _provider = CloudProvider.from_string(cloud_provider)
+
+    # --- AWS: use Cost Explorer directly ---
+    if _provider == CloudProvider.AWS:
+        return _execute_aws_cost_query(resource_group, cluster_name, start_date, end_date, subscription_id, region)
+
+    # --- Azure path ---
     logger.info(f"🔄 EXECUTING: Azure Cost API query for {cluster_name}")
-    
+
     max_retries = 3
     base_delay = 2  # Reduced from 5 seconds for faster retries
     thread_id = threading.get_ident()
-    
+
     for attempt in range(max_retries):
         try:
             # Format dates for Azure SDK (ISO 8601 format)
             start_date_str = start_date.strftime("%Y-%m-%dT00:00:00Z")
             end_date_str = end_date.strftime("%Y-%m-%dT23:59:59Z")
-            
+
             logger.info(f"📅 Thread {thread_id}: Using date range: {start_date_str} to {end_date_str}")
-            
-            # Get the node resource group using Azure SDK
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            aks_client = azure_sdk_manager.get_aks_client(subscription_id)
-            if not aks_client:
-                raise Exception(f"Cannot get AKS client for subscription {subscription_id}")
-            
-            cluster_info = aks_client.managed_clusters.get(resource_group, cluster_name)
-            node_resource_group = cluster_info.node_resource_group
-            
+
+            # Get the node resource group via cloud provider abstraction
+            from infrastructure.cloud_providers.registry import ProviderRegistry
+            _cluster_id = ClusterIdentifier(
+                provider=_provider,
+                cluster_name=cluster_name,
+                region=region,
+                resource_group=resource_group,
+                subscription_id=subscription_id,
+            )
+            _inspector = ProviderRegistry().get_infrastructure_inspector()
+            node_resource_group = _inspector.get_node_resource_scope(_cluster_id)
+            if not node_resource_group:
+                raise Exception(f"Cannot determine node resource group for {cluster_name}")
+
             logger.info(f"🔧 Thread {thread_id}: Using node resource group: {node_resource_group}")
-            
+
             # Comprehensive cost query to capture ALL cluster-related Azure costs
             # Query 1: Direct AKS resources (cluster, nodes, disks in resource groups)
             aks_cost_query = {
@@ -1380,25 +1399,19 @@ def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, 
                 json.dump(aks_cost_query, f, indent=2)
             
             try:
-                # Use Azure SDK instead of CLI for cost queries
-                from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-                
-                cost_client = azure_sdk_manager.get_cost_client(subscription_id)
+                from infrastructure.services.azure_sdk_manager import azure_sdk_manager as _azure_sdk
+                cost_client = _azure_sdk.get_cost_client(subscription_id)
                 if not cost_client:
                     raise Exception(f"Cannot get cost client for subscription {subscription_id}")
-                
-                # Execute AKS-specific query using SDK
+
                 logger.info(f"💰 Thread {thread_id}: Executing AKS cost query via SDK (attempt {attempt + 1}/{max_retries})")
-                
-                # Load query definition from JSON file
+
                 with open(aks_query_file, 'r') as f:
                     aks_query_dict = json.load(f)
-                
-                # Convert to SDK query definition
+
                 from azure.mgmt.costmanagement.models import QueryDefinition
                 aks_query_definition = QueryDefinition.from_dict(aks_query_dict)
-                
-                # Execute query
+
                 scope = f"/subscriptions/{subscription_id}"
                 aks_query_result = cost_client.query.usage(scope=scope, parameters=aks_query_definition)
                 
@@ -1493,6 +1506,244 @@ def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, 
                 return None
     
     return None
+
+def _execute_aws_cost_query(resource_group, cluster_name, start_date, end_date, subscription_id, region):
+    """
+    Execute AWS Cost Explorer query and return a DataFrame matching the Azure cost format.
+    Uses AWSCostManager for the actual API call, then converts to the DataFrame schema
+    that the rest of the pipeline expects.
+    """
+    from infrastructure.cloud_providers.types import ClusterIdentifier, CloudProvider
+    from infrastructure.cloud_providers.aws.costs import AWSCostManager
+
+    thread_id = threading.get_ident()
+    logger.info(f"🔄 EXECUTING: AWS Cost Explorer query for {cluster_name} in {region}")
+
+    _cluster_id = ClusterIdentifier(
+        provider=CloudProvider.AWS,
+        cluster_name=cluster_name,
+        region=region,
+        resource_group=resource_group,
+        subscription_id=subscription_id,
+    )
+
+    cost_mgr = AWSCostManager()
+    result = cost_mgr.get_cluster_costs(_cluster_id, start_date, end_date)
+
+    if not result or result.get('total_cost', 0) == 0:
+        logger.warning(f"⚠️ Thread {thread_id}: AWS Cost Explorer returned no data for {cluster_name} — generating estimate from node pricing")
+        # Fall back to node-based cost estimation
+        return _estimate_aws_costs_from_nodes(cluster_name, region, start_date, end_date, subscription_id, resource_group)
+
+    # Convert AWS Cost Explorer breakdown into rows matching the processed DataFrame schema
+    # Must match: Cost, ResourceType, ResourceGroup, Service, Category, Subcategory, CostMetadata,
+    #             AllocationWeight, CostType, DistributionScore, SystemCostAllocation, IdleCost
+    rows = []
+    breakdown = result.get('breakdown', {})
+    period_days = max((end_date - start_date).days, 1)
+
+    for service_name, total_cost in breakdown.items():
+        daily_cost = total_cost / period_days
+        category, subcategory = _aws_service_to_category(service_name)
+        current = start_date
+        while current < end_date:
+            rows.append({
+                'Cost': round(daily_cost, 4),
+                'ResourceType': _aws_service_to_resource_type(service_name),
+                'ResourceGroup': resource_group or cluster_name,
+                'Service': service_name,
+                'Category': category,
+                'Subcategory': subcategory,
+                'CostMetadata': {},
+                'AllocationWeight': 1.0,
+                'CostType': 'actual',
+                'DistributionScore': 0.0,
+                'SystemCostAllocation': 0.0,
+                'IdleCost': 0.0,
+                'ResourceId': f'arn:aws:eks:{region}:{subscription_id}:cluster/{cluster_name}',
+                'MeterCategory': service_name,
+                'MeterName': service_name,
+                'Location': region,
+            })
+            current += timedelta(days=1)
+
+    cost_df = pd.DataFrame(rows)
+
+    cost_df.attrs.update({
+        'start_date': start_date.strftime("%Y-%m-%dT00:00:00Z"),
+        'end_date': end_date.strftime("%Y-%m-%dT23:59:59Z"),
+        'subscription_id': subscription_id,
+        'cluster_name': cluster_name,
+        'thread_id': thread_id,
+        'data_source': 'AWS Cost Explorer',
+        'collection_method': 'aws_cost_explorer',
+        'captures_actual_costs': True,
+        'cloud_provider': 'aws',
+    })
+
+    logger.info(f"✅ Thread {thread_id}: AWS cost query returned {len(rows)} rows, total ${result['total_cost']:.2f}")
+    return cost_df
+
+
+def _estimate_aws_costs_from_nodes(cluster_name, region, start_date, end_date, subscription_id, resource_group):
+    """Estimate EKS costs from node instance pricing when Cost Explorer has no data."""
+    from infrastructure.cloud_providers.types import ClusterIdentifier, CloudProvider
+
+    thread_id = threading.get_ident()
+    logger.info(f"💰 Thread {thread_id}: Estimating AWS costs from node pricing for {cluster_name}")
+
+    _cluster_id = ClusterIdentifier(
+        provider=CloudProvider.AWS,
+        cluster_name=cluster_name,
+        region=region,
+        resource_group=resource_group,
+        subscription_id=subscription_id,
+    )
+
+    # Get node info from inspector
+    try:
+        from infrastructure.cloud_providers.aws.inspector import AWSInfrastructureInspector
+        inspector = AWSInfrastructureInspector()
+        details_json = inspector.get_cluster_details(_cluster_id)
+        if details_json:
+            import json as _json
+            details = _json.loads(details_json)
+            pools = details.get('agent_pool_profiles', [])
+        else:
+            pools = []
+    except Exception as e:
+        logger.warning(f"Could not get cluster details for cost estimation: {e}")
+        pools = []
+
+    # Get pricing for instance types
+    from infrastructure.cloud_providers.aws.costs import AWSCostManager
+    cost_mgr = AWSCostManager()
+    instance_types = list({p.get('vm_size', '') for p in pools if p.get('vm_size')})
+    pricing = cost_mgr.get_vm_pricing(region, instance_types) or {}
+
+    period_days = max((end_date - start_date).days, 1)
+    rows = []
+
+    # EKS control plane cost: $0.10/hour = $73/month
+    eks_hourly = 0.10
+    for day_offset in range(period_days):
+        current = start_date + timedelta(days=day_offset)
+        rows.append({
+            'Cost': round(eks_hourly * 24, 4),
+            'ResourceType': 'EKS Cluster',
+            'ResourceGroup': resource_group or cluster_name,
+            'Service': 'Amazon Elastic Kubernetes Service',
+            'Category': 'EKS Control Plane',
+            'Subcategory': 'Standard Tier ($0.10/hr)',
+            'CostMetadata': {'tier': 'standard', 'hourly_base': 0.10},
+            'AllocationWeight': 1.0,
+            'CostType': 'estimated',
+            'DistributionScore': 0.0,
+            'SystemCostAllocation': 0.0,
+            'IdleCost': 0.0,
+            'ResourceId': f'arn:aws:eks:{region}:{subscription_id}:cluster/{cluster_name}',
+            'MeterCategory': 'Amazon Elastic Kubernetes Service',
+            'MeterName': 'EKS Cluster Hour',
+            'Location': region,
+        })
+
+    # Node compute costs
+    for pool in pools:
+        vm_size = pool.get('vm_size', '')
+        count = pool.get('count', 0)
+        price_info = pricing.get(vm_size, {})
+        hourly = price_info.get('hourly_cost', 0)
+        daily_cost = hourly * 24 * count
+
+        if daily_cost > 0:
+            for day_offset in range(period_days):
+                current = start_date + timedelta(days=day_offset)
+                rows.append({
+                    'Cost': round(daily_cost, 4),
+                    'ResourceType': f'EC2 ({vm_size})',
+                    'ResourceGroup': resource_group or cluster_name,
+                    'Service': 'Amazon Elastic Compute Cloud',
+                    'Category': 'Node Pools',
+                    'Subcategory': f'{vm_size} ({pool.get("name", "default")})',
+                    'CostMetadata': {'instance_type': vm_size, 'count': count, 'hourly': hourly},
+                    'AllocationWeight': 1.0,
+                    'CostType': 'estimated',
+                    'DistributionScore': 0.0,
+                    'SystemCostAllocation': 0.0,
+                    'IdleCost': 0.0,
+                    'ResourceId': f'arn:aws:ec2:{region}:{subscription_id}:instance/{vm_size}',
+                    'MeterCategory': 'Amazon Elastic Compute Cloud',
+                    'MeterName': f'{vm_size} Instance Hour',
+                    'Location': region,
+                })
+
+    if not rows:
+        logger.warning(f"⚠️ Thread {thread_id}: No cost estimate possible for {cluster_name}")
+        return None
+
+    cost_df = pd.DataFrame(rows)
+    total = cost_df['Cost'].sum()
+
+    cost_df.attrs.update({
+        'start_date': start_date.strftime("%Y-%m-%dT00:00:00Z"),
+        'end_date': end_date.strftime("%Y-%m-%dT23:59:59Z"),
+        'subscription_id': subscription_id,
+        'cluster_name': cluster_name,
+        'thread_id': thread_id,
+        'data_source': 'AWS Pricing API (estimated)',
+        'collection_method': 'aws_pricing_estimate',
+        'captures_actual_costs': False,
+        'cloud_provider': 'aws',
+    })
+
+    logger.info(f"✅ Thread {thread_id}: AWS cost estimate for {cluster_name}: ${total:.2f} over {period_days} days")
+    return cost_df
+
+
+def _aws_service_to_resource_type(service_name: str) -> str:
+    """Map AWS service names to resource type labels."""
+    mapping = {
+        'Amazon Elastic Compute Cloud': 'EC2 Instance',
+        'Amazon Elastic Kubernetes Service': 'EKS Cluster',
+        'Amazon EC2 Container Service': 'ECS/EKS',
+        'Amazon Elastic Block Store': 'EBS Volume',
+        'Amazon Simple Storage Service': 'S3 Bucket',
+        'Amazon Virtual Private Cloud': 'VPC',
+        'Amazon CloudWatch': 'CloudWatch',
+        'Amazon Elastic Load Balancing': 'Load Balancer',
+        'AWS Key Management Service': 'KMS',
+        'AmazonEC2': 'EC2 Instance',
+        'AmazonEKS': 'EKS Cluster',
+    }
+    return mapping.get(service_name, service_name)
+
+
+def _aws_service_to_category(service_name: str) -> tuple:
+    """Map AWS service names to (Category, Subcategory) matching the Azure schema."""
+    sn = service_name.lower()
+    if 'elastic kubernetes' in sn or 'amazoneks' in sn:
+        return ('EKS Control Plane', 'EKS Management')
+    elif 'elastic compute' in sn or 'amazonec2' in sn or 'ec2' in sn:
+        return ('Node Pools', 'EC2 Instances')
+    elif 'elastic block' in sn or 'ebs' in sn:
+        return ('Storage', 'EBS Volumes')
+    elif 'simple storage' in sn or 's3' in sn:
+        return ('Storage', 'S3 Storage')
+    elif 'virtual private cloud' in sn or 'vpc' in sn:
+        return ('Networking', 'VPC')
+    elif 'elastic load' in sn or 'elb' in sn:
+        return ('Networking', 'Load Balancer')
+    elif 'cloudwatch' in sn:
+        return ('Monitoring', 'CloudWatch')
+    elif 'key management' in sn or 'kms' in sn:
+        return ('Security', 'KMS')
+    elif 'data transfer' in sn or 'bandwidth' in sn:
+        return ('Data Transfer', 'Data Transfer')
+    elif 'container registry' in sn or 'ecr' in sn:
+        return ('Container Registry', 'ECR')
+    else:
+        return ('Other Services', service_name)
+
 
 def log_cost_details(cost_df):
     """Enhanced cost logging with better breakdown"""

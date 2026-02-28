@@ -20,8 +20,8 @@ async def scheduler_status(
 ):
     """Get auto-analysis scheduler status."""
     try:
-        if hasattr(scheduler, 'get_status'):
-            return scheduler.get_status()
+        if hasattr(scheduler, 'get_scheduler_status'):
+            return scheduler.get_scheduler_status()
     except Exception as e:
         logger.error(f"Failed to get scheduler status: {e}")
     return {"running": False, "message": "Scheduler not available"}
@@ -34,8 +34,8 @@ async def start_scheduler(
 ):
     """Start the auto-analysis scheduler."""
     try:
-        if hasattr(scheduler, 'start'):
-            scheduler.start()
+        if hasattr(scheduler, 'start_scheduler'):
+            scheduler.start_scheduler()
             return {"message": "Scheduler started", "running": True}
     except Exception as e:
         logger.error(f"Failed to start scheduler: {e}")
@@ -49,8 +49,8 @@ async def stop_scheduler(
 ):
     """Stop the auto-analysis scheduler."""
     try:
-        if hasattr(scheduler, 'stop'):
-            scheduler.stop()
+        if hasattr(scheduler, 'stop_scheduler'):
+            scheduler.stop_scheduler()
             return {"message": "Scheduler stopped", "running": False}
     except Exception as e:
         logger.error(f"Failed to stop scheduler: {e}")
@@ -64,8 +64,8 @@ async def force_analysis(
 ):
     """Force immediate analysis of all clusters."""
     try:
-        if hasattr(scheduler, 'force_analysis'):
-            scheduler.force_analysis()
+        if hasattr(scheduler, 'force_analysis_now'):
+            scheduler.force_analysis_now()
             return {"message": "Analysis triggered for all clusters"}
     except Exception as e:
         logger.error(f"Failed to force analysis: {e}")

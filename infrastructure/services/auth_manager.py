@@ -18,8 +18,13 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
-from flask import session, request
 import logging
+
+try:
+    import bcrypt
+    BCRYPT_AVAILABLE = True
+except ImportError:
+    BCRYPT_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +41,35 @@ class AuthManager:
         self._ensure_default_credentials()
     
     def _hash_password(self, password: str) -> str:
-        """Hash password using SHA-256 with salt"""
-        salt = b'kubeopt_aks_optimizer_2024'  # Static salt for simplicity
+        """Hash password using bcrypt (falls back to SHA-256 if bcrypt unavailable)."""
+        if BCRYPT_AVAILABLE:
+            return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        # Legacy fallback
+        salt = b'kubeopt_aks_optimizer_2024'
         return hashlib.sha256(salt + password.encode()).hexdigest()
+
+    def _verify_password(self, password: str, stored_hash: str) -> bool:
+        """Verify password against stored hash (supports both bcrypt and legacy SHA-256)."""
+        if stored_hash.startswith('$2b$') or stored_hash.startswith('$2a$'):
+            if not BCRYPT_AVAILABLE:
+                logger.error("Stored hash is bcrypt but bcrypt package not installed")
+                return False
+            return bcrypt.checkpw(password.encode(), stored_hash.encode())
+        # Legacy SHA-256 check
+        salt = b'kubeopt_aks_optimizer_2024'
+        return hashlib.sha256(salt + password.encode()).hexdigest() == stored_hash
+
+    def _upgrade_password_hash(self, username: str, password: str):
+        """Auto-upgrade a legacy SHA-256 hash to bcrypt on successful login."""
+        if not BCRYPT_AVAILABLE:
+            return
+        try:
+            from infrastructure.services.settings_manager import settings_manager
+            new_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+            settings_manager.save_settings({'user_password_hash': new_hash})
+            logger.info(f"Upgraded password hash to bcrypt for user {username}")
+        except Exception as e:
+            logger.warning(f"Failed to upgrade password hash: {e}")
     
     def _ensure_default_credentials(self):
         """Initialize credentials from environment variables or settings"""
@@ -74,8 +105,8 @@ class AuthManager:
                     'user_role': 'admin'
                 }
                 settings_manager.save_settings(default_settings)
-                logger.warning(f"Generated secure fallback credentials: {secure_username} / {secure_password}")
-                logger.warning("SAVE THESE CREDENTIALS! Set USER_USERNAME and USER_PASSWORD_HASH in production!")
+                logger.warning(f"Generated secure fallback credentials for user: {secure_username}")
+                logger.warning("Set USER_USERNAME and USER_PASSWORD_HASH in .env for production!")
         except Exception as e:
             logger.error(f"Failed to initialize credentials: {e}")
     
@@ -105,13 +136,14 @@ class AuthManager:
             # Validate username
             if username != stored_username:
                 return False
-            
-            # Validate password
-            password_hash = self._hash_password(password)
-            if password_hash == stored_password_hash:
+
+            # Validate password (supports bcrypt and legacy SHA-256)
+            if self._verify_password(password, stored_password_hash):
+                # Auto-upgrade legacy SHA-256 to bcrypt on successful login
+                if not (stored_password_hash.startswith('$2b$') or stored_password_hash.startswith('$2a$')):
+                    self._upgrade_password_hash(username, password)
                 return True
-            else:
-                return False
+            return False
                 
         except Exception as e:
             logger.error(f"Error during authentication: {e}")
@@ -119,124 +151,63 @@ class AuthManager:
     
     def create_session(self, username: str, remember: bool = False) -> str:
         """
-        Create a new session for authenticated user
-        
-        Args:
-            username: Authenticated username
-            remember: Whether to create a long-lived session
-            
+        Create a new session for authenticated user.
+
         Returns:
             str: Session token
         """
         try:
             from infrastructure.services.settings_manager import settings_manager
-            
+
             session_token = secrets.token_urlsafe(32)
             user_role = settings_manager.get_setting('user_role', 'admin')
-            
+
             session_data = {
                 'username': username,
                 'role': user_role,
                 'created': datetime.now(),
                 'last_activity': datetime.now(),
-                'ip_address': request.remote_addr if request else 'unknown'
             }
-            
+
             self.active_sessions[session_token] = session_data
-            
-            # Store in Flask session
-            session['authenticated'] = True
-            session['username'] = username
-            session['role'] = session_data['role']
-            session['session_token'] = session_token
-            
             return session_token
-            
+
         except Exception as e:
             logger.error(f"Error creating session: {e}")
             return ""
     
     def validate_session(self, session_token: Optional[str] = None) -> bool:
-        """
-        Validate current session
-        
-        Args:
-            session_token: Optional session token to validate
-            
-        Returns:
-            bool: True if session is valid
-        """
+        """Validate a session token."""
         try:
-            # Use provided token or get from session
-            token = session_token or session.get('session_token')
-            
-            if not token or token not in self.active_sessions:
+            if not session_token or session_token not in self.active_sessions:
                 return False
-            
-            session_data = self.active_sessions[token]
-            
-            # Check session timeout
+
+            session_data = self.active_sessions[session_token]
+
             if datetime.now() - session_data['last_activity'] > self.session_timeout:
-                self.destroy_session(token)
+                self.destroy_session(session_token)
                 return False
-            
-            # Update last activity
+
             session_data['last_activity'] = datetime.now()
-            
             return True
-            
+
         except Exception as e:
             logger.error(f"Error validating session: {e}")
             return False
-    
+
     def destroy_session(self, session_token: Optional[str] = None):
-        """
-        Destroy session
-        
-        Args:
-            session_token: Optional session token to destroy
-        """
+        """Destroy a session."""
         try:
-            # Use provided token or get from session
-            token = session_token or session.get('session_token')
-            
-            if token and token in self.active_sessions:
-                username = self.active_sessions[token]['username']
-                del self.active_sessions[token]
-            
-            # Clear Flask session
-            session.clear()
-            
+            if session_token and session_token in self.active_sessions:
+                del self.active_sessions[session_token]
         except Exception as e:
             logger.error(f"Error destroying session: {e}")
-    
-    def require_auth(self, f):
-        """
-        Decorator to require authentication for routes
-        """
-        def wrapper(*args, **kwargs):
-            if not self.validate_session():
-                from flask import redirect, url_for
-                return redirect(url_for('login'))
-            return f(*args, **kwargs)
-        wrapper.__name__ = f.__name__
-        return wrapper
-    
-    def get_current_user(self) -> Dict[str, Any]:
-        """
-        Get current authenticated user info
-        
-        Returns:
-            Dict containing user information
-        """
-        try:
-            session_token = session.get('session_token')
-            if session_token and session_token in self.active_sessions:
-                return self.active_sessions[session_token]
-            return {}
-        except Exception as e:
-            logger.error(f"Error getting current user: {e}")
-            return {}
+
+    def get_current_user_by_token(self, session_token: str) -> Dict[str, Any]:
+        """Get user info for a session token."""
+        if session_token and session_token in self.active_sessions:
+            return self.active_sessions[session_token]
+        return {}
     
     def cleanup_expired_sessions(self):
         """
