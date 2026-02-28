@@ -35,7 +35,8 @@ def migrate_database_schema(db_path: str = '../data/database/clusters.db'):
             required_columns = {
                 'analysis_data': 'BLOB',
                 'enhanced_analysis_data': 'BLOB',
-                'last_confidence': 'REAL DEFAULT 0'
+                'last_confidence': 'REAL DEFAULT 0',
+                'cloud_provider': "TEXT DEFAULT 'azure'",
             }
             
             # Add missing columns
@@ -464,7 +465,8 @@ class EnhancedMultiSubscriptionClusterManager:
                         subscription_name TEXT DEFAULT NULL,
                         subscription_context_verified BOOLEAN DEFAULT 0,
                         subscription_last_validated TIMESTAMP NULL,
-                        cost_fetched_at TIMESTAMP NULL
+                        cost_fetched_at TIMESTAMP NULL,
+                        cloud_provider TEXT DEFAULT 'azure'
                     )
                 ''')
                 
@@ -645,36 +647,37 @@ class EnhancedMultiSubscriptionClusterManager:
         try:
             self.logger.info("🌐 Initializing subscription tracking...")
             
-            # Try to import subscription manager, but handle gracefully if not available
+            # Try to get accounts via cloud provider registry
             try:
-                from infrastructure.services.subscription_manager import azure_subscription_manager
-                
-                # Get all available subscriptions
-                subscriptions = azure_subscription_manager.get_available_subscriptions(force_refresh=True)
-                
+                from infrastructure.cloud_providers.registry import ProviderRegistry
+                account_mgr = ProviderRegistry().get_account_manager()
+
+                # Get all available subscriptions/accounts
+                subscriptions = account_mgr.list_accounts()
+
                 # Update subscriptions table
                 with self._connect() as conn:
                     for sub in subscriptions:
                         conn.execute('''
-                            INSERT OR REPLACE INTO subscriptions 
+                            INSERT OR REPLACE INTO subscriptions
                             (subscription_id, subscription_name, tenant_id, state, is_default, last_validated, validation_status)
                             VALUES (?, ?, ?, ?, ?, ?, ?)
                         ''', (
-                            sub.subscription_id,
-                            sub.subscription_name,
-                            sub.tenant_id,
-                            sub.state,
-                            sub.is_default,
+                            sub['id'],
+                            sub['name'],
+                            sub.get('tenant_id', ''),
+                            sub.get('state', 'unknown'),
+                            sub.get('is_default', False),
                             datetime.now().isoformat(),
                             'active'
                         ))
-                    
+
                     conn.commit()
-                
+
                 self.logger.info(f"✅ Initialized tracking for {len(subscriptions)} subscriptions")
-                
+
             except ImportError:
-                self.logger.warning("⚠️ Subscription manager not available, skipping subscription discovery")
+                self.logger.warning("⚠️ Cloud provider registry not available, skipping subscription discovery")
             except Exception as e:
                 self.logger.warning(f"⚠️ Failed to initialize subscription tracking: {e}")
             
@@ -741,53 +744,49 @@ class EnhancedMultiSubscriptionClusterManager:
             
             self.logger.info(f"🔍 Found {len(clusters_to_update)} clusters to update")
             
-            # Try to import subscription manager
+            # Try to detect via cloud provider registry
             try:
-                from infrastructure.services.subscription_manager import AzureSubscriptionManager
-                sub_manager = AzureSubscriptionManager()
-                
+                from infrastructure.cloud_providers.registry import ProviderRegistry
+                account_mgr = ProviderRegistry().get_account_manager()
+
                 updated_count = 0
-                
+
                 for cluster in clusters_to_update:
                     cluster_id = cluster['id']
                     cluster_name = cluster['name']
                     resource_group = cluster['resource_group']
-                    
+
                     self.logger.info(f"🔍 Detecting subscription for cluster: {cluster_name}")
-                    
-                    # Find the subscription containing this cluster
-                    subscription_id = sub_manager.find_cluster_subscription(resource_group, cluster_name)
-                    
+
+                    # Find the account/subscription containing this cluster
+                    subscription_id = account_mgr.find_cluster_account(cluster_name, resource_group)
+
                     if subscription_id:
-                        # Get subscription name
+                        # Get subscription/account name
                         subscription_name = "Unknown"
-                        try:
-                            sub_info = sub_manager.get_subscription_info(subscription_id)
-                            if sub_info is not None and sub_info:
-                                subscription_name = sub_info['subscription_name']
-                        except Exception as e:
-                            logger.error(f"Unexpected error: {e}")
-                            raise
-                        
+                        account_info = account_mgr.get_account_info(subscription_id)
+                        if account_info:
+                            subscription_name = account_info.get('name', 'Unknown')
+
                         # Update the cluster with subscription info
                         with self._connect() as conn:
                             conn.execute('''
-                                UPDATE clusters 
+                                UPDATE clusters
                                 SET subscription_id = ?, subscription_name = ?
                                 WHERE id = ?
                             ''', (subscription_id, subscription_name, cluster_id))
                             conn.commit()
-                        
+
                         self.logger.info(f"✅ Updated {cluster_name} -> {subscription_name}")
                         updated_count += 1
                     else:
                         self.logger.warning(f"⚠️ Could not find subscription for cluster: {cluster_name}")
-                
+
                 self.logger.info(f"✅ Updated {updated_count} clusters with subscription info")
                 return True
-                
+
             except ImportError:
-                self.logger.warning("⚠️ Subscription manager not available for auto-detection")
+                self.logger.warning("⚠️ Cloud provider registry not available for auto-detection")
                 return False
             
         except Exception as e:
@@ -1055,73 +1054,57 @@ class EnhancedMultiSubscriptionClusterManager:
         try:
             validation_results = {}
             
-            # Try to import subscription manager
+            # Try to validate via cloud provider registry
             try:
-                from infrastructure.services.subscription_manager import azure_subscription_manager
-                
+                from infrastructure.cloud_providers.registry import ProviderRegistry
+                from infrastructure.cloud_providers.types import ClusterIdentifier, CloudProvider
+                account_mgr = ProviderRegistry().get_account_manager()
+
                 with self._connect() as conn:
                     conn.row_factory = sqlite3.Row
                     cursor = conn.execute('''
                         SELECT id, name, resource_group, subscription_id, subscription_name
-                        FROM clusters 
+                        FROM clusters
                         WHERE status = 'active' AND subscription_id IS NOT NULL
                     ''')
-                    
+
                     clusters = cursor.fetchall()
-                    
+
                     for cluster_row in clusters:
-                        # Convert SQLite Row to dictionary to enable .get() method
                         cluster = dict(cluster_row)
                         cluster_id = cluster['id']
                         subscription_id = cluster['subscription_id']
-                        
+
                         try:
-                            # Validate cluster access in subscription
-                            validation_result = azure_subscription_manager.validate_cluster_access(
-                                subscription_id, cluster['resource_group'], cluster['name']
+                            cluster_ident = ClusterIdentifier(
+                                provider=ProviderRegistry().provider,
+                                cluster_name=cluster['name'],
+                                region='',
+                                resource_group=cluster['resource_group'],
+                                subscription_id=subscription_id,
                             )
-                            
-                            validation_results[cluster_id] = validation_result['valid']
-                            
-                            # Update database with validation result and discovered information
-                            update_fields = ['subscription_context_verified = ?', 'subscription_last_validated = ?']
-                            update_values = [validation_result['valid'], datetime.now().isoformat()]
-                            
-                            # Update location if discovered and different
-                            if validation_result['valid'] and validation_result.get('cluster_info'):
-                                cluster_info = validation_result['cluster_info']
-                                discovered_location = cluster_info.get('location')
-                                discovered_rg = validation_result.get('discovered_resource_group')
-                                
-                                if discovered_location and discovered_location != cluster.get('region'):
-                                    update_fields.append('region = ?')
-                                    update_values.append(discovered_location)
-                                    self.logger.info(f"📍 Updated location for {cluster_id}: {discovered_location}")
-                                
-                                if discovered_rg and discovered_rg != cluster.get('resource_group'):
-                                    update_fields.append('resource_group = ?')
-                                    update_values.append(discovered_rg)
-                                    self.logger.info(f"📁 Updated resource group for {cluster_id}: {discovered_rg}")
-                            
-                            update_values.append(cluster_id)
-                            
-                            conn.execute(f'''
-                                UPDATE clusters 
-                                SET {', '.join(update_fields)}
+                            is_valid = account_mgr.validate_cluster_access(cluster_ident)
+
+                            validation_results[cluster_id] = is_valid
+
+                            # Update database with validation result
+                            conn.execute('''
+                                UPDATE clusters
+                                SET subscription_context_verified = ?, subscription_last_validated = ?
                                 WHERE id = ?
-                            ''', tuple(update_values))
-                            
+                            ''', (is_valid, datetime.now().isoformat(), cluster_id))
+
                         except Exception as cluster_error:
                             self.logger.error(f"❌ Validation failed for cluster {cluster_id}: {cluster_error}")
                             validation_results[cluster_id] = False
-                    
+
                     conn.commit()
-                    
+
                 valid_count = sum(1 for valid in validation_results.values() if valid)
                 total_count = len(validation_results)
-                
+
                 self.logger.info(f"✅ Subscription validation complete: {valid_count}/{total_count} clusters valid")
-                
+
             except ImportError:
                 self.logger.warning("⚠️ Subscription manager not available for validation")
                 return {}
@@ -1139,23 +1122,31 @@ class EnhancedMultiSubscriptionClusterManager:
     def add_cluster(self, cluster_config: Dict) -> str:
         """Add a new cluster configuration"""
         try:
-            cluster_id = f"{cluster_config['resource_group']}_{cluster_config['cluster_name']}"
-            
+            cloud_provider = cluster_config.get('cloud_provider', 'azure')
+            if cloud_provider == 'aws':
+                prefix = cluster_config.get('account_id') or cluster_config.get('region', 'aws')
+            elif cloud_provider == 'gcp':
+                prefix = cluster_config.get('project_id', 'gcp')
+            else:
+                prefix = cluster_config.get('resource_group', '')
+            cluster_id = f"{prefix}_{cluster_config['cluster_name']}"
+
             with self._connect() as conn:
                 conn.execute('''
-                    INSERT OR REPLACE INTO clusters 
-                    (id, name, resource_group, environment, region, description, status, created_at, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO clusters
+                    (id, name, resource_group, environment, region, description, status, created_at, metadata, cloud_provider)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     cluster_id,
                     cluster_config['cluster_name'],
-                    cluster_config['resource_group'],
+                    cluster_config.get('resource_group', ''),
                     cluster_config.get('environment', 'development'),
                     cluster_config.get('region', 'Unknown'),
                     cluster_config.get('description', ''),
                     'active',
                     datetime.now().isoformat(),
-                    json.dumps(cluster_config.get('metadata', {}))
+                    json.dumps(cluster_config.get('metadata', {})),
+                    cloud_provider,
                 ))
                 conn.commit()
                 
@@ -1170,10 +1161,13 @@ class EnhancedMultiSubscriptionClusterManager:
         """Add a new cluster with subscription context and enhanced validation"""
         try:
             # Perform validation to get accurate cluster information
+            cloud_provider = cluster_config.get('cloud_provider', 'azure')
             validation_result = self._validate_and_discover_cluster_info(
-                subscription_id, 
-                cluster_config.get('resource_group', ''), 
-                cluster_config['cluster_name']
+                subscription_id,
+                cluster_config.get('resource_group', ''),
+                cluster_config['cluster_name'],
+                cloud_provider=cloud_provider,
+                region=cluster_config.get('region', ''),
             )
             
             if validation_result['valid']:
@@ -1202,20 +1196,28 @@ class EnhancedMultiSubscriptionClusterManager:
             else:
                 self.logger.warning(f"⚠️ Validation failed, using provided data for cluster: {cluster_config['cluster_name']} (Environment: {cluster_config.get('environment', 'MISSING')})")
             
-            cluster_id = f"{cluster_config['resource_group']}_{cluster_config['cluster_name']}"
-            
+            cloud_provider = cluster_config.get('cloud_provider', 'azure')
+            if cloud_provider == 'aws':
+                prefix = cluster_config.get('account_id') or subscription_id or cluster_config.get('region', 'aws')
+            elif cloud_provider == 'gcp':
+                prefix = cluster_config.get('project_id') or subscription_id or 'gcp'
+            else:
+                prefix = cluster_config.get('resource_group', '')
+            cluster_id = f"{prefix}_{cluster_config['cluster_name']}"
+
             with self._connect() as conn:
                 # Check if cluster already exists to preserve analysis data
                 cursor = conn.execute('SELECT id, last_cost, last_savings, last_analyzed FROM clusters WHERE id = ?', (cluster_id,))
                 existing_cluster = cursor.fetchone()
-                
+
                 if existing_cluster:
                     # Cluster exists - only update subscription-related fields to preserve analysis data
                     self.logger.info(f"🔄 Cluster exists, updating subscription info only (preserving analysis data): {cluster_id}")
                     conn.execute('''
-                        UPDATE clusters 
-                        SET subscription_id = ?, subscription_name = ?, subscription_context_verified = ?, 
-                            subscription_last_validated = ?, environment = ?, region = ?, resource_group = ?, status = ?
+                        UPDATE clusters
+                        SET subscription_id = ?, subscription_name = ?, subscription_context_verified = ?,
+                            subscription_last_validated = ?, environment = ?, region = ?, resource_group = ?,
+                            status = ?, cloud_provider = ?
                         WHERE id = ?
                     ''', (
                         subscription_id,
@@ -1224,23 +1226,24 @@ class EnhancedMultiSubscriptionClusterManager:
                         datetime.now().isoformat() if validation_result['valid'] else None,
                         cluster_config.get('environment', 'unknown'),
                         cluster_config.get('region', 'unknown'),
-                        cluster_config['resource_group'],
+                        cluster_config.get('resource_group', ''),
                         'active' if validation_result['valid'] else 'inactive',
+                        cloud_provider,
                         cluster_id
                     ))
                 else:
                     # New cluster - insert with full data
                     self.logger.info(f"➕ Creating new cluster: {cluster_id}")
                     conn.execute('''
-                        INSERT INTO clusters 
-                        (id, name, resource_group, environment, region, description, status, 
-                        subscription_id, subscription_name, subscription_context_verified, 
-                        subscription_last_validated, created_at, metadata)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO clusters
+                        (id, name, resource_group, environment, region, description, status,
+                        subscription_id, subscription_name, subscription_context_verified,
+                        subscription_last_validated, created_at, metadata, cloud_provider)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     cluster_id,
                     cluster_config['cluster_name'],
-                    cluster_config['resource_group'],
+                    cluster_config.get('resource_group', ''),
                     cluster_config.get('environment', 'unknown'),
                     cluster_config.get('region', 'Unknown'),
                     cluster_config.get('description', ''),
@@ -1254,7 +1257,8 @@ class EnhancedMultiSubscriptionClusterManager:
                         **cluster_config.get('metadata', {}),
                         'validation_info': validation_result,
                         'auto_discovered': validation_result.get('auto_discovered', False)
-                    })
+                    }),
+                    cloud_provider,
                 ))
                 conn.commit()
                 
@@ -1265,22 +1269,49 @@ class EnhancedMultiSubscriptionClusterManager:
             self.logger.error(f"❌ Failed to add cluster with subscription: {e}")
             raise
     
-    def _validate_and_discover_cluster_info(self, subscription_id: str, resource_group: str, cluster_name: str) -> Dict:
+    def _validate_and_discover_cluster_info(self, subscription_id: str, resource_group: str, cluster_name: str, cloud_provider: str = 'azure', region: str = '') -> Dict:
         """Validate cluster and discover accurate information"""
         try:
-            # Import here to avoid circular imports
-            from infrastructure.services.subscription_manager import AzureSubscriptionManager
-            azure_subscription_manager = AzureSubscriptionManager()
-            
-            return azure_subscription_manager.validate_cluster_access(
-                subscription_id, resource_group, cluster_name
-            )
-            
+            from infrastructure.cloud_providers.types import ClusterIdentifier, CloudProvider
+            target = CloudProvider.from_string(cloud_provider)
+
+            # Create provider-specific account manager directly (not ProviderRegistry which may auto-detect wrong provider)
+            if target == CloudProvider.AWS:
+                from infrastructure.cloud_providers.aws.accounts import AWSAccountManager
+                account_mgr = AWSAccountManager()
+            elif target == CloudProvider.GCP:
+                # GCP stub — skip validation for now
+                return {'valid': True, 'subscription_id': subscription_id, 'discovered_resource_group': resource_group}
+            else:
+                from infrastructure.cloud_providers.azure.accounts import AzureAccountAdapter
+                account_mgr = AzureAccountAdapter()
+
+            if target == CloudProvider.AWS:
+                cluster_ident = ClusterIdentifier(
+                    provider=target,
+                    cluster_name=cluster_name,
+                    region=region or '',
+                    account_id=subscription_id,
+                )
+            else:
+                cluster_ident = ClusterIdentifier(
+                    provider=target,
+                    cluster_name=cluster_name,
+                    region='',
+                    resource_group=resource_group,
+                    subscription_id=subscription_id,
+                )
+            is_valid = account_mgr.validate_cluster_access(cluster_ident)
+            if is_valid:
+                return {'valid': True, 'subscription_id': subscription_id, 'discovered_resource_group': resource_group}
+            else:
+                return {'valid': False, 'error': f'Cannot access cluster {cluster_name} in {subscription_id[:8]}'}
+
         except ImportError:
-            self.logger.warning("⚠️ Subscription manager not available for validation")
+            self.logger.warning("Cloud provider registry not available for validation")
             return {'valid': False, 'error': 'Validation service unavailable'}
         except Exception as e:
-            self.logger.error(f"❌ Validation error: {e}")
+            self.logger.error(f"Validation error: {e}")
             return {'valid': False, 'error': str(e)}
 
     def get_cluster(self, cluster_id: str) -> Optional[Dict]:
@@ -1289,15 +1320,16 @@ class EnhancedMultiSubscriptionClusterManager:
             with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
-                    SELECT id, name, resource_group, environment, region, description, 
-                           status, created_at, last_analyzed, last_cost, last_savings, 
-                           last_confidence, analysis_count, metadata, analysis_status, 
-                           analysis_progress, analysis_message, analysis_started_at, 
-                           auto_analyze_enabled, subscription_id, subscription_name, 
-                           subscription_context_verified, subscription_last_validated
+                    SELECT id, name, resource_group, environment, region, description,
+                           status, created_at, last_analyzed, last_cost, last_savings,
+                           last_confidence, analysis_count, metadata, analysis_status,
+                           analysis_progress, analysis_message, analysis_started_at,
+                           auto_analyze_enabled, subscription_id, subscription_name,
+                           subscription_context_verified, subscription_last_validated,
+                           cloud_provider
                     FROM clusters WHERE id = ?
                 ''', (cluster_id,))
-                
+
                 row = cursor.fetchone()
                 if row is not None and row:
                     cluster = dict(row)
@@ -1315,12 +1347,13 @@ class EnhancedMultiSubscriptionClusterManager:
             with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
-                    SELECT id, name, resource_group, environment, region, description, 
-                           status, created_at, last_analyzed, last_cost, last_savings, 
-                           last_confidence, analysis_count, metadata, analysis_status, 
-                           analysis_progress, analysis_message, analysis_started_at, 
-                           auto_analyze_enabled, subscription_id, subscription_name, 
-                           subscription_context_verified, subscription_last_validated
+                    SELECT id, name, resource_group, environment, region, description,
+                           status, created_at, last_analyzed, last_cost, last_savings,
+                           last_confidence, analysis_count, metadata, analysis_status,
+                           analysis_progress, analysis_message, analysis_started_at,
+                           auto_analyze_enabled, subscription_id, subscription_name,
+                           subscription_context_verified, subscription_last_validated,
+                           cloud_provider
                     FROM clusters ORDER BY created_at DESC
                 ''')
                 
@@ -1343,12 +1376,13 @@ class EnhancedMultiSubscriptionClusterManager:
             with self._connect() as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
-                    SELECT c.id, c.name, c.resource_group, c.environment, c.region, c.description, 
-                           c.status, c.created_at, c.last_analyzed, c.last_cost, c.last_savings, 
-                           c.last_confidence, c.analysis_count, c.metadata, c.analysis_status, 
-                           c.analysis_progress, c.analysis_message, c.analysis_started_at, 
-                           c.auto_analyze_enabled, c.subscription_id, c.subscription_name, 
+                    SELECT c.id, c.name, c.resource_group, c.environment, c.region, c.description,
+                           c.status, c.created_at, c.last_analyzed, c.last_cost, c.last_savings,
+                           c.last_confidence, c.analysis_count, c.metadata, c.analysis_status,
+                           c.analysis_progress, c.analysis_message, c.analysis_started_at,
+                           c.auto_analyze_enabled, c.subscription_id, c.subscription_name,
                            c.subscription_context_verified, c.subscription_last_validated,
+                           c.cloud_provider,
                            s.subscription_name as sub_display_name
                     FROM clusters c
                     LEFT JOIN subscriptions s ON c.subscription_id = s.subscription_id

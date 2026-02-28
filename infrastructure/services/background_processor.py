@@ -34,9 +34,10 @@ active_analyses = {}
 analysis_semaphore = threading.Semaphore(MAX_CONCURRENT_ANALYSES)
 _status_lock = threading.Lock()  # Shared lock for analysis_status_tracker
 
-def run_subscription_aware_background_analysis(cluster_id: str, resource_group: str, cluster_name: str, 
-                                              subscription_id: Optional[str] = None, days: int = 30, 
-                                              enable_pod_analysis: bool = True):
+def run_subscription_aware_background_analysis(cluster_id: str, resource_group: str, cluster_name: str,
+                                              subscription_id: Optional[str] = None, days: int = 30,
+                                              enable_pod_analysis: bool = True, cloud_provider: str = 'azure',
+                                              region: str = ''):
     """Enhanced background analysis with thread management and subscription awareness"""
     
     # Thread-safe duplicate check with timeout
@@ -59,7 +60,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
     if not analysis_semaphore.acquire(blocking=False):
         logger.warning(f"⚠️ Analysis capacity full ({MAX_CONCURRENT_ANALYSES} running), queueing {cluster_id}")
         try:
-            analysis_queue.put((cluster_id, resource_group, cluster_name, subscription_id, days, enable_pod_analysis), timeout=5)
+            analysis_queue.put((cluster_id, resource_group, cluster_name, subscription_id, days, enable_pod_analysis, cloud_provider, region), timeout=5)
             logger.info(f"📋 Queued analysis for {cluster_id}")
             return
         except queue.Full:
@@ -85,21 +86,48 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
         
         logger.info(f"🌐 Starting subscription-aware background analysis for {cluster_id} (Thread: {threading.current_thread().name})")
         
-        # Import subscription manager and analysis engine
-        from infrastructure.services.subscription_manager import azure_subscription_manager
+        # Import analysis engine and cloud provider types
         from infrastructure.persistence.processing.analysis_engine import multi_subscription_analysis_engine
-        
+        from infrastructure.cloud_providers.types import CloudProvider as CPEnum
+
+        # Create provider-specific adapters directly (thread-safe, no singleton mutation)
+        # IMPORTANT: Do NOT use ProviderRegistry() here — it auto-detects from env vars
+        # and would return AWS adapters for Azure clusters once AWS creds are set.
+        target_provider = CPEnum.from_string(cloud_provider)
+        if target_provider == CPEnum.AWS:
+            from infrastructure.cloud_providers.aws.accounts import AWSAccountManager
+            from infrastructure.cloud_providers.aws.executor import AWSKubernetesExecutor
+            from infrastructure.cloud_providers.aws.inspector import AWSInfrastructureInspector
+            account_mgr = AWSAccountManager()
+            command_executor = AWSKubernetesExecutor()
+            infrastructure_inspector = AWSInfrastructureInspector()
+        elif target_provider == CPEnum.GCP:
+            from infrastructure.cloud_providers.gcp.accounts import GCPAccountManager
+            from infrastructure.cloud_providers.gcp.executor import GCPKubernetesExecutor
+            from infrastructure.cloud_providers.gcp.inspector import GCPInfrastructureInspector
+            account_mgr = GCPAccountManager()
+            command_executor = GCPKubernetesExecutor()
+            infrastructure_inspector = GCPInfrastructureInspector()
+        else:
+            # Azure — explicit adapter creation (not ProviderRegistry which may detect wrong provider)
+            from infrastructure.cloud_providers.azure.accounts import AzureAccountAdapter
+            from infrastructure.cloud_providers.azure.executor import AzureKubernetesExecutor
+            from infrastructure.cloud_providers.azure.inspector import AzureInfrastructureInspector
+            account_mgr = AzureAccountAdapter()
+            command_executor = AzureKubernetesExecutor()
+            infrastructure_inspector = AzureInfrastructureInspector()
+
         # Auto-detect subscription if not provided
         if not subscription_id:
             logger.info(f"🔍 Auto-detecting subscription for cluster {cluster_name}")
-            subscription_id = azure_subscription_manager.find_cluster_subscription(resource_group, cluster_name)
-            
+            subscription_id = account_mgr.find_cluster_account(cluster_name, resource_group)
+
             if not subscription_id:
                 raise Exception(f"Could not find cluster {cluster_name} in any accessible subscription")
-        
+
         # Get subscription info for display
-        subscription_info = azure_subscription_manager.get_subscription_info(subscription_id)
-        subscription_name = subscription_info.subscription_name if subscription_info else subscription_id[:8]
+        account_info = account_mgr.get_account_info(subscription_id)
+        subscription_name = account_info.get('name', subscription_id[:8]) if account_info else subscription_id[:8]
         
         # Create unique session ID for tracking
         session_id = f"{subscription_id[:8]}_{str(uuid.uuid4())[:8]}"
@@ -161,24 +189,59 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
         update_progress(5, f'Validating cluster access in subscription...')
         
         # Validate cluster access
-        validation_result = azure_subscription_manager.validate_cluster_access(
-            subscription_id, resource_group, cluster_name
-        )
-        
-        if not validation_result['valid']:
-            raise Exception(f"Cluster validation failed: {validation_result['error']}")
+        from infrastructure.cloud_providers.types import ClusterIdentifier
+        if target_provider == CPEnum.AWS:
+            # For AWS, use the explicit region param (from DB), fall back to authenticator default
+            aws_region = region
+            if not aws_region:
+                try:
+                    from infrastructure.cloud_providers.aws.authenticator import AWSAuthenticator
+                    auth = AWSAuthenticator()
+                    if auth.is_authenticated():
+                        aws_region = auth.region
+                except Exception:
+                    pass
+            aws_region = aws_region or 'us-east-1'
+            cluster_ident = ClusterIdentifier(
+                provider=target_provider,
+                cluster_name=cluster_name,
+                region=aws_region,
+                account_id=subscription_id,
+            )
+        elif target_provider == CPEnum.GCP:
+            cluster_ident = ClusterIdentifier(
+                provider=target_provider,
+                cluster_name=cluster_name,
+                region=region or '',
+                project_id=subscription_id,
+            )
+        else:
+            cluster_ident = ClusterIdentifier(
+                provider=target_provider,
+                cluster_name=cluster_name,
+                region='',
+                resource_group=resource_group,
+                subscription_id=subscription_id,
+            )
+        if not account_mgr.validate_cluster_access(cluster_ident):
+            raise Exception(f"Cluster validation failed for {cluster_name} in {subscription_id[:8]}")
         
         # CRITICAL FIX: Ensure cluster exists in database before analysis (from backup code)
         cluster_config = {
             'cluster_name': cluster_name,
             'resource_group': resource_group,
             'subscription_id': subscription_id,
+            'cloud_provider': cloud_provider,
+            'region': aws_region if target_provider == CPEnum.AWS else region,
             'status': 'active',
-            'auto_analyze': True
+            'auto_analyze': True,
         }
+        # For AWS, map subscription_id → account_id for cluster_id generation
+        if cloud_provider == 'aws':
+            cluster_config['account_id'] = subscription_id
         
-        subscription_info = azure_subscription_manager.get_subscription_info(subscription_id)
-        subscription_name = subscription_info.subscription_name if subscription_info else subscription_id[:8]
+        account_info = account_mgr.get_account_info(subscription_id)
+        subscription_name = account_info.get('name', subscription_id[:8]) if account_info else subscription_id[:8]
         
         try:
             cluster_id_check = enhanced_cluster_manager.add_cluster_with_subscription(
@@ -193,7 +256,8 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
         # Record performance metric
         start_time = time.time()
         
-        update_progress(20, f'Connecting to Azure subscription...')
+        provider_label = {'aws': 'AWS account', 'gcp': 'GCP project'}.get(cloud_provider, 'Azure subscription')
+        update_progress(20, f'Connecting to {provider_label}...')
         time.sleep(1)
         
         update_progress(30, f'Fetching cost data from subscription context...')
@@ -203,10 +267,35 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
         time.sleep(0.5)  # Reduced from 2 seconds
         
         update_progress(70, f'Calculating ML-powered optimization opportunities...')
-        
+
+        # For non-Azure providers, align resource_group with the cluster_id prefix
+        # so analysis_engine's f"{resource_group}_{cluster_name}" matches the DB cluster_id
+        analysis_resource_group = resource_group
+        if cloud_provider == 'aws' and not resource_group:
+            analysis_resource_group = subscription_id  # account_id used as prefix
+        elif cloud_provider == 'gcp' and not resource_group:
+            analysis_resource_group = subscription_id  # project_id used as prefix
+
+        # Pre-create cache with provider-specific adapters so analysis engine reuses it
+        # IMPORTANT: use analysis_resource_group so the cache key matches what analysis_engine will look up
+        from shared.kubernetes_data_cache import get_or_create_cache
+        cache_region = ''
+        if target_provider == CPEnum.AWS:
+            cache_region = aws_region
+        elif target_provider == CPEnum.GCP:
+            cache_region = region
+        get_or_create_cache(
+            cluster_name, analysis_resource_group, subscription_id,
+            force_fetch=False, cloud_provider=cloud_provider,
+            command_executor=command_executor,
+            infrastructure_inspector=infrastructure_inspector,
+            region=cache_region,
+        )
+
         # Run the actual subscription-aware analysis
         result = multi_subscription_analysis_engine.run_subscription_aware_analysis(
-            resource_group, cluster_name, subscription_id, days, enable_pod_analysis
+            analysis_resource_group, cluster_name, subscription_id, days, enable_pod_analysis,
+            cloud_provider=cloud_provider, region=cache_region
         )
         
         update_progress(85, f'Generating Enhanced Analysis and implementation plan...')
@@ -227,7 +316,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
                     'subscription_id': subscription_id,
                     'subscription_name': subscription_name,
                     'analysis_session_id': session_id,
-                    'cluster_validation': validation_result.get('cluster_info', {}),
+                    'cluster_validation': {},
                     'multi_subscription_enabled': True
                 }
             
@@ -299,7 +388,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
             # Clear kubernetes data cache after analysis completion
             try:
                 from shared.kubernetes_data_cache import clear_cluster_cache
-                clear_cluster_cache(cluster_name, resource_group, subscription_id)
+                clear_cluster_cache(cluster_name, resource_group, subscription_id, cloud_provider)
                 logger.info(f"🗑️ Cleared kubernetes data cache for {cluster_name} after analysis completion")
             except Exception as cache_error:
                 logger.warning(f"⚠️ Failed to clear cache for {cluster_name}: {cache_error}")
@@ -340,7 +429,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
             # Clear kubernetes data cache after failed analysis to ensure fresh data on retry
             try:
                 from shared.kubernetes_data_cache import clear_cluster_cache
-                clear_cluster_cache(cluster_name, resource_group, subscription_id)
+                clear_cluster_cache(cluster_name, resource_group, subscription_id, cloud_provider)
                 logger.info(f"🗑️ Cleared kubernetes data cache for {cluster_name} after failed analysis")
             except Exception as cache_error:
                 logger.warning(f"⚠️ Failed to clear cache for {cluster_name}: {cache_error}")
@@ -362,7 +451,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
         # Clear kubernetes data cache after exception to ensure fresh data on retry
         try:
             from shared.kubernetes_data_cache import clear_cluster_cache
-            clear_cluster_cache(cluster_name, resource_group, subscription_id)
+            clear_cluster_cache(cluster_name, resource_group, subscription_id, cloud_provider)
             logger.info(f"🗑️ Cleared kubernetes data cache for {cluster_name} after exception")
         except Exception as cache_error:
             logger.warning(f"⚠️ Failed to clear cache for {cluster_name}: {cache_error}")

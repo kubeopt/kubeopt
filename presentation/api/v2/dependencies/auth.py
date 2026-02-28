@@ -17,7 +17,11 @@ logger = logging.getLogger(__name__)
 
 security = HTTPBearer(auto_error=False)
 
-JWT_SECRET = os.getenv('JWT_SECRET_KEY', os.getenv('FLASK_SECRET_KEY', 'kubeopt-dev-secret'))
+_local_dev = os.getenv('LOCAL_DEV', 'false').lower() == 'true'
+_jwt_env = os.getenv('JWT_SECRET_KEY', os.getenv('FLASK_SECRET_KEY', ''))
+if not _jwt_env and not _local_dev:
+    raise RuntimeError("JWT_SECRET_KEY environment variable is required in production")
+JWT_SECRET = _jwt_env or 'kubeopt-local-dev-only'
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24
 
@@ -36,13 +40,30 @@ def _decode_jwt(token: str) -> Optional[Dict[str, Any]]:
 
 
 def create_jwt_token(username: str, role: str = "admin") -> str:
-    """Create a new JWT token."""
+    """Create a new JWT token for user authentication."""
     from jose import jwt
     payload = {
+        'iss': 'kubeopt',
         'sub': username,
         'role': role,
         'iat': datetime.utcnow(),
         'exp': datetime.utcnow() + timedelta(hours=JWT_EXPIRY_HOURS),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def create_service_jwt_token(license_key: str = "") -> str:
+    """Create a JWT token for inter-service calls (plan-generation, license-manager)."""
+    import secrets as _secrets
+    from jose import jwt
+    payload = {
+        'iss': 'kubeopt',
+        'sub': 'api_client',
+        'aud': ['plan-generation', 'license-manager'],
+        'exp': datetime.utcnow() + timedelta(minutes=60),
+        'iat': datetime.utcnow(),
+        'jti': _secrets.token_urlsafe(16),
+        'license_key': license_key,
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 

@@ -58,6 +58,36 @@ class AzureAccountAdapter(CloudAccountManager):
             logger.error(f"Failed to validate cluster access for {cluster.cluster_name}: {e}")
             return False
 
+    def find_cluster_account(
+        self,
+        cluster_name: str,
+        resource_group: Optional[str] = None,
+    ) -> Optional[str]:
+        try:
+            return self._manager.find_cluster_subscription(resource_group or '', cluster_name)
+        except Exception as e:
+            logger.error(f"Failed to find account for cluster {cluster_name}: {e}")
+            return None
+
+    def get_account_info(self, account_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            info = self._manager.get_subscription_info(account_id)
+            if not info:
+                return None
+            return {
+                'id': info.subscription_id,
+                'name': info.subscription_name,
+                'provider': 'azure',
+                'tenant_id': getattr(info, 'tenant_id', None),
+                'state': getattr(info, 'state', None),
+            }
+        except Exception as e:
+            logger.error(f"Failed to get account info for {account_id}: {e}")
+            return None
+
+    def execute_with_account_context(self, account_id: str, func, *args, **kwargs):
+        return self._manager.execute_with_subscription_context(account_id, func, *args, **kwargs)
+
     def discover_clusters(
         self,
         account_id: Optional[str] = None,

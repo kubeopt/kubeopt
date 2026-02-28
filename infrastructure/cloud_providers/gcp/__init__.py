@@ -11,6 +11,7 @@ from infrastructure.cloud_providers.gcp.executor import GCPKubernetesExecutor
 from infrastructure.cloud_providers.gcp.metrics import GCPMetricsCollector
 from infrastructure.cloud_providers.gcp.costs import GCPCostManager
 from infrastructure.cloud_providers.gcp.accounts import GCPAccountManager
+from infrastructure.cloud_providers.gcp.inspector import GCPInfrastructureInspector
 
 __all__ = [
     'GCPAuthenticator',
@@ -18,4 +19,5 @@ __all__ = [
     'GCPMetricsCollector',
     'GCPCostManager',
     'GCPAccountManager',
+    'GCPInfrastructureInspector',
 ]

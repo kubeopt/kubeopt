@@ -6,6 +6,7 @@ import asyncio
 import threading
 from typing import Dict, Any, Optional
 
+import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
@@ -18,6 +19,23 @@ from presentation.api.v2.dependencies.services import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_numpy(obj):
+    """Recursively convert numpy types to native Python for JSON serialization."""
+    if isinstance(obj, dict):
+        return {k: _sanitize_numpy(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_sanitize_numpy(v) for v in obj]
+    elif isinstance(obj, (np.bool_,)):
+        return bool(obj)
+    elif isinstance(obj, (np.integer,)):
+        return int(obj)
+    elif isinstance(obj, (np.floating,)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    return obj
 
 router = APIRouter(prefix="/api", tags=["analysis"])
 
@@ -39,11 +57,13 @@ async def analyze_cluster(
         resource_group = cluster_info.get('resource_group', '')
         cluster_name = cluster_info.get('name', '')
         subscription_id = cluster_info.get('subscription_id')
+        cloud_provider = cluster_info.get('cloud_provider', 'azure')
+        region = cluster_info.get('region', '')
 
         thread = threading.Thread(
             target=run_subscription_aware_background_analysis,
             args=(cluster_id, resource_group, cluster_name),
-            kwargs={'subscription_id': subscription_id},
+            kwargs={'subscription_id': subscription_id, 'cloud_provider': cloud_provider, 'region': region},
             daemon=True,
         )
         thread.start()
@@ -139,8 +159,8 @@ async def chart_data(
 ):
     """Get chart data for dashboard visualization.
 
-    Chart generators output Chart.js format (labels/values dicts).
-    React frontend uses Recharts (array-of-objects). We transform here.
+    Most generators output Recharts format directly (array-of-objects).
+    Savings and insights need minor normalization; HPA still needs conversion.
     """
     try:
         from presentation.api import chart_generator
@@ -172,78 +192,16 @@ async def chart_data(
                 logger.debug(f"Chart generator {fn.__name__} skipped: {exc}")
                 return None
 
-        # --- Generate raw Chart.js data ---
-        raw_cost = _safe(chart_generator.generate_pod_cost_data, analysis_data)
-        raw_util = _safe(chart_generator.generate_node_utilization_data, analysis_data)
-        raw_hpa = _safe(chart_generator.generate_dynamic_hpa_comparison, analysis_data)
+        # --- All generators output Recharts format directly ---
+
+        # savings_breakdown: dict pass-through with float normalization
         raw_savings = _safe(chart_generator.extract_standards_based_savings, analysis_data)
-        raw_ns = _safe(chart_generator.generate_namespace_data, analysis_data)
-        raw_wl = _safe(chart_generator.generate_workload_data, analysis_data)
-        raw_insights = _safe(chart_generator.generate_insights, analysis_data)
-        raw_trend = _safe(chart_generator.generate_dynamic_trend_data, cluster_id, analysis_data) if cluster_id else None
-
-        # --- Transform Chart.js → Recharts ---
-
-        # cost_breakdown: {labels:[], values:[]} → [{name, value}]
-        cost_items = []
-        if raw_cost and isinstance(raw_cost, dict) and 'labels' in raw_cost:
-            labels = raw_cost.get('labels', [])
-            values = raw_cost.get('values', [])
-            cost_items = [{'name': l, 'value': float(v)} for l, v in zip(labels, values) if v]
-        elif isinstance(raw_cost, list):
-            cost_items = raw_cost
-
-        # resource_utilization: {nodes:[], cpuActual:[], memoryActual:[]} → [{name, cpu, memory}]
-        util_items = []
-        if raw_util and isinstance(raw_util, dict) and 'nodes' in raw_util:
-            nodes = raw_util.get('nodes', [])
-            cpu = raw_util.get('cpuActual', raw_util.get('cpuRequest', []))
-            mem = raw_util.get('memoryActual', raw_util.get('memoryRequest', []))
-            util_items = [
-                {'name': n, 'cpu': float(c) if c else 0, 'memory': float(m) if m else 0}
-                for n, c, m in zip(nodes, cpu, mem)
-            ]
-        elif isinstance(raw_util, list):
-            util_items = raw_util
-
-        # hpa_comparison: {timePoints:[], cpuReplicas:[], memoryReplicas:[]} → [{time, cpu, memory}]
-        hpa_items = []
-        if raw_hpa and isinstance(raw_hpa, dict) and 'timePoints' in raw_hpa:
-            tp = raw_hpa.get('timePoints', [])
-            cr = raw_hpa.get('cpuReplicas', [])
-            mr = raw_hpa.get('memoryReplicas', [])
-            hpa_items = [
-                {'time': t, 'cpu': float(c) if c else 0, 'memory': float(m) if m else 0}
-                for t, c, m in zip(tp, cr, mr)
-            ]
-        elif isinstance(raw_hpa, list):
-            hpa_items = raw_hpa
-
-        # savings_breakdown: dict of category→value — pass through as-is
         savings = {}
         if raw_savings and isinstance(raw_savings, dict):
             savings = {k: float(v) if isinstance(v, (int, float)) else v for k, v in raw_savings.items()}
 
-        # namespace_costs: {namespaces:[], costs:[]} → [{name, value}]
-        ns_items = []
-        if raw_ns and isinstance(raw_ns, dict) and 'namespaces' in raw_ns:
-            ns = raw_ns.get('namespaces', [])
-            costs = raw_ns.get('costs', [])
-            ns_items = [{'name': n, 'value': float(c)} for n, c in zip(ns, costs) if c]
-        elif isinstance(raw_ns, list):
-            ns_items = raw_ns
-
-        # workload_costs: {workloads:[], costs:[], types:[]} → [{name, value, type}]
-        wl_items = []
-        if raw_wl and isinstance(raw_wl, dict) and 'workloads' in raw_wl:
-            wls = raw_wl.get('workloads', [])
-            costs = raw_wl.get('costs', [])
-            types = raw_wl.get('types', [''] * len(wls))
-            wl_items = [{'name': w, 'value': float(c), 'type': t} for w, c, t in zip(wls, costs, types) if c]
-        elif isinstance(raw_wl, list):
-            wl_items = raw_wl
-
-        # insights: dict of category→message or list — normalize to list
+        # insights: dict of category→message → normalize to [{category, message}]
+        raw_insights = _safe(chart_generator.generate_insights, analysis_data)
         insight_items = []
         if raw_insights and isinstance(raw_insights, dict):
             for cat, val in raw_insights.items():
@@ -258,31 +216,16 @@ async def chart_data(
         elif isinstance(raw_insights, list):
             insight_items = raw_insights
 
-        # trend_data: {labels:[], datasets:[{data:[]}]} → [{date, cost}]
-        trend_items = []
-        if raw_trend and isinstance(raw_trend, dict) and 'labels' in raw_trend:
-            labels = raw_trend.get('labels', [])
-            datasets = raw_trend.get('datasets', [])
-            data_values = datasets[0].get('data', []) if datasets else []
-            projected = datasets[1].get('data', []) if len(datasets) > 1 else []
-            for i, label in enumerate(labels):
-                item = {'date': label, 'cost': float(data_values[i]) if i < len(data_values) else 0}
-                if i < len(projected) and projected[i] is not None:
-                    item['projected'] = float(projected[i])
-                trend_items.append(item)
-        elif isinstance(raw_trend, list):
-            trend_items = raw_trend
-
-        return {
-            'cost_breakdown': cost_items,
-            'resource_utilization': util_items,
-            'hpa_comparison': hpa_items,
+        return _sanitize_numpy({
+            'cost_breakdown': _safe(chart_generator.generate_pod_cost_data, analysis_data) or [],
+            'resource_utilization': _safe(chart_generator.generate_node_utilization_data, analysis_data) or [],
+            'hpa_comparison': _safe(chart_generator.generate_dynamic_hpa_comparison, analysis_data) or [],
             'savings_breakdown': savings,
-            'namespace_costs': ns_items,
-            'workload_costs': wl_items,
+            'namespace_costs': _safe(chart_generator.generate_namespace_data, analysis_data) or [],
+            'workload_costs': _safe(chart_generator.generate_workload_data, analysis_data) or [],
             'insights': insight_items,
-            'trend_data': trend_items,
-        }
+            'trend_data': (_safe(chart_generator.generate_dynamic_trend_data, cluster_id, analysis_data) if cluster_id else None) or [],
+        })
     except Exception as e:
         logger.error(f"Failed to get chart data: {e}", exc_info=True)
         return {
@@ -311,7 +254,7 @@ async def dashboard_overview(
 
         overview = {
             'cluster_name': cluster_name,
-            'cloud_provider': 'azure',
+            'cloud_provider': (cluster_info or {}).get('cloud_provider', 'azure'),
             'optimization_score': 0.0,
             'total_monthly_cost': 0.0,
             'potential_savings': 0.0,
@@ -344,7 +287,7 @@ async def dashboard_overview(
             if isinstance(recs, list):
                 overview['top_recommendations'] = recs[:5]
 
-        return overview
+        return _sanitize_numpy(overview)
     except Exception as e:
         logger.error(f"Failed to get dashboard overview: {e}", exc_info=True)
         return {'cluster_name': cluster_id or 'unknown', 'optimization_score': 0, 'total_monthly_cost': 0, 'potential_savings': 0}

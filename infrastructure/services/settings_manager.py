@@ -103,7 +103,7 @@ class SettingsManager:
             # LAYER 1: Environment Variables (Railway defaults, system settings)
             env_count = 0
             for key, value in os.environ.items():
-                if key.startswith(('AZURE_', 'SLACK_', 'EMAIL_', 'SMTP_', 'LOG_', 'PRODUCTION_', 'COST_', 'ANALYSIS_', 'AUTO_', 'DATABASE_', 'USER_', 'KUBEOPT_')):
+                if key.startswith(('AZURE_', 'AWS_', 'GOOGLE_', 'CLOUD_', 'SLACK_', 'EMAIL_', 'SMTP_', 'LOG_', 'PRODUCTION_', 'COST_', 'ANALYSIS_', 'AUTO_', 'DATABASE_', 'USER_', 'KUBEOPT_')):
                     config[key] = value
                     env_count += 1
             logger.info(f"📋 Loaded {env_count} environment variables")
@@ -165,9 +165,16 @@ class SettingsManager:
             merged_settings = existing_settings.copy()
             for key, value in new_settings.items():
                 env_key = self._get_env_key(key)
+                # Convert auto_analysis_interval_hours (integer) to scheduler format ("24h")
+                if key == 'auto_analysis_interval_hours' and env_key == 'AUTO_ANALYSIS_INTERVAL':
+                    value = f"{value}h"
                 merged_settings[env_key] = str(value)
                 # Also update current environment
                 os.environ[env_key] = str(value)
+                # Keep AWS_DEFAULT_REGION and AWS_REGION in sync
+                if env_key == 'AWS_DEFAULT_REGION':
+                    os.environ['AWS_REGION'] = str(value)
+                    merged_settings['AWS_REGION'] = str(value)
             
             # Group merged settings by category for organized output
             azure_settings = {k: v for k, v in merged_settings.items() if k.startswith('AZURE_')}
@@ -301,10 +308,15 @@ class SettingsManager:
             'production_mode': 'PRODUCTION_MODE',
             'auto_analysis_enabled': 'AUTO_ANALYSIS_ENABLED',
             'auto_analysis_interval': 'AUTO_ANALYSIS_INTERVAL',
+            'auto_analysis_interval_hours': 'AUTO_ANALYSIS_INTERVAL',
             'database_cleanup_enabled': 'DATABASE_CLEANUP_ENABLED',
             'database_retention_days': 'DATABASE_RETENTION_DAYS',
             'database_cleanup_interval_hours': 'DATABASE_CLEANUP_INTERVAL_HOURS',
-            'cost_cache_hours': 'COST_CACHE_HOURS'
+            'cost_cache_hours': 'COST_CACHE_HOURS',
+            'aws_access_key_id': 'AWS_ACCESS_KEY_ID',
+            'aws_secret_access_key': 'AWS_SECRET_ACCESS_KEY',
+            'aws_region': 'AWS_DEFAULT_REGION',
+            'aws_cost_explorer': 'AWS_COST_EXPLORER',
         }
         
         return mapping.get(setting_key, setting_key.upper())
