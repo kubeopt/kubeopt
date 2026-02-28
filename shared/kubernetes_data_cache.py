@@ -35,10 +35,12 @@ logger = logging.getLogger(__name__)
 class KubernetesDataCache:
     """Centralized cache for all Kubernetes cluster data - always fresh, no static caching"""
     
-    def __init__(self, cluster_name: str, resource_group: str, subscription_id: str, auto_fetch: bool = False):
+    def __init__(self, cluster_name: str, resource_group: str, subscription_id: str, auto_fetch: bool = False, command_executor=None, region: str = ''):
         self.cluster_name = cluster_name
-        self.resource_group = resource_group  
+        self.resource_group = resource_group
         self.subscription_id = subscription_id
+        self.region = region
+        self.command_executor = command_executor  # Optional KubernetesCommandExecutor from cloud_providers
         self.data = {}  # Fresh data storage (no TTL, no persistence)
         self.cache_timestamps = {}  # Track when each resource was last fetched
         
@@ -509,8 +511,36 @@ class KubernetesDataCache:
         }
     
     def _execute_kubectl_command(self, cmd: str, timeout: int = None) -> Optional[str]:
-        """Execute single kubectl or az command via Azure SDK or Azure Metric Collector"""
-        
+        """Execute single kubectl or az command via cloud provider executor or Azure SDK"""
+
+        # If a cloud provider command executor is available, try it first
+        if self.command_executor:
+            try:
+                from infrastructure.cloud_providers.types import ClusterIdentifier, CloudProvider
+                import os
+                provider_str = os.getenv('CLOUD_PROVIDER', 'azure').lower()
+                provider = CloudProvider.from_string(provider_str)
+                cluster_id = ClusterIdentifier(
+                    provider=provider,
+                    cluster_name=self.cluster_name,
+                    region=self.region,
+                    resource_group=self.resource_group,
+                    subscription_id=self.subscription_id,
+                )
+                if cmd.startswith('az '):
+                    result = self.command_executor.execute_managed_command(cluster_id, cmd, timeout or 180)
+                else:
+                    result = self.command_executor.execute_kubectl(cluster_id, cmd, timeout or 180)
+                if result is not None:
+                    return result
+                # Fall through to existing execution path on None
+                logger.debug(f"Cloud provider executor returned None for '{cmd[:50]}...', falling back")
+            except NotImplementedError:
+                # Provider stub not yet implemented — fall through to existing path
+                pass
+            except Exception as e:
+                logger.warning(f"Cloud provider executor failed for '{cmd[:50]}...': {e}, falling back")
+
         # First, check if we can use Azure Metric Collector for high-impact queries
         if self.azure_collector:
             try:
@@ -592,7 +622,15 @@ class KubernetesDataCache:
         return self._execute_kubectl_via_sdk(cmd, timeout)
     
     def _execute_kubectl_via_sdk(self, cmd: str, timeout: int = None) -> Optional[str]:
-        """Execute kubectl or Azure CLI commands via Azure SDK"""
+        """Execute kubectl or Azure CLI commands via Azure SDK (Azure-only fallback)"""
+        # This method uses the Azure ARM begin_run_command API.
+        # For non-Azure providers, the cloud provider executor (wired in __init__)
+        # handles command execution; this method is only for Azure.
+        provider = os.getenv('CLOUD_PROVIDER', 'azure').lower()
+        if provider != 'azure':
+            logger.debug(f"Skipping Azure SDK execution for provider '{provider}'")
+            return None
+
         try:
             # Import Azure SDK manager
             from infrastructure.services.azure_sdk_manager import azure_sdk_manager
@@ -3033,10 +3071,22 @@ def get_or_create_cache(cluster_name: str, resource_group: str, subscription_id:
             #logger.info(f"♻️ Reusing existing cache for {cluster_name} (data already available)")
         return existing_cache
     
+    # Wire cloud provider executor if available
+    command_executor = None
+    try:
+        from infrastructure.cloud_providers.registry import ProviderRegistry
+        registry = ProviderRegistry()
+        command_executor = registry.get_executor()
+    except Exception as e:
+        logger.debug(f"Cloud provider executor not available: {e}")
+
     # Create fresh cache with pre-populated data
     logger.info(f"🆕 Creating cache for {cluster_name} with pre-populated data...")
-    _active_caches[cache_key] = KubernetesDataCache(cluster_name, resource_group, subscription_id, auto_fetch=force_fetch)
-    
+    _active_caches[cache_key] = KubernetesDataCache(
+        cluster_name, resource_group, subscription_id,
+        auto_fetch=force_fetch, command_executor=command_executor,
+    )
+
     return _active_caches[cache_key]
 
 def fetch_cluster_data(cluster_name: str, resource_group: str, subscription_id: str) -> KubernetesDataCache:

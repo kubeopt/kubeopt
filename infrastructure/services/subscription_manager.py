@@ -51,6 +51,7 @@ class AzureSubscriptionManager:
         
         # SDK-based operation management - no CLI rate limiting needed
         # Azure SDK has built-in rate limiting and retry policies
+        self.last_az_call = {}  # Rate limiting history (used by cleanup_caches)
     
     @lru_cache(maxsize=100)
     def get_available_subscriptions(self, force_refresh: bool = False) -> List[SubscriptionInfo]:

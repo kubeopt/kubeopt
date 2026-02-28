@@ -61,6 +61,9 @@ logging.getLogger('azure.mgmt').setLevel(azure_log_level)
 logging.getLogger('azure.identity').setLevel(azure_log_level)
 logger = logging.getLogger(__name__)
 
+# Cloud provider configuration (azure | aws | gcp)
+CLOUD_PROVIDER = os.getenv('CLOUD_PROVIDER', 'azure')
+
 ALERTS_AVAILABLE = True
 # Thread-safe analysis storage with subscription awareness
 _analysis_sessions = {}

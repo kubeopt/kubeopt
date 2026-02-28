@@ -1,0 +1,182 @@
+"""
+FastAPI Application Factory
+=============================
+
+KubeOpt v3 — Multi-cloud Kubernetes Cost Optimizer
+FastAPI is the sole entry point (Flask removed).
+"""
+
+import os
+import sys
+import logging
+import threading
+import time
+from pathlib import Path
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+# Ensure project root is in sys.path
+project_root = Path(__file__).parent
+sys.path.insert(0, str(project_root))
+
+logger = logging.getLogger(__name__)
+
+_scheduler_ref = None  # Track scheduler for graceful shutdown
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application startup and shutdown events."""
+    global _scheduler_ref
+
+    # --- Startup ---
+    logger.info("KubeOpt FastAPI starting up...")
+
+    # 1. Validate YAML standards (critical — fail fast)
+    try:
+        from shared.standards.standards_loader import validate_standards_available
+        if validate_standards_available():
+            logger.info("YAML standards validated successfully")
+        else:
+            logger.warning("Standards validation returned False — some features may be limited")
+    except Exception as e:
+        logger.error(f"YAML standards validation FAILED: {e}")
+        logger.error("System cannot start without valid standards configuration!")
+        raise
+
+    # 2. Multi-subscription initialization
+    try:
+        from shared.config.config import (
+            initialize_application_with_multi_subscription,
+            get_multi_subscription_status,
+        )
+        success = initialize_application_with_multi_subscription()
+        if success:
+            status = get_multi_subscription_status()
+            count = status.get('subscriptions', {}).get('total_count', 0)
+            logger.info(f"Multi-subscription init complete: {count} subscriptions available")
+        else:
+            logger.warning("Multi-subscription init returned False — running with defaults")
+    except Exception as e:
+        logger.warning(f"Multi-subscription init skipped: {e}")
+
+    # 3. Initialize service container (lazy — services created on first access)
+    from presentation.api.v2.services import initialize_container
+    container = initialize_container()
+    logger.info(f"Cloud provider: {container.cloud_provider}")
+
+    # 4. Start background services (delayed, like Flask wsgi.py pattern)
+    def delayed_background_start():
+        time.sleep(10)
+        try:
+            from infrastructure.services.auto_analysis_scheduler import auto_scheduler
+            auto_scheduler.start_scheduler()
+            global _scheduler_ref
+            _scheduler_ref = auto_scheduler
+            logger.info("Auto-analysis scheduler started (delayed)")
+        except Exception as e:
+            logger.warning(f"Auto-analysis scheduler failed to start: {e}")
+
+        try:
+            from infrastructure.services.database_cleanup_service import DatabaseCleanupService
+            db_cleanup = DatabaseCleanupService()
+            db_cleanup.start()
+            logger.info("Database cleanup service started (delayed)")
+        except Exception as e:
+            logger.warning(f"Database cleanup service failed to start: {e}")
+
+    bg_thread = threading.Thread(target=delayed_background_start, daemon=True, name="BackgroundInit")
+    bg_thread.start()
+    logger.info("Background services scheduled for delayed start")
+
+    logger.info("KubeOpt FastAPI ready")
+    yield
+
+    # --- Shutdown ---
+    logger.info("KubeOpt FastAPI shutting down...")
+    if _scheduler_ref:
+        try:
+            _scheduler_ref.stop_scheduler()
+            logger.info("Auto-analysis scheduler stopped")
+        except Exception as e:
+            logger.warning(f"Error stopping scheduler: {e}")
+
+
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application."""
+    app = FastAPI(
+        title="KubeOpt",
+        description="Multi-Cloud Kubernetes Cost Optimizer",
+        version="3.0.0",
+        lifespan=lifespan,
+        docs_url="/docs",
+        redoc_url="/redoc",
+    )
+
+    # CORS — allow React dev server and production
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173",   # Vite dev server
+            "http://localhost:5001",   # FastAPI production
+            "http://localhost:5002",   # FastAPI dev
+            "https://demo.kubeopt.com",
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Global exception handler
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        logger.error(f"Unhandled exception: {exc}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Internal server error", "detail": str(exc) if os.getenv('DEBUG') else None},
+        )
+
+    # Register routers
+    from presentation.api.v2.routers import (
+        health, auth, clusters, analysis, plans,
+        kubernetes, settings, subscriptions, scheduler, alerts,
+        project_controls, legacy,
+    )
+
+    app.include_router(health.router)
+    app.include_router(auth.router)
+    app.include_router(auth.legacy_router)  # /api/v1/license/* endpoints
+    app.include_router(clusters.router)
+    app.include_router(analysis.router)
+    app.include_router(plans.router)
+    app.include_router(kubernetes.router)
+    app.include_router(settings.router)
+    app.include_router(subscriptions.router)
+    app.include_router(scheduler.router)
+    app.include_router(alerts.router)
+    app.include_router(project_controls.router)
+    app.include_router(legacy.router)
+
+    # Serve React SPA static files (only if frontend/dist exists)
+    frontend_dist = project_root / "frontend" / "dist"
+    if frontend_dist.exists():
+        app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="static")
+
+        @app.get("/{full_path:path}")
+        async def serve_spa(full_path: str):
+            """SPA catch-all — serve index.html for non-API routes."""
+            from fastapi.responses import FileResponse
+            index_path = frontend_dist / "index.html"
+            if index_path.exists():
+                return FileResponse(str(index_path))
+            return JSONResponse(status_code=404, content={"error": "Frontend not built"})
+
+    return app
+
+
+# Application instance
+app = create_app()
