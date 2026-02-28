@@ -186,7 +186,8 @@ class AKSOptimizationOrchestrator:
             'resource_group': analysis_results.get('resource_group', 'unknown-rg'),
             'subscription_id': analysis_results.get('subscription_id', 'unknown-subscription'),
             'location': analysis_results.get('location', 'eastus'),
-            'node_count': analysis_results.get('node_count', 3)
+            'node_count': analysis_results.get('node_count', 3),
+            'cloud_provider': analysis_results.get('cloud_provider', 'azure'),
         }
         
         # Enhance with cluster config if available
@@ -533,3 +534,7 @@ class AKSOptimizationOrchestrator:
                 deliverables.append(f"{cmd.category.replace('_', ' ').title()} Configuration")
         
         return deliverables[:3] if deliverables else ['Configuration Updates']
+
+
+# Provider-agnostic alias for the orchestrator
+OptimizationOrchestrator = AKSOptimizationOrchestrator

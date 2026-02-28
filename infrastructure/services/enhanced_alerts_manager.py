@@ -11,7 +11,6 @@ Project: AKS Cost Optimizer
 import os
 import json
 import traceback
-from flask import request
 import requests
 import smtplib
 from email.mime.text import MIMEText  #  Capital letters
