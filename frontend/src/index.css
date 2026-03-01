@@ -3,15 +3,48 @@
 @tailwind utilities;
 
 :root {
+  /* Brand colors */
   --color-primary: #7FB069;
   --color-primary-dark: #5f9548;
   --color-primary-light: #9ec88d;
+
+  /* Light green theme */
+  --bg-page: #f4f9f2;
+  --bg-surface: #ffffff;
+  --bg-sidebar: #f0f6ed;
+  --bg-header: #ffffff;
+  --border-color: #d4e4cf;
+  --border-subtle: #e2eede;
+  --text-primary: #1a2e14;
+  --text-secondary: #4a6741;
+  --text-muted: #6d8a64;
+  --accent-glow: rgba(127, 176, 105, 0.08);
+}
+
+.dark {
+  --bg-page: #0b1222;
+  --bg-surface: #111a2e;
+  --bg-sidebar: #0d1526;
+  --bg-header: #111a2e;
+  --border-color: #1e3050;
+  --border-subtle: #172742;
+  --text-primary: #e8edf5;
+  --text-secondary: #8fa4c4;
+  --text-muted: #5a7499;
+  --accent-glow: rgba(127, 176, 105, 0.06);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  border-width: 0;
+  border-color: var(--border-color);
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
+  background-color: var(--bg-page);
 }
 
 /* Custom scrollbar */
@@ -22,9 +55,9 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #888;
+  background: #9ec88d;
   border-radius: 3px;
 }
 .dark ::-webkit-scrollbar-thumb {
-  background: #555;
+  background: #2a4066;
 }

@@ -1942,7 +1942,7 @@ class EnhancedMultiSubscriptionClusterManager:
             
             total_cost = float(serializable_data.get('total_cost', 0))
             total_savings = float(serializable_data.get('total_savings', 0))
-            confidence = float(serializable_data.get('analysis_confidence', 0))
+            confidence = float(serializable_data.get('optimization_score', serializable_data.get('analysis_confidence', 0)))
             
             # Prepare enhanced analysis data for storage
             enhanced_analysis_blob = None

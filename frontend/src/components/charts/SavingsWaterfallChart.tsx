@@ -1,38 +1,39 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import DonutChart from './DonutChart'
 
 interface SavingsItem {
   name: string
   value: number
 }
 
-export default function SavingsWaterfallChart({ data }: { data: SavingsItem[] }) {
+export default function SavingsWaterfallChart({ data, total }: { data: SavingsItem[]; total?: number }) {
   if (!data.length) return <p className="py-8 text-center text-sm text-dark-400">No savings data available</p>
 
-  // Build waterfall: each bar starts where the previous ended
-  let cumulative = 0
-  const waterfallData = data.map((item) => {
-    const start = cumulative
-    cumulative += item.value
-    return { name: item.name, start, value: item.value, end: cumulative }
-  })
-  // Add total bar
-  waterfallData.push({ name: 'Total', start: 0, value: cumulative, end: cumulative })
+  const hasNonZero = data.some((d) => d.value > 0)
+
+  if (!hasNonZero) {
+    return (
+      <div className="py-4">
+        <div className="space-y-2">
+          {data.map((item, i) => (
+            <div key={i} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--bg-surface)' }}>
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>{item.name}</span>
+              <span className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>$0.00</span>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
+          Run an analysis to identify potential savings
+        </p>
+      </div>
+    )
+  }
 
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={waterfallData} margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-        <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-        <YAxis tick={{ fontSize: 12 }} tickFormatter={(v: number) => `$${v}`} />
-        <Tooltip formatter={(value: number) => [`$${value.toFixed(0)}`, 'Savings']} />
-        {/* Invisible base bar */}
-        <Bar dataKey="start" stackId="waterfall" fill="transparent" />
-        <Bar dataKey="value" stackId="waterfall">
-          {waterfallData.map((_, i) => (
-            <Cell key={i} fill={i === waterfallData.length - 1 ? '#7FB069' : '#60a5fa'} />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
+    <DonutChart
+      data={data.filter((d) => d.value > 0)}
+      total={total}
+      totalLabel="Potential Savings"
+      formatValue={(v) => `$${v.toFixed(0)}`}
+    />
   )
 }

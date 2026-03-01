@@ -222,8 +222,13 @@ def create_app() -> FastAPI:
 
         @app.get("/{full_path:path}")
         async def serve_spa(full_path: str):
-            """SPA catch-all — serve index.html for non-API routes."""
+            """SPA catch-all — serve static files from dist root, then index.html."""
             from fastapi.responses import FileResponse
+            # First check if the path matches a static file in dist root (e.g. images, icons)
+            static_file = frontend_dist / full_path
+            if full_path and static_file.exists() and static_file.is_file():
+                return FileResponse(str(static_file))
+            # Otherwise serve SPA index.html
             index_path = frontend_dist / "index.html"
             if index_path.exists():
                 return FileResponse(str(index_path))
