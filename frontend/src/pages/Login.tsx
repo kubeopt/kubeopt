@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Server } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import Button from '../components/common/Button'
 
@@ -27,15 +26,22 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-dark-950">
+    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: 'var(--bg-page)' }}>
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <Server className="mx-auto h-12 w-12 text-primary-500" />
-          <h1 className="mt-3 text-2xl font-bold text-dark-900 dark:text-white">KubeOpt</h1>
-          <p className="mt-1 text-sm text-dark-500 dark:text-dark-400">Kubernetes Cost Optimizer</p>
+          <img
+            src="/kubeopt_eyecon.png"
+            alt="KubeOpt"
+            className="mx-auto h-20 w-20 animate-spin-slow"
+          />
+          <h1 className="mt-4 text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>KubeOpt</h1>
+          <p className="mt-1 text-sm font-medium text-primary-600 dark:text-primary-400">
+            Intelligent. Insightful. Illuminating.
+          </p>
+          <p className="mt-0.5 text-xs text-dark-400">Kubernetes Cost Optimizer</p>
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-dark-700 dark:bg-dark-900">
+        <div className="rounded-xl p-6 shadow-sm" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-color)' }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">

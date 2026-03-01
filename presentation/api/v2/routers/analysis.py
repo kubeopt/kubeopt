@@ -3,6 +3,7 @@
 import json
 import logging
 import asyncio
+import re
 import threading
 from typing import Dict, Any, Optional
 
@@ -168,6 +169,7 @@ async def chart_data(
 
         empty_result = {
             'cost_breakdown': [],
+            'cost_categories': [],
             'resource_utilization': [],
             'hpa_comparison': [],
             'savings_breakdown': {},
@@ -175,6 +177,14 @@ async def chart_data(
             'workload_costs': [],
             'insights': [],
             'trend_data': [],
+            'node_recommendations': [],
+            'anomaly_detection': {},
+            'total_cost': 0,
+            'cpu_gap': 0,
+            'memory_gap': 0,
+            'hpa_efficiency': 0,
+            'namespace_count': 0,
+            'workload_count': 0,
         }
 
         analysis_data = None
@@ -201,37 +211,141 @@ async def chart_data(
             savings = {k: float(v) if isinstance(v, (int, float)) else v for k, v in raw_savings.items()}
 
         # insights: dict of category→message → normalize to [{category, message}]
+        _strip_html = re.compile(r'<[^>]+>').sub
+        _strip_emoji = re.compile(
+            r'[\U0001F300-\U0001F9FF\U00002600-\U000027BF\U0000FE00-\U0000FE0F'
+            r'\U0000200D\U00002702-\U000027B0\U0001FA00-\U0001FA6F'
+            r'\U0001FA70-\U0001FAFF\U00002B50\U000023CF-\U000023FA]+',
+        ).sub
+        def _clean(text: str) -> str:
+            return _strip_emoji('', _strip_html('', text)).strip()
+
         raw_insights = _safe(chart_generator.generate_insights, analysis_data)
         insight_items = []
         if raw_insights and isinstance(raw_insights, dict):
             for cat, val in raw_insights.items():
                 if isinstance(val, str):
-                    insight_items.append({'category': cat, 'message': val})
+                    insight_items.append({'category': cat, 'message': _clean(val)})
                 elif isinstance(val, list):
                     for item in val:
                         if isinstance(item, str):
-                            insight_items.append({'category': cat, 'message': item})
+                            insight_items.append({'category': cat, 'message': _clean(item)})
                         elif isinstance(item, dict):
-                            insight_items.append({**item, 'category': cat})
+                            cleaned = {**item, 'category': cat}
+                            if 'message' in cleaned:
+                                cleaned['message'] = _clean(cleaned['message'])
+                            insight_items.append(cleaned)
         elif isinstance(raw_insights, list):
-            insight_items = raw_insights
+            insight_items = [{**i, 'message': _clean(i.get('message', ''))} if isinstance(i, dict) and 'message' in i else i for i in raw_insights]
+
+        # Extract node recommendations from enhanced_analysis_input
+        node_recs = []
+        try:
+            eai = analysis_data.get('enhanced_analysis_input', {})
+            # Fallback: if not in analysis_data, load from clusters table enhanced_analysis_data column
+            if not eai and cluster_id:
+                try:
+                    import sqlite3, json
+                    cluster_info_obj = cluster_manager.get_cluster(cluster_id)
+                    if cluster_info_obj:
+                        db_path = cluster_manager.db_path
+                        with sqlite3.connect(db_path) as conn:
+                            conn.row_factory = sqlite3.Row
+                            row = conn.execute(
+                                'SELECT enhanced_analysis_data FROM clusters WHERE id = ?', (cluster_id,)
+                            ).fetchone()
+                            if row and row['enhanced_analysis_data']:
+                                raw = row['enhanced_analysis_data']
+                                eai = json.loads(raw.decode('utf-8') if isinstance(raw, bytes) else raw)
+                except Exception as e:
+                    logger.debug(f"Enhanced data fallback failed: {e}")
+            node_opt = eai.get('node_optimization', {}) if isinstance(eai, dict) else {}
+            raw_recs = node_opt.get('recommendations', []) if isinstance(node_opt, dict) else []
+            if isinstance(raw_recs, list):
+                # Normalize field names: backend uses current_vm_size/recommended_vm_size,
+                # frontend expects current_vm/recommended_vm
+                for rec in raw_recs:
+                    if isinstance(rec, dict):
+                        if 'current_vm_size' in rec and 'current_vm' not in rec:
+                            rec['current_vm'] = rec['current_vm_size']
+                        if 'recommended_vm_size' in rec and 'recommended_vm' not in rec:
+                            rec['recommended_vm'] = rec['recommended_vm_size']
+                node_recs = raw_recs
+        except Exception:
+            pass
+
+        # Extract anomaly detection data
+        anomaly_data = {}
+        try:
+            raw_anomaly = analysis_data.get('anomaly_detection', {})
+            if isinstance(raw_anomaly, dict) and raw_anomaly.get('total_anomalies', 0) > 0:
+                anomaly_data = {
+                    'total_anomalies': raw_anomaly.get('total_anomalies', 0),
+                    'average_severity': raw_anomaly.get('average_severity', 0),
+                    'highest_severity': raw_anomaly.get('highest_severity', 0),
+                    'categories': raw_anomaly.get('anomaly_categories', {}),
+                    'anomalies': (raw_anomaly.get('anomalies', []) or [])[:10],
+                }
+        except Exception:
+            pass
+
+        namespace_costs_result = _safe(chart_generator.generate_namespace_data, analysis_data) or []
+        workload_costs_result = _safe(chart_generator.generate_workload_data, analysis_data) or []
+
+        # Build category-based cost breakdown from analysis_data cost components
+        cost_categories = []
+        try:
+            cat_map = [
+                ('Compute (Nodes)', 'node_cost'),
+                ('Storage', 'storage_cost'),
+                ('Networking', 'networking_cost'),
+                ('Control Plane', 'control_plane_cost'),
+                ('Container Registry', 'registry_cost'),
+                ('Monitoring', 'monitoring_cost'),
+                ('Security', 'security_cost'),
+            ]
+            for label, key in cat_map:
+                val = float(analysis_data.get(key, 0) or 0)
+                if val > 0:
+                    cost_categories.append({'name': label, 'value': round(val, 2)})
+            # Roll up remaining minor categories into "Other"
+            other_keys = ['keyvault_cost', 'application_services_cost', 'data_services_cost',
+                          'integration_services_cost', 'devops_cost', 'backup_recovery_cost',
+                          'governance_cost', 'support_management_cost', 'other_cost', 'system_cost']
+            other_val = sum(float(analysis_data.get(k, 0) or 0) for k in other_keys)
+            if other_val > 0:
+                cost_categories.append({'name': 'Other Services', 'value': round(other_val, 2)})
+        except Exception:
+            pass
 
         return _sanitize_numpy({
             'cost_breakdown': _safe(chart_generator.generate_pod_cost_data, analysis_data) or [],
+            'cost_categories': cost_categories,
             'resource_utilization': _safe(chart_generator.generate_node_utilization_data, analysis_data) or [],
             'hpa_comparison': _safe(chart_generator.generate_dynamic_hpa_comparison, analysis_data) or [],
             'savings_breakdown': savings,
-            'namespace_costs': _safe(chart_generator.generate_namespace_data, analysis_data) or [],
-            'workload_costs': _safe(chart_generator.generate_workload_data, analysis_data) or [],
+            'namespace_costs': namespace_costs_result,
+            'workload_costs': workload_costs_result,
             'insights': insight_items,
             'trend_data': (_safe(chart_generator.generate_dynamic_trend_data, cluster_id, analysis_data) if cluster_id else None) or [],
+            'node_recommendations': node_recs,
+            'anomaly_detection': anomaly_data,
+            'total_cost': float(analysis_data.get('total_cost', 0) or 0),
+            'cpu_gap': float(analysis_data.get('cpu_gap', 0) or 0),
+            'memory_gap': float(analysis_data.get('memory_gap', 0) or 0),
+            'hpa_efficiency': float(analysis_data.get('hpa_efficiency_percentage', analysis_data.get('hpa_efficiency', 0)) or 0),
+            'namespace_count': len(namespace_costs_result),
+            'workload_count': len(workload_costs_result),
         })
     except Exception as e:
         logger.error(f"Failed to get chart data: {e}", exc_info=True)
         return {
-            'cost_breakdown': [], 'resource_utilization': [], 'hpa_comparison': [],
+            'cost_breakdown': [], 'cost_categories': [], 'resource_utilization': [], 'hpa_comparison': [],
             'savings_breakdown': {}, 'namespace_costs': [], 'workload_costs': [],
-            'insights': [], 'trend_data': [],
+            'insights': [], 'trend_data': [], 'node_recommendations': [],
+            'anomaly_detection': {},
+            'total_cost': 0, 'cpu_gap': 0, 'memory_gap': 0,
+            'hpa_efficiency': 0, 'namespace_count': 0, 'workload_count': 0,
         }
 
 
@@ -270,11 +384,19 @@ async def dashboard_overview(
             overview['optimization_score'] = float(cluster_info.get('last_confidence', 0) or 0)
 
         if analysis_data:
-            # Override with richer analysis data if available
-            overview['total_monthly_cost'] = float(analysis_data.get('total_cost', overview['total_monthly_cost']) or 0)
-            overview['potential_savings'] = float(analysis_data.get('total_savings', overview['potential_savings']) or 0)
-            overview['optimization_score'] = float(analysis_data.get('confidence_score', overview['optimization_score']) or 0)
-            overview['health_score'] = float(analysis_data.get('current_health_score', 0) or 0)
+            # Override with richer analysis data if available (only override if value > 0)
+            cost_val = analysis_data.get('total_cost')
+            if cost_val is not None and float(cost_val or 0) > 0:
+                overview['total_monthly_cost'] = float(cost_val)
+            savings_val = analysis_data.get('total_savings')
+            if savings_val is not None and float(savings_val or 0) > 0:
+                overview['potential_savings'] = float(savings_val)
+            # optimization_score is computed by algorithmic_cost_analyzer (100 - savings%)
+            opt_val = analysis_data.get('optimization_score', analysis_data.get('confidence_score'))
+            if opt_val is not None and float(opt_val or 0) > 0:
+                overview['optimization_score'] = float(opt_val)
+            health_val = analysis_data.get('current_health_score')
+            overview['health_score'] = float(health_val or 0) if health_val else 0.0
             overview['node_count'] = int(analysis_data.get('current_node_count', analysis_data.get('node_count', 0)) or 0)
             # Count pods from kubectl data if available
             pods_data = analysis_data.get('pods', analysis_data.get('pod_data', []))
