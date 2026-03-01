@@ -103,8 +103,8 @@ export default function Dashboard() {
 
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-dark-900 dark:text-white">{clusterName}</h1>
-          <p className="mt-1 text-sm text-dark-500 dark:text-dark-400">
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{clusterName}</h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
             {clusterId}
           </p>
         </div>
@@ -115,7 +115,7 @@ export default function Dashboard() {
       </div>
 
       {/* Tab navigation */}
-      <div className="mb-6 border-b border-gray-200 dark:border-dark-700">
+      <div className="mb-6" style={{ borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: 'var(--border-subtle)' }}>
         <nav className="-mb-px flex gap-6">
           {tabs.map((tab) => (
             <button
@@ -125,8 +125,9 @@ export default function Dashboard() {
                 'border-b-2 pb-3 text-sm font-medium transition-colors',
                 activeTab === tab.id
                   ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-dark-500 hover:border-gray-300 hover:text-dark-700 dark:text-dark-400',
+                  : 'border-transparent hover:text-primary-600 dark:hover:text-primary-400',
               )}
+              style={activeTab !== tab.id ? { color: 'var(--text-muted)' } : undefined}
             >
               {tab.label}
             </button>
@@ -134,7 +135,9 @@ export default function Dashboard() {
         </nav>
       </div>
 
-      {renderTab()}
+      <div key={`${activeTab}-${refreshKey}`} className="animate-fadeIn">
+        {renderTab()}
+      </div>
     </div>
   )
 }
