@@ -108,6 +108,47 @@ class CostCalculationStandards:
     OTHER_SERVICES_MAXIMUM_PROPORTION = 0.30       # 30% maximum for other services
 
 
+def get_cost_standards(cloud_provider: str = 'azure') -> dict:
+    """Return per-cloud pricing constants for cost calculations.
+
+    Centralizes cloud-specific pricing so consumers call this once
+    and use the dict rather than scattering if/elif across files.
+    """
+    _CLOUD_PRICING = {
+        'azure': {
+            'cpu_cost_per_core_hour': 0.0342,     # D-series avg pay-as-you-go
+            'memory_cost_per_gb_hour': 0.0046,
+            'storage_gb_monthly': 0.045,           # Standard SSD
+            'bandwidth_gb': 0.087,
+            'load_balancer_monthly': 22.00,
+            'control_plane_monthly': 73.00,        # Standard tier $0.10/hr
+            'ref_vcpu_price': 0.0342,
+            'ref_net_price_per_gb': 0.087,
+        },
+        'aws': {
+            'cpu_cost_per_core_hour': 0.048,       # m5.xlarge us-east-1
+            'memory_cost_per_gb_hour': 0.006,
+            'storage_gb_monthly': 0.08,            # gp3
+            'bandwidth_gb': 0.09,
+            'load_balancer_monthly': 22.50,        # ALB base
+            'control_plane_monthly': 73.00,        # EKS $0.10/hr
+            'ref_vcpu_price': 0.048,
+            'ref_net_price_per_gb': 0.09,
+        },
+        'gcp': {
+            'cpu_cost_per_core_hour': 0.0335,      # n2-standard us-central1
+            'memory_cost_per_gb_hour': 0.0045,
+            'storage_gb_monthly': 0.04,            # pd-standard
+            'bandwidth_gb': 0.085,
+            'load_balancer_monthly': 18.26,
+            'control_plane_monthly': 73.00,        # GKE Standard $0.10/hr
+            'ref_vcpu_price': 0.0335,
+            'ref_net_price_per_gb': 0.085,
+        },
+    }
+    return _CLOUD_PRICING.get(cloud_provider, _CLOUD_PRICING['azure'])
+
+
 class HorizontalPodAutoscalerCostStandards:
     """HPA-specific cost optimization standards"""
     

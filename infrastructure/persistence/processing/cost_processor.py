@@ -241,18 +241,18 @@ class EnhancedAKSCostProcessor:
         subcategory = "Unknown Service"
         cost_metadata = {}
         
-        # === AKS CONTROL PLANE (Enhanced) ===
+        # === CONTROL PLANE (Azure AKS) ===
         if "microsoft.containerservice/managedclusters" in resource_type_lower:
-            category = "AKS Control Plane"
+            category = "Control Plane"
             if "standard" in meter_name_lower:
-                subcategory = "Standard Tier ($0.10/hr)"
-                cost_metadata = {"tier": "standard", "hourly_base": 0.10}
+                subcategory = "AKS Standard Tier ($0.10/hr)"
+                cost_metadata = {"tier": "standard", "hourly_base": 0.10, "cloud": "azure"}
             elif "premium" in meter_name_lower:
-                subcategory = "Premium Tier ($0.60/hr)"
-                cost_metadata = {"tier": "premium", "hourly_base": 0.60}
+                subcategory = "AKS Premium Tier ($0.60/hr)"
+                cost_metadata = {"tier": "premium", "hourly_base": 0.60, "cloud": "azure"}
             else:
                 subcategory = "AKS Management"
-                cost_metadata = {"tier": "free"}
+                cost_metadata = {"tier": "free", "cloud": "azure"}
         
         # === NODE POOLS (Enhanced with VM series detection) ===
         elif "microsoft.compute/virtualmachinescalesets" in resource_type_lower:
@@ -879,7 +879,7 @@ class EnhancedAKSCostProcessor:
             'Node Pools': 'node_pools',
             'Storage': 'storage',
             'Networking': 'networking',
-            'AKS Control Plane': 'aks_control_plane',
+            'Control Plane': 'control_plane',
             'Container Registry': 'container_registry',
             'Monitoring': 'monitoring',
             'Security': 'security',
@@ -912,7 +912,7 @@ class EnhancedAKSCostProcessor:
         """Classify cost as system, user, or shared"""
         category = row['Category']
         
-        system_categories = ['AKS Control Plane', 'Monitoring', 'Security', 'Governance & Compliance', 'Support & Management']
+        system_categories = ['Control Plane', 'Monitoring', 'Security', 'Governance & Compliance', 'Support & Management']
         user_categories = ['Node Pools', 'Storage', 'Application Services', 'Data Services']
         shared_categories = ['Networking', 'Container Registry', 'Integration Services', 'DevOps & CI/CD', 'Backup & Recovery', 'Key Vault', 'Data Transfer']
         
@@ -1034,7 +1034,7 @@ class EnhancedAKSCostProcessor:
         # Basic components (enhanced)
         node_cost = float(cost_df[cost_df['Category'] == 'Node Pools']['Cost'].sum()) * multiplier
         storage_cost = float(cost_df[cost_df['Category'] == 'Storage']['Cost'].sum()) * multiplier
-        control_plane_cost = float(cost_df[cost_df['Category'].isin(['AKS Control Plane', 'EKS Control Plane', 'GKE Control Plane'])]['Cost'].sum()) * multiplier
+        control_plane_cost = float(cost_df[cost_df['Category'] == 'Control Plane']['Cost'].sum()) * multiplier
         
         # Enhanced networking breakdown
         networking_df = cost_df[cost_df['Category'] == 'Networking']
@@ -1065,7 +1065,7 @@ class EnhancedAKSCostProcessor:
         # Remaining uncategorized costs
         categorized_categories = [
             'Node Pools', 'Storage', 'Networking',
-            'AKS Control Plane', 'EKS Control Plane', 'GKE Control Plane',
+            'Control Plane',
             'Container Registry', 'Monitoring', 'Security', 'Key Vault',
             'Application Services', 'Data Services', 'Integration Services',
             'DevOps & CI/CD', 'Backup & Recovery', 'Governance & Compliance',
@@ -1255,11 +1255,11 @@ def _merge_cost_data(aks_cost_data: Dict, additional_cost_data: Dict, thread_id:
     
     return merged_data
 
-def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_date,
-                              subscription_id, cluster_id=None,
-                              cloud_provider='azure', region=''):
+def get_cluster_cost_data(resource_group, cluster_name, start_date, end_date,
+                         subscription_id, cluster_id=None,
+                         cloud_provider='azure', region=''):
     """
-    Comprehensive AKS cost collection with intelligent caching - captures ACTUAL cluster costs across entire subscription.
+    Comprehensive cluster cost collection with intelligent caching - captures ACTUAL cluster costs across entire subscription.
     
     Uses dual-query approach:
     1. Direct AKS resources (cluster, nodes, disks in resource groups)
@@ -1633,9 +1633,9 @@ def _estimate_aws_costs_from_nodes(cluster_name, region, start_date, end_date, s
             'ResourceType': 'EKS Cluster',
             'ResourceGroup': resource_group or cluster_name,
             'Service': 'Amazon Elastic Kubernetes Service',
-            'Category': 'EKS Control Plane',
-            'Subcategory': 'Standard Tier ($0.10/hr)',
-            'CostMetadata': {'tier': 'standard', 'hourly_base': 0.10},
+            'Category': 'Control Plane',
+            'Subcategory': 'EKS Standard Tier ($0.10/hr)',
+            'CostMetadata': {'tier': 'standard', 'hourly_base': 0.10, 'cloud': 'aws'},
             'AllocationWeight': 1.0,
             'CostType': 'estimated',
             'DistributionScore': 0.0,
@@ -1722,7 +1722,7 @@ def _aws_service_to_category(service_name: str) -> tuple:
     """Map AWS service names to (Category, Subcategory) matching the Azure schema."""
     sn = service_name.lower()
     if 'elastic kubernetes' in sn or 'amazoneks' in sn:
-        return ('EKS Control Plane', 'EKS Management')
+        return ('Control Plane', 'EKS Management')
     elif 'elastic compute' in sn or 'amazonec2' in sn or 'ec2' in sn:
         return ('Node Pools', 'EC2 Instances')
     elif 'elastic block' in sn or 'ebs' in sn:
@@ -1741,6 +1741,27 @@ def _aws_service_to_category(service_name: str) -> tuple:
         return ('Data Transfer', 'Data Transfer')
     elif 'container registry' in sn or 'ecr' in sn:
         return ('Container Registry', 'ECR')
+    else:
+        return ('Other Services', service_name)
+
+
+def _gcp_service_to_category(service_name: str) -> tuple:
+    """Map GCP service names to (Category, Subcategory) matching the normalized schema."""
+    sn = service_name.lower()
+    if 'kubernetes engine' in sn or 'gke' in sn:
+        return ('Control Plane', 'GKE Management')
+    elif 'compute engine' in sn:
+        return ('Node Pools', 'GCE Instances')
+    elif 'persistent disk' in sn or 'cloud storage' in sn:
+        return ('Storage', 'GCP Storage')
+    elif 'cloud networking' in sn or 'vpc' in sn or 'load balancing' in sn:
+        return ('Networking', 'GCP Networking')
+    elif 'cloud monitoring' in sn or 'stackdriver' in sn or 'cloud logging' in sn:
+        return ('Monitoring', 'Cloud Monitoring')
+    elif 'artifact registry' in sn or 'container registry' in sn:
+        return ('Container Registry', 'Artifact Registry')
+    elif 'cloud kms' in sn:
+        return ('Security', 'Cloud KMS')
     else:
         return ('Other Services', service_name)
 

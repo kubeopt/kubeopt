@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-AKS Real-Time Metrics Collector - Enhanced Version
-==================================================
-Complete rewrite with all logical calculations preserved and improved.
+Cluster Metrics Collector - Enhanced Version
+=============================================
+Cloud-agnostic cluster metrics collection with all logical calculations preserved.
 
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: KubeOpt - Kubernetes Cost Optimizer
 
 Key Improvements:
 - Consistent variable naming throughout
@@ -16,7 +16,6 @@ Key Improvements:
 - Uses standards from configuration
 """
 
-import subprocess
 import json
 
 # Import performance standards
@@ -135,21 +134,31 @@ class KubernetesParsingUtils:
             return float(memory_str) / (1024 * 1024 * 1024)
 
 
-class AKSRealTimeMetricsFetcher:
+class ClusterMetricsFetcher:
     """
-    Fetches and processes real-time metrics from AKS clusters.
-    Complete implementation with all logical calculations.
+    Fetches and processes real-time metrics from Kubernetes clusters.
+    Cloud-agnostic implementation with all logical calculations.
+    Supports AKS, EKS, and GKE clusters.
     """
-    
-    def __init__(self, resource_group: str, cluster_name: str, subscription_id: str, cache=None):
-        """Initialize the metrics fetcher."""
-        if not all([resource_group, cluster_name, subscription_id]):
-            raise ValueError("resource_group, cluster_name, and subscription_id are required")
-        
-        self.resource_group = resource_group
+
+    def __init__(self, resource_group: str = '', cluster_name: str = '', subscription_id: str = '', cache=None, cloud_provider: str = 'azure'):
+        """Initialize the metrics fetcher.
+
+        Args:
+            resource_group: Azure resource group (optional for non-Azure providers)
+            cluster_name: Kubernetes cluster name
+            subscription_id: Cloud account/subscription/project ID
+            cache: Optional shared kubernetes data cache
+            cloud_provider: Cloud provider ('azure', 'aws', 'gcp')
+        """
+        if not cluster_name:
+            raise ValueError("cluster_name is required")
+
+        self.resource_group = resource_group or ''
         self.cluster_name = cluster_name
-        self.subscription_id = subscription_id
+        self.subscription_id = subscription_id or ''
         self.cache = cache
+        self.cloud_provider = cloud_provider
         
         # Initialize node processor
         self.node_processor = NodeDataProcessor()
@@ -166,14 +175,9 @@ class AKSRealTimeMetricsFetcher:
         # HPA thresholds (using 150% as the high CPU threshold for HPAs)
         # Load HPA threshold from standards file - no static values per .clauderc
         try:
-            import yaml
-            import os
-            config_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                "config", "aks_implementation_standards.yaml"
-            )
-            with open(config_path, 'r') as f:
-                standards = yaml.safe_load(f)
+            from shared.standards.standards_loader import get_standards_loader
+            loader = get_standards_loader(cloud_provider)
+            standards = loader.load_implementation_standards()
             self.hpa_cpu_threshold_high = standards['optimization_thresholds']['savings_calculation']['cost_thresholds']['high_cpu_threshold']
         except Exception as e:
             raise ValueError(f"Failed to load HPA threshold from standards file: {e}") from e
@@ -1099,16 +1103,16 @@ class AKSRealTimeMetricsFetcher:
                     logger.warning(f"🔍 DEBUG PARSE: Failed to parse line for {node_name}: {e}")
                     continue
         
-        # If no exact match, try Azure VMSS name mapping
+        # If no exact match, try Azure VMSS name mapping (Azure-only)
         # Convert k8s node name (vmss0000e8) to Azure name (vmss_xxx)
-        if 'vmss' in node_name:
+        if self.cloud_provider == 'azure' and 'vmss' in node_name:
             # Extract the hex suffix and convert to decimal for Azure naming
             try:
                 parts_node = node_name.split('vmss')
                 if len(parts_node) == 2:
                     vmss_base = parts_node[0] + 'vmss'
                     hex_suffix = parts_node[1]
-                    
+
                     # Try to match with any line that starts with the vmss base
                     for line in top_output.strip().split('\n'):
                         parts = line.split()

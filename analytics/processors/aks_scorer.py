@@ -163,6 +163,15 @@ class AKSScorer:
         )
         return AKSScorer.from_yaml(config_path)
 
+    @staticmethod
+    def from_config(cloud_provider: str = 'azure') -> "AKSScorer":
+        """Load scorer via StandardsLoader with cloud-provider-aware YAML resolution.
+        Tries provider-specific file (e.g. eks_scoring.yaml) first, falls back to aks_scoring.yaml."""
+        from shared.standards.standards_loader import get_standards_loader
+        loader = get_standards_loader(cloud_provider)
+        cfg = loader.load_scoring_standards()
+        return AKSScorer(cfg)
+
     def score_build_quality(self, metrics: Dict[str, Any], overrides: Dict[str, Any] = None) -> ScoreResult:
         """
         Calculate Build Quality Score (0-100) with 5 components:
@@ -1744,8 +1753,8 @@ class AKSScorer:
         """Extract cluster region from metrics data"""
         try:
             # Try to get from AKS cluster info in metrics
-            if 'aks_cluster_info' in metrics:
-                cluster_info = metrics['aks_cluster_info']
+            if 'cluster_info' in metrics:
+                cluster_info = metrics['cluster_info']
                 if isinstance(cluster_info, str):
                     import json
                     cluster_data = json.loads(cluster_info)
@@ -1822,3 +1831,7 @@ class AKSScorer:
         except Exception as e:
             # Per .clauderc: No silent failures
             raise ValueError(f"Failed to get next HPA action: {e}")
+
+
+# Cloud-agnostic alias — new code should use ClusterScorer.from_config(cloud_provider)
+ClusterScorer = AKSScorer

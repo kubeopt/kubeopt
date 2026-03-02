@@ -35,6 +35,15 @@ export async function getClusterInfo(clusterId: string): Promise<Record<string, 
   return api.get(`/api/cluster/${encodeURIComponent(clusterId)}/info`)
 }
 
+export async function getAnalysisStatus(clusterId: string): Promise<{
+  status: string
+  progress?: number
+  current_phase?: string
+  message?: string
+}> {
+  return api.get(`/api/clusters/${encodeURIComponent(clusterId)}/analysis-status`)
+}
+
 export async function getPortfolioSummary(): Promise<PortfolioSummary> {
   return api.get('/api/portfolio/summary')
 }

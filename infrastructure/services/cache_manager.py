@@ -308,34 +308,31 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
     logger.info(f"💾 CACHE SAVE: Validating data for {cache_key}")
     
     # 🔍 CACHE SAVE: Log gap data before caching
-    # Use standardized field names
-    cpu_gap = complete_analysis_data.get('cpu_gap')
-    memory_gap = complete_analysis_data.get('memory_gap')
-    
-    # Calculate if missing - using standards from performance_standards.py (NO HARDCODING)
-    if not cpu_gap and 'avg_cpu_utilization' in complete_analysis_data:
-        try:
-            from shared.standards.performance_standards import SystemPerformanceStandards
-            cpu_utilization = complete_analysis_data['avg_cpu_utilization']
-            cpu_optimal = SystemPerformanceStandards.CPU_UTILIZATION_OPTIMAL
-            cpu_gap = max(0, cpu_optimal - cpu_utilization) if cpu_utilization < cpu_optimal else max(0, cpu_utilization - cpu_optimal)
-            logger.info(f"🔍 CALCULATED CPU GAP: {cpu_utilization}% utilization -> {cpu_gap}% gap from {cpu_optimal}% optimal (standards-based)")
-        except ImportError as e:
-            logger.error(f"❌ Failed to import standards for CPU gap calculation: {e}")
-            # Following .clauderc: FAIL FAST - no defaults
-            raise ValueError(f"Cannot calculate CPU gap without performance standards: {e}")
-    
-    if not memory_gap and 'avg_memory_utilization' in complete_analysis_data:
-        try:
-            from shared.standards.performance_standards import SystemPerformanceStandards
-            memory_utilization = complete_analysis_data['avg_memory_utilization']
-            memory_optimal = SystemPerformanceStandards.MEMORY_UTILIZATION_OPTIMAL
-            memory_gap = max(0, memory_optimal - memory_utilization) if memory_utilization < memory_optimal else max(0, memory_utilization - memory_optimal)
-            logger.info(f"🔍 CALCULATED MEMORY GAP: {memory_utilization}% utilization -> {memory_gap}% gap from {memory_optimal}% optimal (standards-based)")
-        except ImportError as e:
-            logger.error(f"❌ Failed to import standards for memory gap calculation: {e}")
-            # Following .clauderc: FAIL FAST - no defaults
-            raise ValueError(f"Cannot calculate memory gap without performance standards: {e}")
+    # Prefer gaps already computed by the analyzer (single source of truth).
+    # Only recalculate as fallback for legacy data missing cpu_gap/memory_gap.
+    cpu_gap = complete_analysis_data.get('cpu_gap') or complete_analysis_data.get('rightsizing_cpu_gap')
+    memory_gap = complete_analysis_data.get('memory_gap') or complete_analysis_data.get('rightsizing_memory_gap')
+
+    if cpu_gap:
+        logger.info(f"🔍 CACHE SAVE: Using analyzer-provided CPU gap: {cpu_gap}%")
+    elif 'avg_cpu_utilization' in complete_analysis_data:
+        # Fallback: calculate from standards (only for legacy data without gaps)
+        from shared.standards.performance_standards import SystemPerformanceStandards
+        cpu_utilization = complete_analysis_data['avg_cpu_utilization']
+        cpu_optimal = SystemPerformanceStandards.CPU_UTILIZATION_OPTIMAL
+        cpu_gap = round(abs(cpu_optimal - cpu_utilization), 1)
+        logger.info(f"🔍 CACHE SAVE FALLBACK: Calculated CPU gap: {cpu_utilization}% util -> {cpu_gap}% gap from {cpu_optimal}% optimal")
+
+    if memory_gap:
+        logger.info(f"🔍 CACHE SAVE: Using analyzer-provided memory gap: {memory_gap}%")
+    elif 'avg_memory_utilization' in complete_analysis_data:
+        # Fallback: calculate from standards (only for legacy data without gaps)
+        from shared.standards.performance_standards import SystemPerformanceStandards
+        memory_utilization = complete_analysis_data['avg_memory_utilization']
+        memory_optimal = SystemPerformanceStandards.MEMORY_UTILIZATION_OPTIMAL
+        memory_gap = round(abs(memory_optimal - memory_utilization), 1)
+        logger.info(f"🔍 CACHE SAVE FALLBACK: Calculated memory gap: {memory_utilization}% util -> {memory_gap}% gap from {memory_optimal}% optimal")
+
     logger.info(f"🔍 CACHE SAVE: About to cache CPU gap: {cpu_gap}, Memory gap: {memory_gap}")
     # Validate breakdown data exists (per .clauderc: log but don't fail - data will be generated)
     if 'build_quality_breakdown' not in complete_analysis_data:

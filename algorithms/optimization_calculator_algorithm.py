@@ -61,24 +61,18 @@ class OptimizationCalculatorAlgorithm:
         self.logger.info("🔧 Optimization Calculator Algorithm initialized with industry standards")
     
     def _load_standards(self):
-        """Load standards from configuration file"""
+        """Load standards from configuration file via StandardsLoader (cloud-provider-aware)"""
         try:
-            standards_path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                "config", "aks_implementation_standards.yaml"
-            )
-            
-            if not os.path.exists(standards_path):
-                raise FileNotFoundError(f"Standards file not found: {standards_path}")
-            
-            with open(standards_path, 'r') as f:
-                self.standards = yaml.safe_load(f)
-            
+            from shared.standards.standards_loader import get_standards_loader
+            cloud_provider = getattr(self, '_cloud_provider', 'azure')
+            loader = get_standards_loader(cloud_provider)
+            self.standards = loader.load_implementation_standards()
+
             if not self.standards:
                 raise ValueError("Standards configuration is empty or invalid")
-            
-            self.logger.info(f"📋 Standards loaded from {standards_path}")
-            
+
+            self.logger.info(f"📋 Standards loaded via StandardsLoader (provider={cloud_provider})")
+
         except Exception as e:
             self.logger.error(f"❌ Failed to load standards: {e}")
             raise ValueError(f"Standards loading failed: {e}") from e

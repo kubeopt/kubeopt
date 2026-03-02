@@ -332,6 +332,7 @@ class ExternalAPIClient:
                 'license_key': self.license_key,
                 'cluster_id': cluster_id,
                 'cluster_name': cluster_name,
+                'cloud_provider': analysis_data.get('cloud_provider', 'azure'),
                 'analysis_data': analysis_data
             }
             headers = self._get_secure_headers('POST', endpoint, body)
