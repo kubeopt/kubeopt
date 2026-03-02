@@ -13,37 +13,39 @@ from datetime import datetime
 
 from shared.config.config import logger
 from shared.utils.utils import safe_mean
+from shared.standards.performance_standards import SystemPerformanceStandards
 
-def get_aks_metrics_from_monitor(resource_group, cluster_name, start_date, end_date):
+def get_aks_metrics_from_monitor(resource_group, cluster_name, start_date, end_date, config=None):
     """
-    ENHANCED: Get AKS metrics using both Azure Monitor AND real-time kubectl approach
-    This ensures we always get real node utilization data
+    ENHANCED: Get cluster metrics using real-time kubectl approach.
+    This ensures we always get real node utilization data.
     """
-    logger.info(f"🔧 ENHANCED: Fetching AKS metrics for {cluster_name}")
-    
+    logger.info(f"🔧 ENHANCED: Fetching cluster metrics for {cluster_name}")
+
     # First, try the real-time kubectl approach (more reliable)
     try:
-        from analytics.collectors.aks_realtime_metrics import get_aks_realtime_metrics
-        
+        from analytics.collectors.cluster_metrics_collector import ClusterMetricsFetcher
+
         logger.info("🚀 Attempting real-time kubectl metrics collection...")
         subscription_id = None
         if config and hasattr(config, 'subscription_id'):
             subscription_id = config.subscription_id
             logger.info(f"📊 Using subscription {subscription_id[:8]} from config")
 
-        realtime_metrics = get_aks_realtime_metrics(resource_group, cluster_name, subscription_id)
-        
-        if (realtime_metrics and 
-            realtime_metrics.get('status') == 'success' and 
+        cloud_provider = getattr(config, 'cloud_provider', 'azure') if config else 'azure'
+        fetcher = ClusterMetricsFetcher(resource_group, cluster_name, subscription_id or '', cloud_provider=cloud_provider)
+        realtime_metrics = fetcher.get_ml_ready_metrics()
+
+        if (realtime_metrics and
             realtime_metrics.get('nodes')):
-            
+
             logger.info(f"✅ REAL-TIME: Successfully got {len(realtime_metrics['nodes'])} nodes via kubectl")
             return convert_realtime_to_monitor_format(realtime_metrics, resource_group, cluster_name)
-            
+
     except Exception as e:
         logger.warning(f"⚠️ Real-time kubectl approach failed: {e}")
-    
-    logger.info("🔄 No Falling back ...")
+
+    logger.info("🔄 No metrics available, falling back...")
     return None
 
 def convert_realtime_to_monitor_format(realtime_metrics, resource_group, cluster_name):
@@ -67,14 +69,16 @@ def convert_realtime_to_monitor_format(realtime_metrics, resource_group, cluster
             cpu_actual = node_data.get('cpu_usage_pct', 0)
             memory_actual = node_data.get('memory_usage_pct', 0)
             
+            cpu_optimal = SystemPerformanceStandards.CPU_UTILIZATION_OPTIMAL
+            memory_optimal = SystemPerformanceStandards.MEMORY_UTILIZATION_OPTIMAL
             processed_node = {
                 'name': node_data.get('name', f"node-{len(processed_metrics['nodes']) + 1}"),
                 'cpu_usage_pct': round(cpu_actual, 1),
                 'memory_usage_pct': round(memory_actual, 1),
                 'cpu_request_pct': round(min(100, cpu_actual * 1.4 + 15), 1),
                 'memory_request_pct': round(min(100, memory_actual * 1.3 + 20), 1),
-                'cpu_gap': round(max(0, (cpu_actual * 1.4 + 15) - cpu_actual), 1),
-                'memory_gap': round(max(0, (memory_actual * 1.3 + 20) - memory_actual), 1),
+                'cpu_gap': round(abs(cpu_optimal - cpu_actual), 1),
+                'memory_gap': round(abs(memory_optimal - memory_actual), 1),
                 'ready': node_data.get('ready', True)
             }
             

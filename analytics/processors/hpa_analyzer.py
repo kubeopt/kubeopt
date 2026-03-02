@@ -514,13 +514,10 @@ class HPAAnalyzer:
     @staticmethod
     def _calculate_candidate_score(deployment: Dict[str, Any]) -> float:
         """Calculate HPA candidate score for deployment"""
-        # Load scoring weights from standards configuration
-        import yaml
-        import os
-        
-        standards_path = os.path.join(os.path.dirname(__file__), '../../config/aks_implementation_standards.yaml')
-        with open(standards_path, 'r') as f:
-            standards = yaml.safe_load(f)
+        # Load scoring weights from standards configuration via StandardsLoader
+        from shared.standards.standards_loader import get_standards_loader
+        loader = get_standards_loader()  # defaults to azure; fallback resolves correctly
+        standards = loader.load_implementation_standards()
             
         if 'optimization_thresholds' not in standards:
             raise ValueError("optimization_thresholds section missing from standards")

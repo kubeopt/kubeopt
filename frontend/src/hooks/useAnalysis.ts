@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { getAnalysisStatus } from '../api/clusters'
 
 export interface AnalysisProgress {
   status: string
@@ -15,13 +16,15 @@ export function useAnalysis(clusterId: string | null) {
   const startListening = useCallback(() => {
     if (!clusterId) return
 
+    // Close existing connection if any
+    eventSourceRef.current?.close()
+
     // EventSource can't set Authorization header — pass token via query param
     const token = localStorage.getItem('kubeopt_token') || ''
     const url = `/api/clusters/${encodeURIComponent(clusterId)}/analysis-progress-stream?token=${encodeURIComponent(token)}`
     const es = new EventSource(url)
     eventSourceRef.current = es
     setIsRunning(true)
-    setProgress({ status: 'starting', progress: 0, current_phase: 'Initializing...' })
 
     es.onmessage = (event) => {
       try {
@@ -48,11 +51,38 @@ export function useAnalysis(clusterId: string | null) {
     setProgress(null)
   }, [])
 
+  // On mount (or clusterId change), check if analysis is already running and auto-reconnect
   useEffect(() => {
+    if (!clusterId) return
+
+    let cancelled = false
+
+    async function checkStatus() {
+      try {
+        const status = await getAnalysisStatus(clusterId!)
+        if (cancelled) return
+        if (status.status === 'analyzing' || status.status === 'starting') {
+          // Analysis is in progress — reconnect to the SSE stream
+          setProgress({
+            status: status.status,
+            progress: status.progress ?? 0,
+            current_phase: status.current_phase,
+            message: status.message,
+          })
+          startListening()
+        }
+      } catch {
+        // Status check failed — not critical
+      }
+    }
+
+    checkStatus()
+
     return () => {
+      cancelled = true
       eventSourceRef.current?.close()
     }
-  }, [])
+  }, [clusterId, startListening])
 
   return { progress, isRunning, startListening, stopListening }
 }

@@ -28,13 +28,17 @@ class ImplementationCostCalculator:
     Calculate realistic implementation costs based on industry standards
     """
     
-    def __init__(self, standards_file: str = None):
+    def __init__(self, standards_file: str = None, cloud_provider: str = 'azure'):
         if standards_file is None:
-            # Use environment variable for config directory (Docker-friendly)
-            config_dir = os.getenv('CONFIG_DIR', self._get_default_config_dir())
-            standards_file = os.path.join(config_dir, 'aks_implementation_standards.yaml')
-        self.standards_file = os.path.abspath(standards_file)
-        self.standards = self._load_standards()
+            # Use StandardsLoader for cloud-provider-aware YAML resolution
+            from shared.standards.standards_loader import get_standards_loader
+            loader = get_standards_loader(cloud_provider)
+            self.standards = loader.load_implementation_standards()
+            self.standards_file = None
+            logger.info(f"✅ Loaded implementation standards via StandardsLoader (provider={cloud_provider})")
+        else:
+            self.standards_file = os.path.abspath(standards_file)
+            self.standards = self._load_standards()
     
     def _get_default_config_dir(self) -> str:
         """Get default config directory for development and PyInstaller environments"""

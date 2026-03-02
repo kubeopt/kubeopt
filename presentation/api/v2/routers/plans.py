@@ -9,6 +9,7 @@ from presentation.api.v2.schemas.plans import PlanGenerateRequest, PlanResponse
 from presentation.api.v2.dependencies.auth import get_current_user
 from presentation.api.v2.dependencies.license import check_license
 from presentation.api.v2.dependencies.services import get_cluster_manager, get_external_api_client
+from infrastructure.services.license_validator import get_license_validator, Feature
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,27 @@ async def generate_plan(
 ):
     """Generate an AI implementation plan for a cluster (requires license)."""
     try:
+        # Rate limit: check feature access and daily usage limit
+        validator = get_license_validator()
+        if not validator.has_feature(Feature.AI_PLAN_GENERATION):
+            raise HTTPException(
+                status_code=403,
+                detail="AI plan generation requires a PRO or ENTERPRISE license"
+            )
+
+        allowed, limit_msg = validator.check_usage_limit('plans_per_day')
+        if not allowed:
+            status = validator.get_plan_generation_status()
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "message": limit_msg,
+                    "daily_limit": status.get("daily_limit"),
+                    "next_reset": status.get("next_reset"),
+                    "hours_until_reset": status.get("hours_until_reset"),
+                }
+            )
+
         from shared.utils.shared import _get_analysis_data
 
         # Get cluster name from DB
@@ -91,13 +113,43 @@ async def generate_plan(
         if not analysis_data:
             raise HTTPException(status_code=400, detail="No analysis data available. Run an analysis first.")
 
+        # Use compact enhanced_analysis_input if available (stored during analysis).
+        # The full raw analysis_data can be massive and cause timeouts on the remote API.
+        plan_input = analysis_data.get('enhanced_analysis_input') or analysis_data
+        if plan_input is not analysis_data:
+            logger.info(f"Using compact enhanced_analysis_input for plan generation ({cluster_id})")
+        else:
+            # Fallback: try loading from DB enhanced_analysis_data column
+            try:
+                import sqlite3, json as _json
+                db_path = cluster_manager.db_path
+                with sqlite3.connect(db_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    row = conn.execute(
+                        'SELECT enhanced_analysis_data FROM clusters WHERE id = ?', (cluster_id,)
+                    ).fetchone()
+                    if row and row['enhanced_analysis_data']:
+                        raw = row['enhanced_analysis_data']
+                        eai = _json.loads(raw.decode('utf-8') if isinstance(raw, bytes) else raw)
+                        if isinstance(eai, dict) and eai:
+                            plan_input = eai
+                            logger.info(f"Using enhanced_analysis_data from DB for plan generation ({cluster_id})")
+            except Exception as eai_err:
+                logger.debug(f"Enhanced analysis data DB fallback failed: {eai_err}")
+
         if hasattr(api_client, 'generate_plan'):
             success, result = api_client.generate_plan(
                 cluster_id=cluster_id,
                 cluster_name=cluster_name,
-                analysis_data=analysis_data,
+                analysis_data=plan_input,
             )
             if success:
+                # Store the plan in DB so GET /plan returns it
+                try:
+                    cluster_manager.store_implementation_plan(cluster_id, result)
+                    logger.info(f"Stored generated plan for {cluster_id}")
+                except Exception as store_err:
+                    logger.warning(f"Failed to store plan (returning anyway): {store_err}")
                 return result
             return {"status": "error", "message": result.get('error', 'Plan generation failed'), **result}
         raise HTTPException(status_code=500, detail="Plan generation service not configured")
@@ -136,3 +188,12 @@ async def plan_costs_summary(
     except Exception as e:
         logger.error(f"Failed to get plan costs: {e}")
         return {}
+
+
+@router.get("/plan-generation/status")
+async def plan_generation_status(
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Get plan generation availability and remaining daily quota."""
+    validator = get_license_validator()
+    return validator.get_plan_generation_status()

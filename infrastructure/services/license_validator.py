@@ -60,6 +60,7 @@ class LicenseValidator:
             Feature.SLACK_ALERTS,
             Feature.BASIC_RECOMMENDATIONS,
             Feature.EXPORT_REPORTS,
+            Feature.AI_PLAN_GENERATION,
         ],
         LicenseTier.ENTERPRISE: [
             # All PRO features
@@ -92,13 +93,13 @@ class LicenseValidator:
         LicenseTier.PRO: {
             'clusters': 5,
             'analyses_per_day': 50,
-            'plans_per_day': 0,  # No AI plans for PRO
+            'plans_per_day': 1,  # 1 AI plan per day for PRO
             'api_calls_per_hour': 100
         },
         LicenseTier.ENTERPRISE: {
             'clusters': -1,  # Unlimited
             'analyses_per_day': -1,  # Unlimited
-            'plans_per_day': 1,  # One AI plan per day by default
+            'plans_per_day': 3,  # 3 AI plans per day for ENTERPRISE
             'api_calls_per_hour': -1  # Unlimited
         }
     }
@@ -285,41 +286,43 @@ class LicenseValidator:
     def get_plan_generation_status(self) -> Dict[str, Any]:
         """
         Check if AI plan generation is available today
-        
+
         Returns:
             Dict with status, available flag, and next reset time
         """
         tier = self.get_tier()
-        
-        if tier != LicenseTier.ENTERPRISE:
+
+        if not self.has_feature(Feature.AI_PLAN_GENERATION):
             return {
                 'available': False,
-                'reason': 'AI plan generation requires ENTERPRISE license',
+                'reason': 'AI plan generation requires a PRO or ENTERPRISE license',
                 'tier': tier.value
             }
-        
+
         # Check daily limit
         today = datetime.now().date().isoformat()
         usage_key = f"{self.license_key}:plans_per_day:{today}"
         current_usage = self.usage_tracker.get(usage_key, 0)
-        
-        daily_limit = self.TIER_LIMITS[LicenseTier.ENTERPRISE]['plans_per_day']
-        
+
+        daily_limit = self.TIER_LIMITS[tier]['plans_per_day']
+
         if current_usage >= daily_limit:
             tomorrow = datetime.now() + timedelta(days=1)
             tomorrow_midnight = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
-            
+
             return {
                 'available': False,
                 'reason': f'Daily plan generation limit reached ({daily_limit} per day)',
+                'tier': tier.value,
                 'current_usage': current_usage,
                 'daily_limit': daily_limit,
                 'next_reset': tomorrow_midnight.isoformat(),
-                'hours_until_reset': (tomorrow_midnight - datetime.now()).total_seconds() / 3600
+                'hours_until_reset': round((tomorrow_midnight - datetime.now()).total_seconds() / 3600, 1)
             }
-        
+
         return {
             'available': True,
+            'tier': tier.value,
             'remaining': daily_limit - current_usage,
             'daily_limit': daily_limit,
             'current_usage': current_usage

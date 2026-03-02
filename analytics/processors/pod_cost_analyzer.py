@@ -29,41 +29,70 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Azure VM specifications for dynamic detection
-# Static fallback — used when the VM pricing service is unavailable
-_STATIC_VM_SPECS = {
-    'Standard_B2s': {'cpu_cores': 2, 'memory_gb': 4},
-    'Standard_B4ms': {'cpu_cores': 4, 'memory_gb': 16},
-    'Standard_D2s_v3': {'cpu_cores': 2, 'memory_gb': 8},
-    'Standard_D4s_v3': {'cpu_cores': 4, 'memory_gb': 16},
-    'Standard_D8s_v3': {'cpu_cores': 8, 'memory_gb': 32},
-    'Standard_D16s_v3': {'cpu_cores': 16, 'memory_gb': 64},
-    'Standard_F4s_v2': {'cpu_cores': 4, 'memory_gb': 8},
-    'Standard_F8s_v2': {'cpu_cores': 8, 'memory_gb': 16},
-    'Standard_E4s_v3': {'cpu_cores': 4, 'memory_gb': 32},
-    'Standard_E8s_v3': {'cpu_cores': 8, 'memory_gb': 64}
+# Per-cloud VM specifications — static fallback when pricing APIs are unavailable
+_STATIC_VM_SPECS_BY_PROVIDER = {
+    'azure': {
+        'Standard_B2s': {'cpu_cores': 2, 'memory_gb': 4},
+        'Standard_B4ms': {'cpu_cores': 4, 'memory_gb': 16},
+        'Standard_D2s_v3': {'cpu_cores': 2, 'memory_gb': 8},
+        'Standard_D4s_v3': {'cpu_cores': 4, 'memory_gb': 16},
+        'Standard_D8s_v3': {'cpu_cores': 8, 'memory_gb': 32},
+        'Standard_D16s_v3': {'cpu_cores': 16, 'memory_gb': 64},
+        'Standard_F4s_v2': {'cpu_cores': 4, 'memory_gb': 8},
+        'Standard_F8s_v2': {'cpu_cores': 8, 'memory_gb': 16},
+        'Standard_E4s_v3': {'cpu_cores': 4, 'memory_gb': 32},
+        'Standard_E8s_v3': {'cpu_cores': 8, 'memory_gb': 64},
+    },
+    'aws': {
+        't3.medium': {'cpu_cores': 2, 'memory_gb': 4},
+        't3.large': {'cpu_cores': 2, 'memory_gb': 8},
+        't3.xlarge': {'cpu_cores': 4, 'memory_gb': 16},
+        'm5.large': {'cpu_cores': 2, 'memory_gb': 8},
+        'm5.xlarge': {'cpu_cores': 4, 'memory_gb': 16},
+        'm5.2xlarge': {'cpu_cores': 8, 'memory_gb': 32},
+        'm5.4xlarge': {'cpu_cores': 16, 'memory_gb': 64},
+        'c5.large': {'cpu_cores': 2, 'memory_gb': 4},
+        'c5.xlarge': {'cpu_cores': 4, 'memory_gb': 8},
+        'c5.2xlarge': {'cpu_cores': 8, 'memory_gb': 16},
+        'r5.large': {'cpu_cores': 2, 'memory_gb': 16},
+        'r5.xlarge': {'cpu_cores': 4, 'memory_gb': 32},
+    },
+    'gcp': {
+        'e2-medium': {'cpu_cores': 2, 'memory_gb': 4},
+        'e2-standard-2': {'cpu_cores': 2, 'memory_gb': 8},
+        'e2-standard-4': {'cpu_cores': 4, 'memory_gb': 16},
+        'e2-standard-8': {'cpu_cores': 8, 'memory_gb': 32},
+        'n2-standard-2': {'cpu_cores': 2, 'memory_gb': 8},
+        'n2-standard-4': {'cpu_cores': 4, 'memory_gb': 16},
+        'n2-standard-8': {'cpu_cores': 8, 'memory_gb': 32},
+        'c2-standard-4': {'cpu_cores': 4, 'memory_gb': 16},
+        'c2-standard-8': {'cpu_cores': 8, 'memory_gb': 32},
+    },
 }
 
-
-def get_vm_specs(vm_size: str) -> Optional[Dict]:
-    """Get VM specs (cpu_cores, memory_gb) for an Azure VM SKU.
-
-    Tries the naming-convention parser first (covers all SKUs), then
-    falls back to the static lookup table.
-    """
-    try:
-        from infrastructure.services.vm_pricing_service import _parse_vm_specs
-        specs = _parse_vm_specs(vm_size)
-        if specs:
-            return specs
-    except ImportError:
-        pass
-
-    return _STATIC_VM_SPECS.get(vm_size)
-
-
-# Keep AZURE_VM_SPECS as a public alias for backward compatibility
+# Backward-compat aliases
+_STATIC_VM_SPECS = _STATIC_VM_SPECS_BY_PROVIDER['azure']
 AZURE_VM_SPECS = _STATIC_VM_SPECS
+
+
+def get_vm_specs(vm_size: str, cloud_provider: str = 'azure') -> Optional[Dict]:
+    """Get VM specs (cpu_cores, memory_gb) for a VM/instance type.
+
+    For Azure: tries the naming-convention parser first (covers all SKUs),
+    then falls back to the per-provider static lookup table.
+    For AWS/GCP: uses the static lookup directly.
+    """
+    if cloud_provider == 'azure':
+        try:
+            from infrastructure.services.vm_pricing_service import _parse_vm_specs
+            specs = _parse_vm_specs(vm_size)
+            if specs:
+                return specs
+        except ImportError:
+            pass
+
+    provider_specs = _STATIC_VM_SPECS_BY_PROVIDER.get(cloud_provider, {})
+    return provider_specs.get(vm_size)
 
 
 @dataclass
@@ -579,16 +608,19 @@ class DynamicCostDistributionEngine:
             
             if not deployments_data:
                 return deployment_costs
-            
-            # Parse deployment data
+
+            # Parse deployment data — handle str, list (normalized kubectl), and dict formats
             if isinstance(deployments_data, str):
                 deployments_parsed = json.loads(deployments_data)
-            elif isinstance(deployments_data, dict):
+            else:
                 deployments_parsed = deployments_data
+
+            if isinstance(deployments_parsed, list):
+                deployments = deployments_parsed
+            elif isinstance(deployments_parsed, dict):
+                deployments = deployments_parsed.get('items', [])
             else:
                 return deployment_costs
-            
-            deployments = deployments_parsed.get('items', [])
             
             # Create deployment mappings
             for deployment in deployments:
