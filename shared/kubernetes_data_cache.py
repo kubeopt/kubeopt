@@ -32,6 +32,50 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
+def normalize_cluster_info(raw_details_json, cloud_provider='azure'):
+    """Convert raw cloud provider cluster details into normalized cluster_info schema.
+
+    Works with output from any CloudInfrastructureInspector.get_cluster_details().
+    """
+    if not raw_details_json:
+        return {}
+
+    import json as _json
+    raw = _json.loads(raw_details_json) if isinstance(raw_details_json, str) else raw_details_json
+
+    # Extract node pools — all providers map to agent_pool_profiles format
+    raw_pools = raw.get('agent_pool_profiles', [])
+
+    node_pools = []
+    for pool in raw_pools:
+        node_pools.append({
+            'name': pool.get('name', 'unknown'),
+            'vm_size': pool.get('vm_size') or pool.get('vmSize', 'unknown'),
+            'count': pool.get('count', 0),
+            'min_count': pool.get('min_count') or pool.get('minCount'),
+            'max_count': pool.get('max_count') or pool.get('maxCount'),
+            'auto_scaling': pool.get('auto_scaling') or pool.get('enable_auto_scaling') or pool.get('enableAutoScaling', False),
+            'os_type': pool.get('os_type') or pool.get('osType', 'Linux'),
+            'mode': pool.get('mode', 'User'),
+            'priority': pool.get('priority') or pool.get('scale_set_priority') or pool.get('scaleSetPriority', 'Regular'),
+            'labels': pool.get('labels', {}),
+        })
+
+    return {
+        'cluster_name': raw.get('name', ''),
+        'kubernetes_version': (
+            raw.get('kubernetes_version')
+            or raw.get('current_kubernetes_version')
+            or raw.get('currentKubernetesVersion', '')
+        ),
+        'location': raw.get('location', ''),
+        'cloud_provider': cloud_provider,
+        'node_pools': node_pools,
+        'raw_provider_data': raw,
+    }
+
+
 class KubernetesDataCache:
     """Centralized cache for all Kubernetes cluster data - always fresh, no static caching"""
     
@@ -100,8 +144,9 @@ class KubernetesDataCache:
         }
         
         # Initialize Azure Metric Collector for high-impact query replacements
+        # Only for Azure clusters — EKS/GKE use their own metrics paths
         self.azure_collector = None
-        if AZURE_COLLECTOR_AVAILABLE:
+        if AZURE_COLLECTOR_AVAILABLE and self.cloud_provider == 'azure':
             try:
                 self.azure_collector = AzureMetricCollector(
                     subscription_id=subscription_id,
@@ -112,6 +157,8 @@ class KubernetesDataCache:
             except Exception as e:
                 logger.warning(f"⚠️ {self.cluster_name}: Azure Metric Collector initialization failed: {e}")
                 logger.info(f"ℹ️ {self.cluster_name}: Will use kubectl for all queries")
+        elif self.cloud_provider != 'azure':
+            logger.info(f"ℹ️ {self.cluster_name}: Skipping Azure Metric Collector ({self.cloud_provider} cluster)")
         
         # NO FALLBACK COLLECTORS - violates .clauderc production standards
         # Fallbacks hide issues and provide incomplete data
@@ -441,24 +488,22 @@ class KubernetesDataCache:
             # Optimized: Get running pods with essential fields only (95% reduction)
             "pods": '''kubectl get pods --all-namespaces --field-selector=status.phase=Running -o custom-columns="NS:.metadata.namespace,NAME:.metadata.name,STATUS:.status.phase,RESTARTS:.status.containerStatuses[*].restartCount,CPU-REQ:.spec.containers[*].resources.requests.cpu,MEM-REQ:.spec.containers[*].resources.requests.memory,NODE:.spec.nodeName"''',
             
-            # === AZURE AKS COMMANDS ===
-            "aks_cluster_info": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --output json",
-            "aks_nodepool_list": f"az aks nodepool list --resource-group {self.resource_group} --cluster-name {self.cluster_name} --subscription {self.subscription_id} --output json", 
+            # === AZURE AKS COMMANDS (only included for Azure provider) ===
+            **({"aks_cluster_info": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --output json",
+            "aks_nodepool_list": f"az aks nodepool list --resource-group {self.resource_group} --cluster-name {self.cluster_name} --subscription {self.subscription_id} --output json",
             "aks_managed_identity": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query identity --output json",
             "cluster_version_sdk": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query currentKubernetesVersion --output tsv",
-            
             # === OBSERVABILITY & MONITORING COSTS (Azure SDK methods) ===
             "log_analytics_workspaces_sdk": "log_analytics_workspaces",
-            "application_insights_components_sdk": "application_insights_components", 
+            "application_insights_components_sdk": "application_insights_components",
             "observability_costs_billing_sdk": "observability_costs_billing",
             "consumption_usage_observability_sdk": "consumption_usage_observability",
-            
             # === CLUSTER-SCOPED AZURE RESOURCE WASTE DETECTION ===
             "cluster_orphaned_disks_sdk": "cluster_orphaned_disks",
-            "cluster_storage_tiers_sdk": "cluster_storage_tiers", 
+            "cluster_storage_tiers_sdk": "cluster_storage_tiers",
             "cluster_unused_public_ips_sdk": "cluster_unused_public_ips",
             "cluster_load_balancer_analysis_sdk": "cluster_load_balancer_analysis",
-            "cluster_network_waste_sdk": "cluster_network_waste",
+            "cluster_network_waste_sdk": "cluster_network_waste"} if self.cloud_provider == 'azure' else {}),
             
             # === SYSTEM COMPONENTS (Broader queries - always work) ===
             "kube_system_deployments": "kubectl get deployment -n kube-system",  # Alternative to specific deployments - filter results
@@ -493,12 +538,12 @@ class KubernetesDataCache:
             "node_allocatable": '''kubectl get nodes -o custom-columns="NAME:.metadata.name,CPU_ALLOCATABLE:.status.allocatable.cpu,MEMORY_ALLOCATABLE:.status.allocatable.memory,PODS_ALLOCATABLE:.status.allocatable.pods"''',
             "node_capacity": '''kubectl get nodes -o custom-columns="NAME:.metadata.name,CPU_CAPACITY:.status.capacity.cpu,MEMORY_CAPACITY:.status.capacity.memory,PODS_CAPACITY:.status.capacity.pods"''',
             
-            # === ENHANCED ANALYSIS: AZURE-SPECIFIC BEST PRACTICES ===
-            "aks_addon_profiles": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query addonProfiles --output json",
+            # === ENHANCED ANALYSIS: AZURE-SPECIFIC BEST PRACTICES (only for Azure) ===
+            **({"aks_addon_profiles": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query addonProfiles --output json",
             "aks_network_profile": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query networkProfile --output json",
             "aks_service_principal": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query servicePrincipalProfile --output json",
             "aks_auto_scaler_profile": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query autoScalerProfile --output json",
-            "aks_api_server_access_profile": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query apiServerAccessProfile --output json",
+            "aks_api_server_access_profile": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query apiServerAccessProfile --output json"} if self.cloud_provider == 'azure' else {}),
             
             # === ENHANCED ANALYSIS: NAMING CONVENTIONS & STANDARDS ===
             "all_resources_names": '''kubectl api-resources --verbs=list --namespaced -o name | xargs -I {} kubectl get {} --all-namespaces --no-headers 2>/dev/null | awk '{print $1","$2","NR}' | head -500''',
@@ -688,7 +733,7 @@ class KubernetesDataCache:
         by _try_infrastructure_query() via CloudInfrastructureInspector. This method only
         handles plain kubectl commands.
         """
-        provider = os.getenv('CLOUD_PROVIDER', 'azure').lower()
+        provider = self.cloud_provider or os.getenv('CLOUD_PROVIDER', 'azure').lower()
         if provider != 'azure':
             logger.debug(f"Skipping Azure SDK execution for provider '{provider}'")
             return None
@@ -1305,7 +1350,7 @@ class KubernetesDataCache:
                 final_results['pods_all'] = pods_data['items']
                 final_results['pod_count'] = pods_data['count']
                 
-                # Format pod resources for aks_realtime_metrics
+                # Format pod resources for cluster metrics collector
                 # Convert items to custom column format string
                 pod_resource_lines = []
                 for pod in pods_data['items']:
@@ -1386,7 +1431,8 @@ class KubernetesDataCache:
                     raise ValueError(f"No Kubernetes version in cluster details for {self.cluster_name}")
                 final_results['version'] = version
                 final_results['cluster_version_sdk'] = version
-                final_results['aks_cluster_info'] = cluster_info
+                normalized = normalize_cluster_info(cluster_info, self.cloud_provider)
+                final_results['cluster_info'] = normalized
             else:
                 raise ValueError(f"Infrastructure inspector returned no cluster details for {self.cluster_name}")
         elif self.azure_collector:
@@ -1395,7 +1441,8 @@ class KubernetesDataCache:
             version = cluster_info['kubernetes_version']
             final_results['version'] = version
             final_results['cluster_version_sdk'] = version
-            final_results['aks_cluster_info'] = cluster_info
+            normalized = normalize_cluster_info(cluster_info, self.cloud_provider)
+            final_results['cluster_info'] = normalized
         else:
             raise ValueError(f"No infrastructure inspector or Azure collector available for {self.cluster_name}")
         
@@ -1607,7 +1654,7 @@ class KubernetesDataCache:
         }
     
     def get_resource_usage_data(self) -> Dict[str, Any]:
-        """Get resource utilization for aks_realtime_metrics"""
+        """Get resource utilization for cluster metrics collector"""
         return {
             'node_usage': self.get('node_usage') or "",  # Text - kubectl top nodes
             'pod_usage': self.get('pod_usage') or "",  # Text - kubectl top pods 
@@ -2335,7 +2382,7 @@ class KubernetesDataCache:
     def execute_kubectl_json(self, kubectl_args: List[str]) -> Optional[Dict]:
         """
         Execute kubectl command and return JSON result
-        Used by aks_config_fetcher and other components
+        Used by cluster data collectors
         """
         cmd_str = ' '.join(['kubectl'] + kubectl_args)
         result = self.execute_kubectl_command(cmd_str)
@@ -2351,7 +2398,7 @@ class KubernetesDataCache:
     def verify_cluster_connection(self) -> bool:
         """
         Centralized cluster connection verification
-        Replaces verify_cluster_connection in aks_realtime_metrics
+        Centralized cluster connection verification for all cloud providers
         """
         try:
             subscription_info = f" in subscription {self.subscription_id[:8]}" if self.subscription_id else ""

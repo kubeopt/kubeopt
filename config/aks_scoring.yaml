@@ -608,3 +608,21 @@ regional_pricing:
     ref_vcpu_price: 0.050
     ref_net_price_per_gb: 0.022
     spot_discount_avg: 0.68
+
+# Per-cloud pricing reference — used when provider-specific YAML doesn't exist
+cloud_pricing:
+  azure:
+    ref_vcpu_price: 0.0342        # D-series avg pay-as-you-go
+    ref_net_price_per_gb: 0.087
+    control_plane_hourly: 0.10    # AKS Standard tier
+    storage_gb_monthly: 0.045     # Standard SSD
+  aws:
+    ref_vcpu_price: 0.048         # m5.xlarge us-east-1
+    ref_net_price_per_gb: 0.09
+    control_plane_hourly: 0.10    # EKS cluster fee
+    storage_gb_monthly: 0.08      # gp3
+  gcp:
+    ref_vcpu_price: 0.0335        # n2-standard us-central1
+    ref_net_price_per_gb: 0.085
+    control_plane_hourly: 0.10    # GKE Standard
+    storage_gb_monthly: 0.04      # pd-standard

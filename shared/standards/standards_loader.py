@@ -1,7 +1,7 @@
 """
 Standards Loader - Load optimization standards from existing YAML configuration.
 
-Integrates with existing config/aks_*.yaml files.
+Integrates with existing config/{provider}_*.yaml files (aks, eks, gke).
 NO FALLBACKS. NO DEFAULTS. If YAML doesn't exist or is invalid → FAIL.
 """
 
@@ -22,13 +22,15 @@ class StandardsLoader:
     If YAML files are missing or invalid, it raises exceptions.
     """
     
-    def __init__(self, config_dir: Optional[str] = None):
+    def __init__(self, config_dir: Optional[str] = None, cloud_provider: str = 'azure'):
         """
         Initialize the standards loader.
-        
+
         Args:
-            config_dir: Path to config directory. 
+            config_dir: Path to config directory.
                        Defaults to config/ from project root
+            cloud_provider: Cloud provider ('azure', 'aws', or 'gcp').
+                           Defaults to 'azure'.
         """
         if config_dir:
             self.config_dir = Path(config_dir)
@@ -36,22 +38,31 @@ class StandardsLoader:
             # Get config directory relative to project root
             project_root = Path(__file__).parent.parent.parent
             self.config_dir = project_root / "config"
-        
+
         if not self.config_dir.exists():
             raise FileNotFoundError(
                 f"Config directory not found: {self.config_dir}\n"
                 f"Expected YAML configuration files in config/ directory!"
             )
-        
+
+        self.cloud_provider = cloud_provider
+        self._provider_prefix = {'azure': 'aks', 'aws': 'eks', 'gcp': 'gke'}.get(cloud_provider, 'aks')
+
         self._cache = {}
         self._load_timestamp = None
-        
-        # Validate required files exist
-        self._required_files = [
-            "aks_scoring.yaml",
-            "aks_implementation_standards.yaml"
-        ]
-        
+
+        # Resolve provider-specific files with fallback to AKS
+        self._scoring_file = f"{self._provider_prefix}_scoring.yaml"
+        self._implementation_file = f"{self._provider_prefix}_implementation_standards.yaml"
+
+        # Fall back to AKS files if provider-specific ones don't exist
+        if not (self.config_dir / self._scoring_file).exists():
+            self._scoring_file = "aks_scoring.yaml"
+        if not (self.config_dir / self._implementation_file).exists():
+            self._implementation_file = "aks_implementation_standards.yaml"
+
+        # Validate the resolved files exist
+        self._required_files = [self._scoring_file, self._implementation_file]
         for required_file in self._required_files:
             filepath = self.config_dir / required_file
             if not filepath.exists():
@@ -62,20 +73,20 @@ class StandardsLoader:
     
     def load_scoring_standards(self) -> Dict[str, Any]:
         """
-        Load scoring standards from aks_scoring.yaml.
-        
+        Load scoring standards from the provider-specific scoring YAML.
+
         Returns:
             Dictionary of scoring standards
-            
+
         Raises:
             FileNotFoundError: If YAML file doesn't exist
             yaml.YAMLError: If YAML is invalid
         """
-        return self._load_yaml_file('aks_scoring.yaml')
+        return self._load_yaml_file(self._scoring_file)
     
     def load_implementation_standards(self) -> Dict[str, Any]:
-        """Load implementation standards from aks_implementation_standards.yaml"""
-        return self._load_yaml_file('aks_implementation_standards.yaml')
+        """Load implementation standards from the provider-specific implementation YAML."""
+        return self._load_yaml_file(self._implementation_file)
     
     def get_cpu_utilization_target(self) -> Dict[str, float]:
         """Get CPU utilization targets from YAML"""
@@ -85,9 +96,9 @@ class StandardsLoader:
             'target_min': cpu_band[0] * 100,  # Convert to percentage
             'target_max': cpu_band[1] * 100,
             'optimal': sum(cpu_band) / 2 * 100,  # Average of band
-            'source': 'config/aks_scoring.yaml - CNCF + Google SRE standards'
+            'source': f'config/{self._scoring_file} - CNCF + Google SRE standards'
         }
-    
+
     def get_memory_utilization_target(self) -> Dict[str, float]:
         """Get memory utilization targets from YAML"""
         standards = self.load_scoring_standards()
@@ -96,9 +107,9 @@ class StandardsLoader:
             'target_min': mem_band[0] * 100,  # Convert to percentage
             'target_max': mem_band[1] * 100,
             'optimal': sum(mem_band) / 2 * 100,  # Average of band
-            'source': 'config/aks_scoring.yaml - CNCF + Google SRE standards'
+            'source': f'config/{self._scoring_file} - CNCF + Google SRE standards'
         }
-    
+
     def get_hpa_standards(self) -> Dict[str, Any]:
         """Get HPA configuration standards from YAML"""
         scoring_standards = self.load_scoring_standards()
@@ -111,7 +122,7 @@ class StandardsLoader:
             'min_replicas_default': impl_standards['infrastructure_scaling']['hpa_settings']['min_replicas'],
             'max_replicas_default': impl_standards['infrastructure_scaling']['hpa_settings']['max_replicas'],
             'scale_down_stabilization_seconds': impl_standards['infrastructure_scaling']['hpa_settings']['scale_down_stabilization_seconds'],
-            'source': 'config/aks_*.yaml - Kubernetes autoscaling best practices'
+            'source': f'config/{self._scoring_file} + {self._implementation_file}'
         }
     
     def get_optimization_thresholds(self) -> Dict[str, Any]:
@@ -123,7 +134,7 @@ class StandardsLoader:
             'minimum_monthly_savings': standards['optimization_thresholds']['minimum_monthly_savings'],
             'minimum_savings_percentage': standards['optimization_thresholds']['minimum_savings_percentage'],
             'high_priority_savings': standards['optimization_thresholds']['priority_thresholds']['high_priority_savings'],
-            'source': 'config/aks_implementation_standards.yaml'
+            'source': f'config/{self._implementation_file}'
         }
     
     def get_cost_calculation_standards(self) -> Dict[str, Any]:
@@ -141,7 +152,7 @@ class StandardsLoader:
                 'memory_cost_per_gb_hour': CostCalculationStandards.MEMORY_COST_PER_GB_HOUR,
                 # Add YAML overrides
                 'regional_multiplier': impl_standards['regional_rates']['base_hourly_rate'],
-                'source': 'shared.standards.cost_optimization_standards + YAML overrides'
+                'source': f'shared.standards.cost_optimization_standards + config/{self._implementation_file}'
             }
         except ImportError:
             # Fallback to YAML only if Python standards not available
@@ -150,7 +161,7 @@ class StandardsLoader:
                 'monthly_hours': 730,  # Standard month
                 'optimal_cpu_utilization': 70,
                 'optimal_memory_utilization': 75,
-                'source': 'config/aks_implementation_standards.yaml (fallback)'
+                'source': f'config/{self._implementation_file} (fallback)'
             }
     
     def get_confidence_and_risk_factors(self) -> Dict[str, Any]:
@@ -161,7 +172,7 @@ class StandardsLoader:
             'risk_levels': standards['risk_assessment']['risk_levels'],
             'mitigation_strategies': standards['risk_assessment']['mitigation_strategies'],
             'confidence_threshold': standards['ml_analytics']['cost_prediction']['confidence_threshold'],
-            'source': 'config/aks_implementation_standards.yaml - risk assessment'
+            'source': f'config/{self._implementation_file} - risk assessment'
         }
     
     def _load_yaml_file(self, filename: str) -> Dict[str, Any]:
@@ -247,20 +258,23 @@ class StandardsLoader:
             raise
 
 
-# Singleton instance
-_standards_loader = None
+# Per-provider singleton instances
+_standards_loaders = {}
 
-def get_standards_loader() -> StandardsLoader:
+def get_standards_loader(cloud_provider: str = 'azure') -> StandardsLoader:
     """
-    Get the global standards loader instance.
-    
+    Get a standards loader instance for the given cloud provider.
+
+    Args:
+        cloud_provider: 'azure', 'aws', or 'gcp'. Defaults to 'azure'.
+
     Returns:
-        StandardsLoader singleton
+        StandardsLoader for the specified provider
     """
-    global _standards_loader
-    if _standards_loader is None:
-        _standards_loader = StandardsLoader()
-    return _standards_loader
+    global _standards_loaders
+    if cloud_provider not in _standards_loaders:
+        _standards_loaders[cloud_provider] = StandardsLoader(cloud_provider=cloud_provider)
+    return _standards_loaders[cloud_provider]
 
 
 # Convenience functions for easy access

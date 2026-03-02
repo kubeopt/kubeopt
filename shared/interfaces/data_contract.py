@@ -669,7 +669,7 @@ class AnalysisDataContract:
     SERVICES_TEXT = 'services_text'
     STORAGE_CLASSES = 'storage_classes'
     CLUSTER_VERSION_SDK = 'cluster_version_sdk'
-    AKS_CLUSTER_INFO = 'aks_cluster_info'
+    CLUSTER_INFO = 'cluster_info'
     NAMESPACES_WITH_LABELS = 'namespaces_with_labels'
     NAMESPACES = 'namespaces'
     PODS = 'pods'

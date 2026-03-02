@@ -77,13 +77,9 @@ _analysis_lock = threading.Lock()
 analysis_status_tracker = {}
 analysis_results = {}
 
-try:
-    from analytics.collectors.aks_config_fetcher import create_cluster_config_fetcher
-    CLUSTER_CONFIG_AVAILABLE = True
-    logger.info("✅ Cluster configuration fetcher available")
-except ImportError as e:
-    CLUSTER_CONFIG_AVAILABLE = False
-    logger.warning(f"⚠️ Cluster configuration fetcher not available: {e}")
+# Cluster data collection is handled by kubernetes_data_cache.py
+# The aks_config_fetcher wrapper is deprecated (Session B refactor)
+CLUSTER_CONFIG_AVAILABLE = True
 
 
 # Enhanced global cache with multi-subscription support

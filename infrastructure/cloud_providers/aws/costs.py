@@ -64,45 +64,34 @@ class AWSCostManager(CloudCostManager):
             # Cost Explorer endpoint is always us-east-1
             ce = auth.session.client('ce', region_name='us-east-1')
 
-            cluster_tag = f'kubernetes.io/cluster/{cluster.cluster_name}'
+            # Try multiple EKS tag patterns — different provisioning tools set different tags
+            tag_filters = [
+                # eksctl / CloudFormation standard tag
+                {'Key': f'kubernetes.io/cluster/{cluster.cluster_name}', 'Values': ['owned', 'shared']},
+                # AWS-applied tag (EKS auto-tags some resources)
+                {'Key': f'aws:eks:cluster-name', 'Values': [cluster.cluster_name]},
+                # Common user-applied tag
+                {'Key': 'eks:cluster-name', 'Values': [cluster.cluster_name]},
+            ]
 
-            resp = ce.get_cost_and_usage(
-                TimePeriod={
-                    'Start': start_date.strftime('%Y-%m-%d'),
-                    'End': end_date.strftime('%Y-%m-%d'),
-                },
-                Granularity='MONTHLY',
-                Metrics=['UnblendedCost', 'UsageQuantity'],
-                Filter={
-                    'Tags': {
-                        'Key': f'kubernetes.io/cluster/{cluster.cluster_name}',
-                        'Values': ['owned', 'shared'],
-                    }
-                },
-                GroupBy=[{'Type': 'DIMENSION', 'Key': 'SERVICE'}],
+            for tag_filter in tag_filters:
+                try:
+                    result = self._query_cost_explorer(ce, tag_filter, start_date, end_date)
+                    if result and result.get('total_cost', 0) > 0:
+                        logger.info(f"✅ Cost Explorer data found using tag: {tag_filter['Key']}")
+                        return result
+                except Exception as tag_err:
+                    logger.debug(f"Tag filter {tag_filter['Key']} failed: {tag_err}")
+                    continue
+
+            # All tag filters returned no data
+            logger.warning(
+                f"AWS Cost Explorer returned no data for {cluster.cluster_name} with any tag pattern. "
+                f"Ensure cost allocation tags are activated in AWS Billing console "
+                f"(kubernetes.io/cluster/{cluster.cluster_name} or aws:eks:cluster-name)."
             )
+            return None
 
-            total_cost = 0.0
-            breakdown = {}
-            currency = 'USD'
-
-            for result in resp.get('ResultsByTime', []):
-                for group in result.get('Groups', []):
-                    service = group['Keys'][0]
-                    cost = float(group['Metrics']['UnblendedCost']['Amount'])
-                    currency = group['Metrics']['UnblendedCost'].get('Unit', 'USD')
-                    total_cost += cost
-                    breakdown[service] = breakdown.get(service, 0) + cost
-
-            return {
-                'total_cost': round(total_cost, 2),
-                'currency': currency,
-                'breakdown': {k: round(v, 2) for k, v in sorted(breakdown.items(), key=lambda x: -x[1])},
-                'period': {
-                    'start': start_date.strftime('%Y-%m-%d'),
-                    'end': end_date.strftime('%Y-%m-%d'),
-                },
-            }
         except Exception as e:
             error_str = str(e)
             if 'BillingSetup' in error_str or 'OptIn' in error_str or 'not subscribed' in error_str.lower():
@@ -110,6 +99,50 @@ class AWSCostManager(CloudCostManager):
             else:
                 logger.error(f"Failed to get cluster costs for {cluster.cluster_name}: {e}")
             return None
+
+    def _query_cost_explorer(
+        self,
+        ce_client,
+        tag_filter: Dict,
+        start_date: datetime,
+        end_date: datetime,
+    ) -> Optional[Dict[str, Any]]:
+        """Execute a single Cost Explorer query with one tag filter."""
+        resp = ce_client.get_cost_and_usage(
+            TimePeriod={
+                'Start': start_date.strftime('%Y-%m-%d'),
+                'End': end_date.strftime('%Y-%m-%d'),
+            },
+            Granularity='MONTHLY',
+            Metrics=['UnblendedCost', 'UsageQuantity'],
+            Filter={'Tags': tag_filter},
+            GroupBy=[{'Type': 'DIMENSION', 'Key': 'SERVICE'}],
+        )
+
+        total_cost = 0.0
+        breakdown = {}
+        currency = 'USD'
+
+        for result in resp.get('ResultsByTime', []):
+            for group in result.get('Groups', []):
+                service = group['Keys'][0]
+                cost = float(group['Metrics']['UnblendedCost']['Amount'])
+                currency = group['Metrics']['UnblendedCost'].get('Unit', 'USD')
+                total_cost += cost
+                breakdown[service] = breakdown.get(service, 0) + cost
+
+        if total_cost == 0:
+            return None
+
+        return {
+            'total_cost': round(total_cost, 2),
+            'currency': currency,
+            'breakdown': {k: round(v, 2) for k, v in sorted(breakdown.items(), key=lambda x: -x[1])},
+            'period': {
+                'start': start_date.strftime('%Y-%m-%d'),
+                'end': end_date.strftime('%Y-%m-%d'),
+            },
+        }
 
     def get_vm_pricing(
         self,

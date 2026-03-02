@@ -89,7 +89,11 @@ async def analysis_status(
 ):
     """Get current analysis status for a cluster."""
     try:
-        status_data = cluster_manager.get_analysis_status(cluster_id)
+        # Check in-memory tracker first (real-time updates from background_processor)
+        from shared.config.config import analysis_status_tracker
+        status_data = analysis_status_tracker.get(cluster_id)
+        if not status_data:
+            status_data = cluster_manager.get_analysis_status(cluster_id)
         if not status_data:
             return AnalysisStatus(session_key=cluster_id, status="not_started")
         return AnalysisStatus(
@@ -220,7 +224,15 @@ async def chart_data(
         def _clean(text: str) -> str:
             return _strip_emoji('', _strip_html('', text)).strip()
 
-        raw_insights = _safe(chart_generator.generate_insights, analysis_data)
+        # Determine cloud provider for cloud-specific insight terminology
+        _cloud_provider = analysis_data.get('cloud_provider', 'azure')
+        if not _cloud_provider or _cloud_provider == 'azure':
+            # Fall back to cluster DB info
+            _cluster_info = cluster_manager.get_cluster(cluster_id) if cluster_id else None
+            if _cluster_info:
+                _cloud_provider = _cluster_info.get('cloud_provider', 'azure')
+
+        raw_insights = _safe(chart_generator.generate_insights, analysis_data, _cloud_provider)
         insight_items = []
         if raw_insights and isinstance(raw_insights, dict):
             for cat, val in raw_insights.items():
@@ -335,7 +347,8 @@ async def chart_data(
             'memory_gap': float(analysis_data.get('memory_gap', 0) or 0),
             'hpa_efficiency': float(analysis_data.get('hpa_efficiency_percentage', analysis_data.get('hpa_efficiency', 0)) or 0),
             'namespace_count': len(namespace_costs_result),
-            'workload_count': len(workload_costs_result),
+            'workload_count': sum(1 for w in workload_costs_result if isinstance(w, dict) and w.get('type') == 'Deployment') or len(workload_costs_result),
+            'commands_by_category': _safe(chart_generator.generate_execution_commands, analysis_data) or {},
         })
     except Exception as e:
         logger.error(f"Failed to get chart data: {e}", exc_info=True)

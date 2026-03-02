@@ -14,6 +14,7 @@ from typing import Dict, Any, Optional, Tuple, List
 import numpy as np
 from shared.config.config import logger, enhanced_cluster_manager, _analysis_lock, _analysis_sessions
 from shared.utils.utils import ensure_float
+from shared.standards.cost_optimization_standards import CostCalculationStandards
 
 
 def extract_standards_based_savings(analysis_results: Dict) -> Dict:
@@ -32,13 +33,22 @@ def extract_standards_based_savings(analysis_results: Dict) -> Dict:
         
         logger.info(f"✅ UNIFIED SAVINGS: Category sum=${category_total:.2f}, Total savings=${total_savings:.2f}")
         
+        # Map lowercase analysis keys to the 5-category framework
+        # Analysis engine produces: compute, rightsizing, hpa, performance, storage,
+        # networking, infrastructure, monitoring, idle, control_plane, registry
+        compute_opt = ensure_float(savings_by_cat.get('compute', 0)) + ensure_float(savings_by_cat.get('rightsizing', 0))
+        core_opt = ensure_float(savings_by_cat.get('hpa', 0)) + ensure_float(savings_by_cat.get('performance', 0))
+        infra = ensure_float(savings_by_cat.get('storage', 0)) + ensure_float(savings_by_cat.get('networking', 0)) + ensure_float(savings_by_cat.get('infrastructure', 0))
+        container_data = ensure_float(savings_by_cat.get('monitoring', 0)) + ensure_float(savings_by_cat.get('idle', 0)) + ensure_float(savings_by_cat.get('control_plane', 0))
+        security_mon = ensure_float(savings_by_cat.get('registry', 0))
+
         return {
-            'core_optimization_savings': ensure_float(savings_by_cat.get('Core Optimization', 0)),
-            'compute_optimization_savings': ensure_float(savings_by_cat.get('Compute Optimization', 0)),
-            'infrastructure_savings': ensure_float(savings_by_cat.get('Infrastructure', 0)),
-            'container_data_savings': ensure_float(savings_by_cat.get('Container & Data', 0)),
-            'security_monitoring_savings': ensure_float(savings_by_cat.get('Security & Monitoring', 0)),
-            'total_potential_savings': total_savings,  # Now consistent with category sum
+            'core_optimization_savings': core_opt,
+            'compute_optimization_savings': compute_opt,
+            'infrastructure_savings': infra,
+            'container_data_savings': container_data,
+            'security_monitoring_savings': security_mon,
+            'total_potential_savings': total_savings,
             'current_health_score': ensure_float(analysis_results.get('current_health_score', 0)),
             'standards_compliance': analysis_results.get('standards_compliance', {})
         }
@@ -96,10 +106,33 @@ def _extract_hpa_details_from_workload_chars(workload_chars, total_hpas_analyzed
     logger.info(f"✅ Extracted {len(hpa_details)} REAL HPA details with actual replica data from workload characteristics")
     return hpa_details
 
-def generate_insights(analysis_results):
+def _count_workloads(workload_costs):
+    """Count workloads correctly from workload_costs dict.
+
+    The dict contains both Pod-level entries AND Deployment-level aggregates.
+    If Deployment entries exist, count those (they represent real workloads).
+    Otherwise fall back to Pod count.
+    """
+    if not isinstance(workload_costs, dict) or not workload_costs:
+        return 0
+    deployments = [v for v in workload_costs.values() if isinstance(v, dict) and v.get('type') == 'Deployment']
+    if deployments:
+        return len(deployments)
+    # No deployment aggregation available — count pod entries as workloads
+    return len(workload_costs)
+
+
+def generate_insights(analysis_results, cloud_provider='azure'):
     """Generate 6 insight categories from analysis data."""
     if not analysis_results:
         return {}
+
+    # Cloud-specific terminology for node compute resources
+    _node_term = {
+        'azure': 'VM Scale Sets',
+        'aws': 'EC2 instances',
+        'gcp': 'Node Pools',
+    }.get(cloud_provider, 'Compute nodes')
 
     insights = {}
     node_cost = analysis_results.get('node_cost', 0)
@@ -113,11 +146,11 @@ def generate_insights(analysis_results):
         else:
             node_percentage = (node_cost / total_cost) * 100
             if node_percentage > 60:
-                insights['cost_breakdown'] = f"🎯 VM Scale Sets (nodes) dominate your costs at <strong>{node_percentage:.1f}%</strong> (${node_cost:.2f}), making them your #1 optimization target."
+                insights['cost_breakdown'] = f"🎯 {_node_term} (nodes) dominate your costs at <strong>{node_percentage:.1f}%</strong> (${node_cost:.2f}), making them your #1 optimization target."
             elif node_percentage > 40:
-                insights['cost_breakdown'] = f"💡 VM Scale Sets represent <strong>{node_percentage:.1f}%</strong> of costs (${node_cost:.2f}), offering significant optimization opportunities."
+                insights['cost_breakdown'] = f"💡 {_node_term} represent <strong>{node_percentage:.1f}%</strong> of costs (${node_cost:.2f}), offering significant optimization opportunities."
             else:
-                insights['cost_breakdown'] = f"✅ Your costs are well-distributed with VM Scale Sets at <strong>{node_percentage:.1f}%</strong> (${node_cost:.2f})."
+                insights['cost_breakdown'] = f"✅ Your costs are well-distributed with {_node_term} at <strong>{node_percentage:.1f}%</strong> (${node_cost:.2f})."
     except Exception as e:
         logger.error(f"Cost breakdown insight failed: {e}")
         insights['cost_breakdown'] = "⚠️ Cost analysis temporarily unavailable"
@@ -164,9 +197,18 @@ def generate_insights(analysis_results):
 
     # 3. Resource gap
     try:
-        cpu_gap = analysis_results.get('cpu_gap', 0)
-        memory_gap = analysis_results.get('memory_gap', 0)
-        right_sizing_savings = analysis_results.get('compute_savings', 0)
+        cpu_gap = ensure_float(analysis_results.get('cpu_gap', 0))
+        memory_gap = ensure_float(analysis_results.get('memory_gap', 0))
+        # Try multiple fields for rightsizing savings
+        right_sizing_savings = ensure_float(
+            analysis_results.get('compute_savings', 0)
+            or analysis_results.get('right_sizing_savings', 0)
+            or analysis_results.get('rightsizing_savings', 0)
+        )
+        # If still $0 but significant gap exists, estimate from node cost
+        if right_sizing_savings == 0 and (cpu_gap > 40 or memory_gap > 30) and node_cost > 0:
+            avg_gap = (cpu_gap + memory_gap) / 2
+            right_sizing_savings = node_cost * (avg_gap / 100) * 0.5  # conservative 50% of gap
 
         if cpu_gap > 40 or memory_gap > 30:
             insights['resource_gap'] = f"🎯 <strong>CRITICAL OVER-PROVISIONING:</strong> Your workloads have a <strong>{cpu_gap:.1f}% CPU gap</strong> and <strong>{memory_gap:.1f}% memory gap</strong>. Right-sizing can save <strong>${right_sizing_savings:.2f}/month</strong>!"
@@ -216,7 +258,9 @@ def generate_insights(analysis_results):
     # 5. Operational efficiency
     try:
         workload_costs = analysis_results.get('workload_costs') or analysis_results.get('pod_cost_analysis', {}).get('workload_costs', {})
-        total_workloads = len(workload_costs) if isinstance(workload_costs, dict) else 0
+        # Count workloads correctly: prefer Deployment-level entries over raw pods
+        # workload_costs contains both Pod entries and Deployment aggregates
+        total_workloads = _count_workloads(workload_costs)
         namespace_costs = analysis_results.get('namespace_costs') or analysis_results.get('pod_cost_analysis', {}).get('namespace_costs') or analysis_results.get('pod_cost_analysis', {}).get('namespace_summary', {})
         total_namespaces = len(namespace_costs) if isinstance(namespace_costs, dict) else 0
 
@@ -234,10 +278,15 @@ def generate_insights(analysis_results):
 
     # 6. Business impact
     try:
-        total_workloads_for_biz = len(analysis_results.get('workload_costs') or analysis_results.get('pod_cost_analysis', {}).get('workload_costs', {})) if isinstance(analysis_results.get('workload_costs') or analysis_results.get('pod_cost_analysis', {}).get('workload_costs', {}), dict) else 0
+        _wl_costs_biz = analysis_results.get('workload_costs') or analysis_results.get('pod_cost_analysis', {}).get('workload_costs', {})
+        total_workloads_for_biz = _count_workloads(_wl_costs_biz)
         if total_workloads_for_biz > 0 and total_cost > 0:
             cpw = total_cost / total_workloads_for_biz
-            benchmark = 2.80
+            # Scale benchmark by cluster size — small clusters have higher per-workload
+            # cost due to fixed overhead (control plane, monitoring) amortized over fewer workloads.
+            # Base target from CostCalculationStandards.TARGET_COST_PER_WORKLOAD_MONTH ($45).
+            base_target = CostCalculationStandards.TARGET_COST_PER_WORKLOAD_MONTH
+            benchmark = max(3.0, (base_target * 0.55) / total_workloads_for_biz + 3.0)
             optimized_cpw = (total_cost - total_savings) / total_workloads_for_biz
             diff = ((cpw - benchmark) / benchmark) * 100
             if cpw > benchmark:
@@ -252,23 +301,58 @@ def generate_insights(analysis_results):
     return insights
 
 def generate_dynamic_hpa_comparison(analysis_data):
-    """Generate HPA comparison data in Recharts format: [{time, cpu, memory}]"""
+    """Generate HPA comparison data in Recharts format: [{time, cpu, memory}]
+
+    Uses tiered fallbacks:
+      Tier 1: Full ML pipeline (workload classification + HPA replica data)
+      Tier 2: Basic HPA data (cpu/memory utilization without full ML classification)
+      Tier 3: Utilization projection from top-level analysis metrics
+    """
     if not analysis_data:
         raise ValueError("No analysis data provided for HPA comparison")
 
+    # Tier 1: Full ML pipeline
+    try:
+        result = _generate_ml_hpa_comparison(analysis_data)
+        if result:
+            logger.info("✅ HPA comparison: Tier 1 (full ML pipeline)")
+            return result
+    except Exception as e:
+        logger.debug(f"HPA Tier 1 skipped: {e}")
+
+    # Tier 2: Basic HPA data using utilization without full ML classification
+    try:
+        result = _generate_basic_hpa_comparison(analysis_data)
+        if result:
+            logger.info("✅ HPA comparison: Tier 2 (basic HPA data)")
+            return result
+    except Exception as e:
+        logger.debug(f"HPA Tier 2 skipped: {e}")
+
+    # Tier 3: Utilization projection from top-level analysis fields
+    result = _generate_utilization_hpa_projection(analysis_data)
+    if result:
+        logger.info("✅ HPA comparison: Tier 3 (utilization projection)")
+        return result
+
+    raise ValueError("No HPA data available at any tier")
+
+
+def _generate_ml_hpa_comparison(analysis_data):
+    """Tier 1: Full ML pipeline — requires workload classification + HPA replica data."""
     hpa_recommendations = analysis_data.get('hpa_recommendations')
     if not hpa_recommendations:
-        raise ValueError("No HPA recommendations found in analysis data")
+        raise ValueError("No HPA recommendations")
 
     ml_workload_characteristics = hpa_recommendations.get('workload_characteristics')
     if not ml_workload_characteristics:
-        raise ValueError("No ML workload characteristics found")
+        raise ValueError("No ML workload characteristics")
 
     ml_optimization_analysis = ml_workload_characteristics.get('optimization_analysis', {})
     ml_hpa_recommendation = ml_workload_characteristics.get('hpa_recommendation', {})
     ml_classification = ml_workload_characteristics.get('comprehensive_ml_classification')
     if not ml_classification:
-        raise ValueError("No ML classification found")
+        raise ValueError("No ML classification")
 
     workload_type = ml_classification.get('workload_type')
     ml_confidence = ml_classification.get('confidence', 0.0)
@@ -276,22 +360,20 @@ def generate_dynamic_hpa_comparison(analysis_data):
     if not workload_type or ml_confidence <= 0 or not primary_action:
         raise ValueError("Invalid ML classification data")
 
-    actual_hpa_savings = analysis_data.get('hpa_savings', 0)
     total_cost = ensure_float(analysis_data.get('total_cost', 0))
     if total_cost <= 0:
-        raise ValueError("Invalid total cost data")
+        raise ValueError("Invalid total cost")
 
     hpa_efficiency = _extract_hpa_efficiency(analysis_data, hpa_recommendations)
     if hpa_efficiency is None:
-        raise ValueError("No HPA efficiency data found")
+        raise ValueError("No HPA efficiency data")
 
-    # Get ML utilization data
     ml_cpu_util = ml_workload_characteristics.get('cpu_usage_pct') or ml_workload_characteristics.get('cpu_utilization')
     ml_memory_util = ml_workload_characteristics.get('memory_usage_pct') or ml_workload_characteristics.get('memory_utilization')
     if ml_cpu_util is None or ml_memory_util is None:
         raise ValueError("Missing ML utilization data")
 
-    # Generate scenarios
+    actual_hpa_savings = analysis_data.get('hpa_savings', 0)
     scenarios = _generate_ml_driven_scenarios(
         workload_type, primary_action, ml_confidence,
         ml_cpu_util, ml_memory_util, actual_hpa_savings,
@@ -300,11 +382,82 @@ def generate_dynamic_hpa_comparison(analysis_data):
     if not scenarios:
         raise ValueError("Failed to generate ML scenarios")
 
-    # Output Recharts format directly
-    time_labels = ['Night (12AM-6AM)', 'Morning (6AM-12PM)', 'Afternoon (12PM-6PM)', 'Evening (6PM-12AM)']
-    cpu_replicas = scenarios.get('cpu_replicas', [0, 0, 0, 0])
-    memory_replicas = scenarios.get('memory_replicas', [0, 0, 0, 0])
+    return _format_hpa_result(scenarios.get('cpu_replicas', [0, 0, 0, 0]),
+                              scenarios.get('memory_replicas', [0, 0, 0, 0]))
 
+
+def _generate_basic_hpa_comparison(analysis_data):
+    """Tier 2: Use cpu_usage_pct/memory_usage_pct from workload_characteristics
+    without needing full ML classification chain."""
+    hpa_recs = analysis_data.get('hpa_recommendations', {})
+    if not isinstance(hpa_recs, dict):
+        raise ValueError("No hpa_recommendations dict")
+
+    wc = hpa_recs.get('workload_characteristics', {})
+    if not isinstance(wc, dict):
+        raise ValueError("No workload_characteristics")
+
+    cpu_pct = wc.get('cpu_usage_pct') or wc.get('cpu_utilization')
+    mem_pct = wc.get('memory_usage_pct') or wc.get('memory_utilization')
+    if not cpu_pct or not mem_pct:
+        raise ValueError("Missing cpu/memory utilization in workload_characteristics")
+
+    cpu_pct = float(cpu_pct)
+    mem_pct = float(mem_pct)
+
+    # Get total HPAs for scale
+    total_hpas = analysis_data.get('total_hpas_analyzed', 0)
+    metrics_data = hpa_recs.get('metrics_data', {})
+    if isinstance(metrics_data, dict):
+        hpa_impl = metrics_data.get('hpa_implementation', {})
+        if isinstance(hpa_impl, dict):
+            total_hpas = max(total_hpas, hpa_impl.get('total_hpas', 0))
+    base_replicas = max(total_hpas, 1)
+
+    target = 80.0
+    load_factors = [0.3, 0.7, 1.0, 0.6]  # night, morning, afternoon, evening
+    cpu_replicas = [max(1, int(np.ceil(base_replicas * (cpu_pct * lf / target)))) for lf in load_factors]
+    mem_replicas = [max(1, int(np.ceil(base_replicas * (mem_pct * lf / target)))) for lf in load_factors]
+
+    return _format_hpa_result(cpu_replicas, mem_replicas)
+
+
+def _generate_utilization_hpa_projection(analysis_data):
+    """Tier 3: Project HPA scaling from top-level analysis metrics (cpu_gap, node_count)."""
+    cpu_gap = ensure_float(analysis_data.get('cpu_gap', 0))
+    memory_gap = ensure_float(analysis_data.get('memory_gap', 0))
+    node_count = int(analysis_data.get('node_count', 0) or 0)
+
+    # Need at least some utilization signal
+    avg_cpu = ensure_float(analysis_data.get('average_cpu_utilization', 0))
+    avg_mem = ensure_float(analysis_data.get('average_memory_utilization', 0))
+
+    if avg_cpu <= 0 and avg_mem <= 0 and cpu_gap <= 0:
+        return None
+
+    # Use node_count as base replica proxy; fall back to 3
+    base = max(node_count, 3)
+
+    # If we have utilization percentages, use them
+    if avg_cpu > 0 or avg_mem > 0:
+        cpu_pct = avg_cpu if avg_cpu > 0 else 30.0
+        mem_pct = avg_mem if avg_mem > 0 else 50.0
+    else:
+        # Derive from gap: gap = requested - used; estimate utilization
+        cpu_pct = max(10.0, 100.0 - cpu_gap)
+        mem_pct = max(10.0, 100.0 - memory_gap)
+
+    target = 80.0
+    load_factors = [0.3, 0.7, 1.0, 0.6]
+    cpu_replicas = [max(1, int(np.ceil(base * (cpu_pct * lf / target)))) for lf in load_factors]
+    mem_replicas = [max(1, int(np.ceil(base * (mem_pct * lf / target)))) for lf in load_factors]
+
+    return _format_hpa_result(cpu_replicas, mem_replicas)
+
+
+def _format_hpa_result(cpu_replicas, memory_replicas):
+    """Format HPA replica arrays into Recharts [{time, cpu, memory}] format."""
+    time_labels = ['Night (12AM-6AM)', 'Morning (6AM-12PM)', 'Afternoon (12PM-6PM)', 'Evening (6PM-12AM)']
     return [
         {'time': t, 'cpu': float(c) if c else 0, 'memory': float(m) if m else 0}
         for t, c, m in zip(time_labels, cpu_replicas, memory_replicas)
@@ -1143,3 +1296,99 @@ def generate_workload_data(analysis_data=None):
     valid_workloads.sort(key=lambda x: x[1], reverse=True)
 
     return [{'name': w[0], 'value': w[1], 'type': w[2]} for w in valid_workloads]
+
+
+def generate_execution_commands(analysis_data):
+    """Generate actionable kubectl/az/aws commands from analysis data.
+
+    Returns Dict[str, List[Dict]] — category name → list of {description, command, priority}.
+    Cloud-aware: uses cloud_provider to emit provider-specific commands.
+    """
+    if not analysis_data:
+        raise ValueError("No analysis data provided")
+
+    cloud = analysis_data.get('cloud_provider', 'azure')
+    commands = {}
+
+    # --- Node optimization commands ---
+    node_cmds = []
+    eai = analysis_data.get('enhanced_analysis_input', {})
+    if isinstance(eai, dict):
+        node_opt = eai.get('node_optimization', {})
+        recs = node_opt.get('recommendations', []) if isinstance(node_opt, dict) else []
+        for rec in (recs if isinstance(recs, list) else []):
+            if not isinstance(rec, dict):
+                continue
+            pool = rec.get('node_pool', rec.get('nodegroup', 'default'))
+            cur_vm = rec.get('current_vm_size', rec.get('current_vm', ''))
+            new_vm = rec.get('recommended_vm_size', rec.get('recommended_vm', ''))
+            savings = rec.get('monthly_savings', 0)
+            if cur_vm and new_vm and cur_vm != new_vm:
+                desc = f"Resize pool '{pool}': {cur_vm} -> {new_vm}"
+                if savings:
+                    desc += f" (saves ~${ensure_float(savings):.0f}/mo)"
+                if cloud == 'aws':
+                    cmd = f"# Update EKS nodegroup instance type\naws eks update-nodegroup-config --cluster-name $CLUSTER --nodegroup-name {pool} --scaling-config minSize=1,maxSize=10,desiredSize=3"
+                elif cloud == 'gcp':
+                    cmd = f"# Update GKE node pool machine type\ngcloud container node-pools update {pool} --cluster=$CLUSTER --machine-type={new_vm}"
+                else:
+                    cmd = f"az aks nodepool update --resource-group $RG --cluster-name $CLUSTER --name {pool} --node-vm-size {new_vm}"
+                node_cmds.append({'description': desc, 'command': cmd, 'priority': 'high'})
+    if node_cmds:
+        commands['Node Optimization'] = node_cmds
+
+    # --- HPA commands ---
+    hpa_cmds = []
+    hpa_recs = analysis_data.get('hpa_recommendations', {})
+    if isinstance(hpa_recs, dict):
+        wc = hpa_recs.get('workload_characteristics', {})
+        if isinstance(wc, dict):
+            high_cpu = wc.get('high_cpu_workloads', [])
+            for wl in (high_cpu if isinstance(high_cpu, list) else []):
+                if not isinstance(wl, dict):
+                    continue
+                name = wl.get('name', '')
+                ns = wl.get('namespace', 'default')
+                cpu_pct = wl.get('cpu_usage_pct', wl.get('cpu_utilization', 0))
+                if name:
+                    desc = f"Add HPA for {ns}/{name} (CPU: {ensure_float(cpu_pct):.0f}%)"
+                    cmd = f"kubectl autoscale deployment {name} -n {ns} --cpu-percent=80 --min=2 --max=10"
+                    hpa_cmds.append({'description': desc, 'command': cmd, 'priority': 'high'})
+    if hpa_cmds:
+        commands['HPA Scaling'] = hpa_cmds
+
+    # --- Rightsizing commands ---
+    rs_cmds = []
+    pod_analysis = analysis_data.get('pod_cost_analysis', {})
+    if isinstance(pod_analysis, dict):
+        over_provisioned = pod_analysis.get('over_provisioned_pods', [])
+        for pod in (over_provisioned if isinstance(over_provisioned, list) else [])[:5]:
+            if not isinstance(pod, dict):
+                continue
+            name = pod.get('name', pod.get('pod_name', ''))
+            ns = pod.get('namespace', 'default')
+            if name:
+                desc = f"Rightsizing: reduce resources for {ns}/{name}"
+                cmd = f"kubectl set resources deployment {name} -n {ns} --requests=cpu=100m,memory=128Mi --limits=cpu=500m,memory=512Mi"
+                rs_cmds.append({'description': desc, 'command': cmd, 'priority': 'medium'})
+    if rs_cmds:
+        commands['Rightsizing'] = rs_cmds
+
+    # --- Validation commands ---
+    val_cmds = [
+        {'description': 'Check node resource utilization', 'command': 'kubectl top nodes', 'priority': 'low'},
+        {'description': 'List all HPAs', 'command': 'kubectl get hpa --all-namespaces', 'priority': 'low'},
+        {'description': 'Check pod resource requests vs limits', 'command': 'kubectl top pods --all-namespaces --sort-by=cpu | head -20', 'priority': 'low'},
+    ]
+    if cloud == 'azure':
+        val_cmds.append({'description': 'Show AKS cluster info', 'command': 'az aks show --resource-group $RG --name $CLUSTER -o table', 'priority': 'low'})
+    elif cloud == 'aws':
+        val_cmds.append({'description': 'Show EKS cluster info', 'command': 'aws eks describe-cluster --name $CLUSTER --query "cluster.{status:status,version:version,endpoint:endpoint}" --output table', 'priority': 'low'})
+    elif cloud == 'gcp':
+        val_cmds.append({'description': 'Show GKE cluster info', 'command': 'gcloud container clusters describe $CLUSTER --format="table(status,currentMasterVersion,endpoint)"', 'priority': 'low'})
+    commands['Validation'] = val_cmds
+
+    if not commands:
+        raise ValueError("No execution commands could be generated from analysis data")
+
+    return commands

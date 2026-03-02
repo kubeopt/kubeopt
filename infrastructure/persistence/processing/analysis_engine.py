@@ -31,7 +31,7 @@ from shared.standards.standards_loader import (
     get_cpu_target, get_memory_target, get_hpa_config, 
     get_optimization_config, get_standards_loader
 )
-from infrastructure.persistence.processing.cost_processor import get_aks_specific_cost_data, extract_cost_components
+from infrastructure.persistence.processing.cost_processor import get_cluster_cost_data, extract_cost_components
 from infrastructure.persistence.processing.metrics_processor import get_aks_metrics_from_monitor
 from infrastructure.services.cache_manager import save_to_cache
 from shared.utils.utils import validate_cost_data
@@ -44,7 +44,6 @@ from shared.standards.cost_optimization_standards import (
 
 # Plan generation moved to external API
 # from infrastructure.plan_generation import AIImplementationPlanGenerator
-import asyncio
 import os
 
 # Import cloud provider registry (replaces direct azure_subscription_manager usage)
@@ -359,8 +358,9 @@ class MultiSubscriptionAnalysisEngine:
             
             # Step 4: Run ML-enhanced algorithmic analysis
             consistent_results = self._run_ml_analysis(
-                resource_group, cluster_name, cost_components, 
-                metrics_data, pod_data, session_id, log_prefix
+                resource_group, cluster_name, cost_components,
+                metrics_data, pod_data, session_id, log_prefix,
+                cloud_provider=config.cloud_provider
             )
             
             # Step 5: Compile comprehensive results with cluster config metadata
@@ -384,7 +384,7 @@ class MultiSubscriptionAnalysisEngine:
             if shared_cache and hasattr(shared_cache, 'data') and shared_cache.data:
                 # Add critical fields that analysis_engine expects in basic_analysis
                 cache_fields_to_merge = [
-                    'kubectl_data', 'cluster_version_sdk', 'aks_cluster_info',
+                    'kubectl_data', 'cluster_version_sdk', 'cluster_info',
                     'version', 'pods', 'namespaces', 'nodes', 'deployments',
                     'pod_usage', 'node_usage', 'namespaces_with_labels'
                 ]
@@ -630,12 +630,12 @@ class MultiSubscriptionAnalysisEngine:
             # Update results with enhanced input for implementation generator
             results['enhanced_analysis_input'] = enhanced_input
             
-            # NEW: Generate implementation plan using Claude API (async)
+            # Generate implementation plan using Claude API (external service)
             try:
                 cluster_name = enhanced_input.get('cluster_info', {}).get('cluster_name', cluster_id)
-                implementation_plan = asyncio.run(self._generate_implementation_plan_async(
+                implementation_plan = self._generate_implementation_plan_sync(
                     enhanced_input, cluster_name, cluster_id
-                ))
+                )
                 
                 if implementation_plan:
                     # Store the plan separately
@@ -682,43 +682,45 @@ class MultiSubscriptionAnalysisEngine:
             # Re-raise the exception to prevent silent failures
             raise ValueError(f"Database save operation failed: {update_error}") from update_error
     
-    async def _generate_implementation_plan_async(self, enhanced_input: Dict, cluster_name: str, cluster_id: str):
-        """Generate implementation plan using external API (ENTERPRISE only)"""
+    def _generate_implementation_plan_sync(self, enhanced_input: Dict, cluster_name: str, cluster_id: str):
+        """Generate implementation plan using external API (ENTERPRISE only).
+
+        This is a synchronous method — the external API call (requests.post) is
+        blocking, so there is no need for async/asyncio.run().
+        """
         try:
             # Check license tier first - only ENTERPRISE can generate AI plans
             from infrastructure.services.license_validator import get_license_validator, LicenseTier
             validator = get_license_validator()
             tier = validator.get_tier()
-            
+
             if tier != LicenseTier.ENTERPRISE:
                 logger.info(f"⏭️ Skipping AI plan generation for {cluster_name} - requires ENTERPRISE license (current: {tier.value})")
                 return None
-            
+
             # Use external API client for plan generation
             from infrastructure.services.external_api_client import get_external_api_client
-            
+
             api_client = get_external_api_client()
             if not api_client:
                 logger.warning("External API client not available - skipping plan generation")
                 return None
-            
-            # Generate plan via external API (synchronous call in async context)
-            # The external API expects cluster_name and analysis_data
+
+            # Generate plan via external API (synchronous requests.post)
             success, plan_data = api_client.generate_plan(
                 cluster_id=cluster_id,
                 cluster_name=cluster_name,
                 analysis_data=enhanced_input
             )
-            
+
             if success and plan_data:
                 logger.info(f"✅ Generated implementation plan via external API for {cluster_name}")
-                # Extract the plan content - the API returns the full structure
                 return plan_data
             else:
                 error_msg = plan_data.get('error', 'Unknown error') if isinstance(plan_data, dict) else 'Plan generation failed'
                 logger.warning(f"External API plan generation failed for {cluster_name}: {error_msg}")
                 return None
-            
+
         except Exception as e:
             logger.error(f"❌ External API plan generation failed: {e}")
             return None
@@ -772,7 +774,7 @@ class MultiSubscriptionAnalysisEngine:
             # Cost processor now handles all caching internally
             _cloud_provider = config.cloud_provider if config else 'azure'
             _region = config.region if config else ''
-            cost_df = get_aks_specific_cost_data(
+            cost_df = get_cluster_cost_data(
                 resource_group, cluster_name, start_date, end_date, subscription_id, cluster_id,
                 cloud_provider=_cloud_provider, region=_region
             )
@@ -815,14 +817,14 @@ class MultiSubscriptionAnalysisEngine:
         """Get ML-ready metrics with subscription context and shared cache"""
         logger.info(f"📈 Session {session_id}: Fetching ML-ready metrics with shared cache...")
         
-        from analytics.collectors.aks_realtime_metrics import AKSRealTimeMetricsFetcher
-        
+        from analytics.collectors.cluster_metrics_collector import ClusterMetricsFetcher
+
         # CACHE-FIRST: Pass shared cache to avoid creating new cache instance
         if shared_cache is not None and shared_cache:
-            enhanced_fetcher = AKSRealTimeMetricsFetcher(resource_group, cluster_name, config.subscription_id, cache=shared_cache)
+            enhanced_fetcher = ClusterMetricsFetcher(resource_group, cluster_name, config.subscription_id, cache=shared_cache, cloud_provider=config.cloud_provider)
             logger.info(f"🎯 Session {session_id}: Using shared cache for metrics fetching")
         else:
-            enhanced_fetcher = AKSRealTimeMetricsFetcher(resource_group, cluster_name, config.subscription_id)
+            enhanced_fetcher = ClusterMetricsFetcher(resource_group, cluster_name, config.subscription_id, cloud_provider=config.cloud_provider)
             logger.info(f"⚠️ Session {session_id}: No shared cache provided - creating new cache instance")
         
         metrics_data = None
@@ -887,7 +889,7 @@ class MultiSubscriptionAnalysisEngine:
                 cost_breakdown['networking_cost'] = 0.0
                 
             try:
-                cost_breakdown['control_plane_cost'] = float(cost_df[cost_df['Category'].isin(['AKS Control Plane', 'EKS Control Plane', 'GKE Control Plane'])]['Cost'].sum())
+                cost_breakdown['control_plane_cost'] = float(cost_df[cost_df['Category'] == 'Control Plane']['Cost'].sum())
             except:
                 cost_breakdown['control_plane_cost'] = 0.0
                 
@@ -932,17 +934,17 @@ class MultiSubscriptionAnalysisEngine:
             logger.error(f"❌ Session {session_id}: Failed to extract complete cost breakdown: {cost_extract_error}")
             return None
     
-    def _run_ml_analysis(self, resource_group: str, cluster_name: str, 
+    def _run_ml_analysis(self, resource_group: str, cluster_name: str,
                         cost_data: Dict, metrics_data: Dict, pod_data: Optional[Dict],
-                        session_id: str, log_prefix: str) -> Dict:
+                        session_id: str, log_prefix: str, cloud_provider: str = 'azure') -> Dict:
         """Execute ML-enhanced algorithmic analysis"""
         logger.info(f"🤖 Session {session_id}: Executing ML-ENHANCED algorithmic analysis...")
-        
+
         try:
             from analytics.processors.algorithmic_cost_analyzer import ConsistentCostAnalyzer
-            
-            # Initialize the analyzer
-            analyzer = ConsistentCostAnalyzer()
+
+            # Initialize the analyzer with cloud_provider for correct YAML resolution
+            analyzer = ConsistentCostAnalyzer(cloud_provider=cloud_provider)
             
             # DEBUG: Verify cost_data contains monitoring_cost
             logger.info(f"🔍 PASSING TO ANALYZER: cost_data keys = {list(cost_data.keys())}")
@@ -1265,25 +1267,26 @@ class MultiSubscriptionAnalysisEngine:
         try:
             node_pools = []
 
-            # Primary source: agent_pool_profiles from AKS cluster info (Azure SDK)
-            aks_info = basic_analysis.get('aks_cluster_info', {})
-            if aks_info and 'agent_pool_profiles' in aks_info:
-                for pool in aks_info['agent_pool_profiles']:
+            # Primary source: node_pools from normalized cluster_info
+            cluster_info = basic_analysis.get('cluster_info', {})
+            pools_key = 'node_pools'
+            if cluster_info and pools_key in cluster_info:
+                for pool in cluster_info[pools_key]:
                     pool_info = {
                         "name": pool.get('name', 'unknown'),
                         "vm_sku": pool.get('vm_size', 'unknown'),
                         "node_count": pool.get('count', 0),
                         "min_count": pool.get('min_count'),
                         "max_count": pool.get('max_count'),
-                        "spot_enabled": pool.get('enable_auto_scaling', False),
+                        "spot_enabled": pool.get('auto_scaling') or pool.get('enable_auto_scaling', False),
                         "os_type": pool.get('os_type'),
                         "mode": pool.get('mode'),
-                        "scale_set_priority": pool.get('scale_set_priority'),
+                        "scale_set_priority": pool.get('priority') or pool.get('scale_set_priority'),
                     }
                     node_pools.append(pool_info)
 
             if not node_pools:
-                raise ValueError("No node pool data available in analysis (aks_cluster_info missing agent_pool_profiles)")
+                raise ValueError("No node pool data available in analysis (cluster_info missing node_pools)")
 
             return node_pools
 
@@ -1330,12 +1333,13 @@ class MultiSubscriptionAnalysisEngine:
             efficiency_scores = []
             utilization_categories = {"idle": 0, "low": 0, "moderate": 0, "high": 0, "critical": 0}
 
-            # Extract cluster region for real-time VM pricing
+            # Extract cluster region and cloud provider for real-time VM pricing
             cluster_region = None
+            cluster_cloud_provider = basic_analysis.get('cloud_provider', 'azure')
             try:
-                aks_info = basic_analysis.get('aks_cluster_info', {})
-                if isinstance(aks_info, dict):
-                    cluster_region = aks_info.get('location')
+                cluster_info = basic_analysis.get('cluster_info', {})
+                if isinstance(cluster_info, dict):
+                    cluster_region = cluster_info.get('location')
                 if not cluster_region:
                     cluster_region = self._extract_cluster_location(basic_analysis)
             except Exception:
@@ -1373,7 +1377,7 @@ class MultiSubscriptionAnalysisEngine:
 
                     # Generate ONE set of recommendations per pool
                     utilization_analysis = node_optimizer.analyze_node_utilization(representative_node)
-                    available_vm_sizes = self._get_available_vm_sizes(region=cluster_region)
+                    available_vm_sizes = self._get_available_vm_sizes(region=cluster_region, cloud_provider=cluster_cloud_provider)
                     recommendations = node_optimizer.generate_vm_size_recommendations(
                         utilization_analysis, available_vm_sizes
                     )
@@ -1443,17 +1447,62 @@ class MultiSubscriptionAnalysisEngine:
             logger.error(f"❌ Failed to get node optimization data: {e}")
             raise ValueError(f"Failed to generate node optimization data: {e}") from e
     
-    def _get_available_vm_sizes(self, region: str = None) -> List[dict]:
+    def _get_available_vm_sizes(self, region: str = None, cloud_provider: str = 'azure') -> List[dict]:
         """
-        Get available Azure VM sizes with pricing for right-sizing recommendations.
-        Uses the Azure Retail Prices API for real-time, region-accurate pricing.
-        Falls back to a static list if the API is unavailable.
+        Get available VM/instance sizes with pricing for right-sizing recommendations.
+        Routes to the correct pricing API based on cloud provider.
 
         Args:
-            region: Azure region name (e.g. 'westeurope', 'eastus'). If provided,
-                    fetches real-time pricing for that region.
+            region: Cloud region name (e.g. 'westeurope' for Azure, 'eu-west-1' for AWS).
+            cloud_provider: 'azure', 'aws', or 'gcp'.
         """
-        if region:
+        if region and cloud_provider == 'aws':
+            try:
+                from infrastructure.cloud_providers.aws.costs import AWSCostManager
+                aws_costs = AWSCostManager()
+                # Get common EKS instance types with pricing
+                common_eks_types = [
+                    't3.small', 't3.medium', 't3.large', 't3.xlarge',
+                    'm5.large', 'm5.xlarge', 'm5.2xlarge',
+                    'c5.large', 'c5.xlarge', 'c5.2xlarge',
+                    'r5.large', 'r5.xlarge',
+                    'm6i.large', 'm6i.xlarge',
+                    'c6i.large', 'c6i.xlarge',
+                ]
+                pricing_data = aws_costs.get_vm_pricing(region, vm_sizes=common_eks_types)
+                if pricing_data:
+                    prices = []
+                    for instance_type, info in pricing_data.items():
+                        vcpus = int(info.get('vcpus', '0') or '0')
+                        memory_str = info.get('memory', '0 GiB')
+                        memory_gb = float(memory_str.replace(' GiB', '').replace(' GB', '').replace(',', '') or '0')
+                        prices.append({
+                            "vm_size": instance_type,
+                            "cost_per_hour": info.get('hourly_cost', 0),
+                            "cpu_cores": vcpus,
+                            "memory_gb": memory_gb,
+                        })
+                    if prices:
+                        logger.info(f"Fetched {len(prices)} EC2 instance prices for {region} from AWS Pricing API")
+                        return sorted(prices, key=lambda x: x['cost_per_hour'])
+            except Exception as e:
+                logger.warning(f"AWS Pricing API unavailable ({e}), using static EC2 fallback")
+
+            # AWS static fallback (approximate On-Demand Linux prices)
+            logger.warning("Using static EC2 pricing fallback for AWS")
+            return [
+                {"vm_size": "t3.small", "cost_per_hour": 0.0208, "cpu_cores": 2, "memory_gb": 2},
+                {"vm_size": "t3.medium", "cost_per_hour": 0.0416, "cpu_cores": 2, "memory_gb": 4},
+                {"vm_size": "t3.large", "cost_per_hour": 0.0832, "cpu_cores": 2, "memory_gb": 8},
+                {"vm_size": "t3.xlarge", "cost_per_hour": 0.1664, "cpu_cores": 4, "memory_gb": 16},
+                {"vm_size": "m5.large", "cost_per_hour": 0.096, "cpu_cores": 2, "memory_gb": 8},
+                {"vm_size": "m5.xlarge", "cost_per_hour": 0.192, "cpu_cores": 4, "memory_gb": 16},
+                {"vm_size": "m5.2xlarge", "cost_per_hour": 0.384, "cpu_cores": 8, "memory_gb": 32},
+                {"vm_size": "c5.large", "cost_per_hour": 0.085, "cpu_cores": 2, "memory_gb": 4},
+                {"vm_size": "c5.xlarge", "cost_per_hour": 0.170, "cpu_cores": 4, "memory_gb": 8},
+            ]
+
+        if region and cloud_provider == 'azure':
             try:
                 from infrastructure.services.vm_pricing_service import VMPricingService
                 pricing = VMPricingService()
@@ -1676,7 +1725,7 @@ class MultiSubscriptionAnalysisEngine:
                 
                 # Get kubernetes cache to fetch raw resource data
                 try:
-                    kube_cache = get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=False)
+                    kube_cache = get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=False, cloud_provider=basic_analysis.get('cloud_provider', 'azure'))
                     pod_resources_data = kube_cache.get('pod_resources_detailed') or ""
                     deployments_data = kube_cache.get('deployments') or ""
                 except Exception as cache_error:
@@ -2891,8 +2940,8 @@ class MultiSubscriptionAnalysisEngine:
         if cluster_name and resource_group and subscription_id:
             try:
                 from shared.kubernetes_data_cache import get_or_create_cache
-                kube_cache = get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=False)
-                
+                kube_cache = get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=False, cloud_provider=basic_analysis.get('cloud_provider', 'azure'))
+
                 # Try cluster_version_sdk from cache
                 version = kube_cache.get('cluster_version_sdk')
                 if version and version.strip():
@@ -2913,8 +2962,8 @@ class MultiSubscriptionAnalysisEngine:
                     logger.info(f"✅ Retrieved Kubernetes version from version key: {version}")
                     return version.strip()
                 
-                # Try from aks_cluster_info in cache
-                aks_info = kube_cache.get('aks_cluster_info')
+                # Try from cluster_info in cache
+                aks_info = kube_cache.get('cluster_info')
                 if aks_info:
                     try:
                         import json
@@ -2922,16 +2971,16 @@ class MultiSubscriptionAnalysisEngine:
                             aks_data = json.loads(aks_info)
                         else:
                             aks_data = aks_info
-                        k8s_version = aks_data.get('kubernetesVersion')
+                        k8s_version = aks_data.get('kubernetes_version') or aks_data.get('kubernetesVersion')
                         if k8s_version:
-                            logger.info(f"✅ Retrieved Kubernetes version from AKS info: {k8s_version}")
+                            logger.info(f"✅ Retrieved Kubernetes version from cluster info: {k8s_version}")
                             return k8s_version
                     except (json.JSONDecodeError, KeyError):
                         pass
-                
+
             except Exception as cache_error:
                 logger.warning(f"⚠️ Could not access kubernetes cache: {cache_error}")
-        
+
         # Try from nodes data as fallback
         nodes_data = basic_analysis.get('nodes')
         if nodes_data:
@@ -2969,10 +3018,10 @@ class MultiSubscriptionAnalysisEngine:
         if cluster_name and resource_group and subscription_id:
             try:
                 from shared.kubernetes_data_cache import get_or_create_cache
-                kube_cache = get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=False)
-                
-                # Try from aks_cluster_info in cache
-                aks_info = kube_cache.get('aks_cluster_info')
+                kube_cache = get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=False, cloud_provider=basic_analysis.get('cloud_provider', 'azure'))
+
+                # Try from cluster_info in cache
+                aks_info = kube_cache.get('cluster_info')
                 if aks_info:
                     try:
                         import json
@@ -2982,7 +3031,7 @@ class MultiSubscriptionAnalysisEngine:
                             aks_data = aks_info
                         location = aks_data.get('location')
                         if location:
-                            logger.info(f"✅ Retrieved cluster location from AKS info: {location}")
+                            logger.info(f"✅ Retrieved cluster location from cluster info: {location}")
                             return location
                     except (json.JSONDecodeError, KeyError):
                         pass
@@ -3166,7 +3215,7 @@ class MultiSubscriptionAnalysisEngine:
             @classmethod
             def validate_cluster_metadata(cls, v, info):
                 if not v or v == 'unknown':
-                    raise ValueError(f"Missing cluster metadata: {info.field_name}. Check AKS API connection.")
+                    raise ValueError(f"Missing cluster metadata: {info.field_name}. Check cloud provider API connection.")
                 return v
         
         # Validate input types first
@@ -3286,10 +3335,10 @@ class MultiSubscriptionAnalysisEngine:
                 if cluster_name and resource_group and subscription_id:
                     try:
                         from shared.kubernetes_data_cache import get_or_create_cache
-                        kube_cache = get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=False)
+                        kube_cache = get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=False, cloud_provider=basic_analysis.get('cloud_provider', 'azure'))
                         
                         # Look for pod usage data from kubernetes cache
-                        pod_usage = kube_cache.get('pod_usage', '')
+                        pod_usage = kube_cache.get('pod_usage') or ''
                         if pod_usage:
                             # Parse kubectl top pods output for this workload
                             for line in pod_usage.split('\n'):
@@ -3353,8 +3402,8 @@ class MultiSubscriptionAnalysisEngine:
             if k8s_version and k8s_version.strip() and k8s_version.strip() != 'None':
                 return k8s_version.strip()
             
-            # 2. Check aks_cluster_info (full az aks show output)
-            aks_info = basic_analysis.get('aks_cluster_info')
+            # 2. Check cluster_info (full cluster details)
+            aks_info = basic_analysis.get('cluster_info')
             if aks_info:
                 try:
                     import json
@@ -3362,13 +3411,13 @@ class MultiSubscriptionAnalysisEngine:
                         aks_data = json.loads(aks_info)
                     else:
                         aks_data = aks_info
-                    
-                    version = aks_data.get('currentKubernetesVersion')
+
+                    version = aks_data.get('kubernetes_version') or aks_data.get('currentKubernetesVersion')
                     if version:
                         return version
                 except:
                     pass
-            
+
             # 3. Check kubectl version output
             version_data = basic_analysis.get('version')
             if version_data:
@@ -3398,8 +3447,8 @@ class MultiSubscriptionAnalysisEngine:
         try:
             # Try multiple sources for cluster location
             
-            # 1. Check aks_cluster_info (full az aks show output)
-            aks_info = basic_analysis.get('aks_cluster_info')
+            # 1. Check cluster_info (full cluster details)
+            aks_info = basic_analysis.get('cluster_info')
             if aks_info:
                 try:
                     import json
@@ -3407,14 +3456,14 @@ class MultiSubscriptionAnalysisEngine:
                         aks_data = json.loads(aks_info)
                     else:
                         aks_data = aks_info
-                    
+
                     location = aks_data.get('location')
                     if location:
                         return location
                 except:
                     pass
-            
-            # 2. Check cluster metadata if available
+
+            # 2. Check cluster metadata if available (kubectl cluster-info text output)
             cluster_info = basic_analysis.get('cluster_info')
             if cluster_info and isinstance(cluster_info, str):
                 # Parse kubectl cluster-info output for location hints

@@ -67,27 +67,24 @@ class MetricsValidator:
 class MLOperationCache:
     """Thread-safe cache for expensive ML operations to prevent duplicates"""
     
-    def __init__(self):
+    def __init__(self, cloud_provider: str = 'azure'):
         self.cache = {}
         self.active_operations = {}
         self.lock = threading.RLock()
-        # Load configuration from standards
-        import yaml
-        import os
-        
-        standards_path = os.path.join(os.path.dirname(__file__), '../../config/aks_implementation_standards.yaml')
-        with open(standards_path, 'r') as f:
-            self.standards = yaml.safe_load(f)
-            
+        # Load configuration from standards via StandardsLoader (cloud-provider-aware)
+        from shared.standards.standards_loader import get_standards_loader
+        loader = get_standards_loader(cloud_provider)
+        self.standards = loader.load_implementation_standards()
+
         if not self.standards:
             raise ValueError("Standards configuration is empty or invalid")
-            
+
         # Validate required configuration sections exist
         if 'monitoring_alerting' not in self.standards:
             raise ValueError("monitoring_alerting section missing from standards")
         if 'detection_intervals' not in self.standards['monitoring_alerting']:
             raise ValueError("detection_intervals section missing from monitoring_alerting")
-            
+
         self.max_cache_age = self.standards['monitoring_alerting']['detection_intervals']['real_time_seconds']
         self.max_active_wait = self.standards['monitoring_alerting']['detection_intervals']['alert_check_seconds'] * 2
     
@@ -176,18 +173,13 @@ ml_operation_cache = MLOperationCache()
 class MLEnhancedHPARecommendationEngine:
     """HPA Recommendation Engine using ML analysis"""
     
-    def __init__(self):
+    def __init__(self, cloud_provider: str = 'azure'):
         self._ml_engine_cache = {}
         self._ml_engine_lock = threading.Lock()
         self.parser = KubernetesParsingUtils() if 'KubernetesParsingUtils' in globals() else None
-        
-        # Initialize AKS Scorer for standards-based targets
-        import os
-        config_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "config", "aks_scoring.yaml"
-        )
-        self.aks_scorer = AKSScorer.from_yaml(config_path)
+
+        # Initialize scorer via StandardsLoader (cloud-provider-aware)
+        self.aks_scorer = AKSScorer.from_config(cloud_provider)
         
         # Initialize optimization algorithms with standards
         self.hpa_algorithm = HPAOptimizationAlgorithm(logger)
@@ -795,15 +787,11 @@ class MLEnhancedHPARecommendationEngine:
 
 class ConsistentCostAnalyzer:
     """Main Cost Analysis Engine with ML-based recommendations"""
-    
-    def __init__(self):
-        # Initialize AKS Scorer
-        import os
-        config_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "config", "aks_scoring.yaml"
-        )
-        self.aks_scorer = AKSScorer.from_yaml(config_path)
+
+    def __init__(self, cloud_provider: str = 'azure'):
+        self.cloud_provider = cloud_provider
+        # Initialize scorer via StandardsLoader (cloud-provider-aware YAML resolution)
+        self.aks_scorer = AKSScorer.from_config(cloud_provider)
         
         # Initialize optimization algorithms with standards
         self.hpa_algorithm = HPAOptimizationAlgorithm(logger)
@@ -1410,7 +1398,11 @@ class ConsistentCostAnalyzer:
             'feasibility_score': confidence.get('feasibility', 0),
             
             # Node count
-            'node_count': current_usage.get('node_count', len(metrics_data.get('nodes', [])))
+            'node_count': current_usage.get('node_count', len(metrics_data.get('nodes', []))),
+
+            # Resource gaps (utilization vs optimal target from performance standards)
+            'cpu_gap': round(abs(SystemPerformanceStandards.CPU_UTILIZATION_OPTIMAL - current_usage.get('avg_cpu_utilization', 0)), 1),
+            'memory_gap': round(abs(SystemPerformanceStandards.MEMORY_UTILIZATION_OPTIMAL - current_usage.get('avg_memory_utilization', 0)), 1),
         })
         
         # Validate all numeric values
