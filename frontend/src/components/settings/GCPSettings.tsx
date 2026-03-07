@@ -45,7 +45,11 @@ export default function GCPSettings() {
     setTesting(true)
     setTestResult(null)
     try {
-      const result = await testGCPConnection()
+      const result = await testGCPConnection({
+        project_id: projectId,
+        service_account_json: serviceAccountKey || undefined,
+        zone,
+      })
       setTestResult(result)
     } catch {
       setTestResult({ connected: false, message: 'Connection test failed' })
