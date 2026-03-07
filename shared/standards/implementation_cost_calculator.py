@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Implementation Cost Calculator
-Uses standards from aks_implementation_standards.yaml for realistic cost estimation
+Uses standards from implementation_standards.yaml for realistic cost estimation
 """
 
 import yaml

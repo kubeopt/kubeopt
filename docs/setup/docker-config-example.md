@@ -30,8 +30,9 @@ docker run -v /host/config:/app/config your-aks-optimizer
 
 - `CONFIG_DIR` - Directory containing config files (default: auto-detected)
 - Files expected in CONFIG_DIR:
-  - `aks_implementation_standards.yaml`
-  - `aks_scoring.yaml`
+  - `scoring.yaml` (cloud-agnostic base)
+  - `implementation_standards.yaml` (cloud-agnostic base)
+  - `azure_scoring.yaml` (optional Azure overlay)
 
 ## Development vs Production:
 

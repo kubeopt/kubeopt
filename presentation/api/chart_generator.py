@@ -95,7 +95,7 @@ def _extract_hpa_details_from_workload_chars(workload_chars, total_hpas_analyzed
                         'data_source': 'real_workload_data'
                     }
                     hpa_details.append(hpa_detail)
-                    logger.info(f"📊 Extracted REAL HPA detail: {namespace}/{name} = current:{current_replicas}, min:{min_replicas}, max:{max_replicas}")
+                    logger.info(f"Extracted REAL HPA detail: {namespace}/{name} = current:{current_replicas}, min:{min_replicas}, max:{max_replicas}")
     
     # STRICT: Must have real replica data
     if len(hpa_details) == 0:
@@ -109,16 +109,17 @@ def _extract_hpa_details_from_workload_chars(workload_chars, total_hpas_analyzed
 def _count_workloads(workload_costs):
     """Count workloads correctly from workload_costs dict.
 
-    The dict contains both Pod-level entries AND Deployment-level aggregates.
-    If Deployment entries exist, count those (they represent real workloads).
+    The dict contains Pod-level entries AND owner-level aggregates (Deployment, DaemonSet).
+    If owner entries exist, count those (they represent real workloads).
     Otherwise fall back to Pod count.
     """
     if not isinstance(workload_costs, dict) or not workload_costs:
         return 0
-    deployments = [v for v in workload_costs.values() if isinstance(v, dict) and v.get('type') == 'Deployment']
-    if deployments:
-        return len(deployments)
-    # No deployment aggregation available — count pod entries as workloads
+    owners = [v for v in workload_costs.values()
+              if isinstance(v, dict) and v.get('type') in ('Deployment', 'DaemonSet')]
+    if owners:
+        return len(owners)
+    # No owner aggregation available — count pod entries as workloads
     return len(workload_costs)
 
 
@@ -142,18 +143,18 @@ def generate_insights(analysis_results, cloud_provider='azure'):
     # 1. Cost breakdown
     try:
         if total_cost <= 0:
-            insights['cost_breakdown'] = "⚠️ <strong>Cost Analysis:</strong> Cost data temporarily unavailable - analysis in progress."
+            insights['cost_breakdown'] = "<strong>Cost Analysis:</strong> Cost data temporarily unavailable - analysis in progress."
         else:
             node_percentage = (node_cost / total_cost) * 100
             if node_percentage > 60:
-                insights['cost_breakdown'] = f"🎯 {_node_term} (nodes) dominate your costs at <strong>{node_percentage:.1f}%</strong> (${node_cost:.2f}), making them your #1 optimization target."
+                insights['cost_breakdown'] = f"{_node_term} (nodes) dominate your costs at <strong>{node_percentage:.1f}%</strong> (${node_cost:.2f}), making them your #1 optimization target."
             elif node_percentage > 40:
-                insights['cost_breakdown'] = f"💡 {_node_term} represent <strong>{node_percentage:.1f}%</strong> of costs (${node_cost:.2f}), offering significant optimization opportunities."
+                insights['cost_breakdown'] = f"{_node_term} represent <strong>{node_percentage:.1f}%</strong> of costs (${node_cost:.2f}), offering significant optimization opportunities."
             else:
                 insights['cost_breakdown'] = f"✅ Your costs are well-distributed with {_node_term} at <strong>{node_percentage:.1f}%</strong> (${node_cost:.2f})."
     except Exception as e:
         logger.error(f"Cost breakdown insight failed: {e}")
-        insights['cost_breakdown'] = "⚠️ Cost analysis temporarily unavailable"
+        insights['cost_breakdown'] = "Cost analysis temporarily unavailable"
 
     # 2. HPA comparison
     try:
@@ -165,9 +166,9 @@ def generate_insights(analysis_results, cloud_provider='azure'):
             if core_savings > 0:
                 current_health = analysis_results.get('current_health_score', 0)
                 target_health = analysis_results.get('target_health_score', 0)
-                insights['hpa_comparison'] = f"💰 <strong>Core Optimization Opportunity:</strong> ${core_savings:.2f}/month savings through HPA, rightsizing & storage optimization. Health Score: {current_health:.1f}/100 (Target: {target_health:.1f})"
+                insights['hpa_comparison'] = f"<strong>Core Optimization Opportunity:</strong> ${core_savings:.2f}/month savings through HPA, rightsizing & storage optimization. Health Score: {current_health:.1f}/100 (Target: {target_health:.1f})"
             else:
-                insights['hpa_comparison'] = "📊 <strong>HPA Analysis:</strong> Cluster analyzed for horizontal scaling opportunities."
+                insights['hpa_comparison'] = "<strong>HPA Analysis:</strong> Cluster analyzed for horizontal scaling opportunities."
         else:
             ml_workload_chars = hpa_recommendations.get('workload_characteristics', {})
             ml_classification = ml_workload_chars.get('comprehensive_ml_classification', {})
@@ -180,25 +181,33 @@ def generate_insights(analysis_results, cloud_provider='azure'):
                 standards_savings = extract_standards_based_savings(analysis_results)
                 core_optimization = standards_savings['core_optimization_savings']
 
-                type_icons = {'LOW_UTILIZATION': '🤖', 'CPU_INTENSIVE': '⚡', 'MEMORY_INTENSIVE': '💾', 'BURSTY': '📈'}
-                icon = type_icons.get(workload_type, '🤖')
+                type_icons = {'LOW_UTILIZATION': '', 'CPU_INTENSIVE': '', 'MEMORY_INTENSIVE': '', 'BURSTY': ''}
+                icon = type_icons.get(workload_type, '')
                 insights['hpa_comparison'] = f"{icon} <strong>{ml_title}</strong>: Classified as {workload_type} ({ml_confidence:.0%} confidence). Core optimization saves ${core_optimization:.2f}/month."
 
                 hpa_efficiency = analysis_results.get('hpa_efficiency_percentage', 0)
                 if hpa_efficiency < 60:
                     insights['hpa_comparison'] += f" <em>Enhanced Analysis: {100-hpa_efficiency:.0f}% efficiency gap detected.</em>"
             elif hpa_savings and hpa_savings > 0:
-                insights['hpa_comparison'] = f"📊 <strong>HPA Analysis Complete:</strong> Identified ${hpa_savings:.2f}/month potential savings through autoscaling optimization."
+                hpa_count = ensure_float(analysis_results.get('hpa_count', 0))
+                if hpa_count > 0:
+                    insights['hpa_comparison'] = f"<strong>HPA Analysis Complete:</strong> Identified ${hpa_savings:.2f}/month potential savings from optimizing {int(hpa_count)} existing HPAs."
+                else:
+                    insights['hpa_comparison'] = f"<strong>HPA Opportunity:</strong> Adding autoscaling could save ${hpa_savings:.2f}/month. No HPAs currently configured."
             else:
-                insights['hpa_comparison'] = "🔍 <strong>HPA Assessment:</strong> Cluster evaluated for horizontal pod autoscaling opportunities."
+                insights['hpa_comparison'] = "<strong>HPA Assessment:</strong> Cluster evaluated for horizontal pod autoscaling opportunities."
     except Exception as e:
         logger.error(f"HPA insight failed: {e}")
-        insights['hpa_comparison'] = "📋 <strong>Scaling Analysis:</strong> Cluster resource utilization assessed."
+        insights['hpa_comparison'] = "<strong>Scaling Analysis:</strong> Cluster resource utilization assessed."
 
-    # 3. Resource gap
+    # 3. Resource gap — show actual utilization, not abstract gap-from-optimal
     try:
         cpu_gap = ensure_float(analysis_results.get('cpu_gap', 0))
         memory_gap = ensure_float(analysis_results.get('memory_gap', 0))
+        # Derive actual utilization: gap = |optimal - actual|, so actual = optimal - gap
+        from shared.standards.performance_standards import SystemPerformanceStandards
+        cpu_actual = round(SystemPerformanceStandards.CPU_UTILIZATION_OPTIMAL - cpu_gap, 1)
+        mem_actual = round(SystemPerformanceStandards.MEMORY_UTILIZATION_OPTIMAL - memory_gap, 1)
         # Try multiple fields for rightsizing savings
         right_sizing_savings = ensure_float(
             analysis_results.get('compute_savings', 0)
@@ -211,12 +220,12 @@ def generate_insights(analysis_results, cloud_provider='azure'):
             right_sizing_savings = node_cost * (avg_gap / 100) * 0.5  # conservative 50% of gap
 
         if cpu_gap > 40 or memory_gap > 30:
-            insights['resource_gap'] = f"🎯 <strong>CRITICAL OVER-PROVISIONING:</strong> Your workloads have a <strong>{cpu_gap:.1f}% CPU gap</strong> and <strong>{memory_gap:.1f}% memory gap</strong>. Right-sizing can save <strong>${right_sizing_savings:.2f}/month</strong>!"
+            insights['resource_gap'] = f"<strong>CRITICAL OVER-PROVISIONING:</strong> Cluster using only <strong>{cpu_actual:.1f}% CPU</strong> and <strong>{mem_actual:.1f}% memory</strong> (target: 70% / 75%). Right-sizing can save <strong>${right_sizing_savings:.2f}/month</strong>!"
         else:
-            insights['resource_gap'] = f"✅ <strong>WELL-OPTIMIZED:</strong> Minor gaps of <strong>{cpu_gap:.1f}% CPU</strong> and <strong>{memory_gap:.1f}% memory</strong>."
+            insights['resource_gap'] = f"✅ <strong>WELL-OPTIMIZED:</strong> Cluster at <strong>{cpu_actual:.1f}% CPU</strong> and <strong>{mem_actual:.1f}% memory</strong> (target: 70% / 75%)."
     except Exception as e:
         logger.error(f"Resource gap insight failed: {e}")
-        insights['resource_gap'] = "📊 <strong>Resource Analysis:</strong> Cluster resource allocation evaluated."
+        insights['resource_gap'] = "<strong>Resource Analysis:</strong> Cluster resource allocation evaluated."
 
     # 4. Savings summary
     try:
@@ -228,11 +237,11 @@ def generate_insights(analysis_results, cloud_provider='azure'):
             savings_percentage = (total_savings / total_cost) * 100
 
         if savings_percentage > 25:
-            insights['savings_summary'] = f"💰 <strong>MASSIVE ROI OPPORTUNITY:</strong> Save <strong>${annual_savings:.2f}/year</strong> ({savings_percentage:.1f}% cost reduction)!"
+            insights['savings_summary'] = f"<strong>MASSIVE ROI OPPORTUNITY:</strong> Save <strong>${annual_savings:.2f}/year</strong> ({savings_percentage:.1f}% cost reduction)!"
         elif savings_percentage > 15:
-            insights['savings_summary'] = f"📊 <strong>SIGNIFICANT IMPACT:</strong> Annual savings of <strong>${annual_savings:.2f}</strong> ({savings_percentage:.1f}% reduction)."
+            insights['savings_summary'] = f"<strong>SIGNIFICANT IMPACT:</strong> Annual savings of <strong>${annual_savings:.2f}</strong> ({savings_percentage:.1f}% reduction)."
         else:
-            insights['savings_summary'] = f"💡 <strong>STEADY IMPROVEMENTS:</strong> Save <strong>${annual_savings:.2f}/year</strong> ({savings_percentage:.1f}% optimization)."
+            insights['savings_summary'] = f"<strong>STEADY IMPROVEMENTS:</strong> Save <strong>${annual_savings:.2f}/year</strong> ({savings_percentage:.1f}% optimization)."
 
         # Append advanced opportunities from real cost data
         enhanced = []
@@ -251,9 +260,9 @@ def generate_insights(analysis_results, cloud_provider='azure'):
     except Exception as e:
         logger.error(f"Savings summary insight failed: {e}")
         if total_savings > 0:
-            insights['savings_summary'] = f"💡 <strong>Optimization Potential:</strong> ${total_savings:.2f}/month in identified savings opportunities."
+            insights['savings_summary'] = f"<strong>Optimization Potential:</strong> ${total_savings:.2f}/month in identified savings opportunities."
         else:
-            insights['savings_summary'] = "📋 <strong>Cost Analysis:</strong> Cluster cost optimization assessment completed."
+            insights['savings_summary'] = "<strong>Cost Analysis:</strong> Cluster cost optimization assessment completed."
 
     # 5. Operational efficiency
     try:
@@ -268,11 +277,11 @@ def generate_insights(analysis_results, cloud_provider='azure'):
             wl_per_ns = total_workloads / total_namespaces
             if wl_per_ns > 40:
                 ineff = min(20, (wl_per_ns - 30) / 2)
-                insights['operational_efficiency'] = f"📈 <strong>DEVOPS OPTIMIZATION:</strong> {total_workloads} workloads across {total_namespaces} namespaces shows <strong>{ineff:.0f}% deployment inefficiency</strong>. Could save <strong>${node_cost * (ineff / 100):.0f}/month</strong>."
+                insights['operational_efficiency'] = f"<strong>DEVOPS OPTIMIZATION:</strong> {total_workloads} workloads across {total_namespaces} namespaces shows <strong>{ineff:.0f}% deployment inefficiency</strong>. Could save <strong>${node_cost * (ineff / 100):.0f}/month</strong>."
             else:
                 insights['operational_efficiency'] = f"✅ <strong>OPERATIONAL EXCELLENCE:</strong> {total_workloads} workloads well-distributed across {total_namespaces} namespaces."
         else:
-            insights['operational_efficiency'] = f"📊 <strong>OPERATIONAL BASELINE:</strong> {total_workloads} workloads in {total_namespaces} namespaces."
+            insights['operational_efficiency'] = f"<strong>OPERATIONAL BASELINE:</strong> {total_workloads} workloads in {total_namespaces} namespaces."
     except Exception as e:
         logger.error(f"Operational efficiency insight failed: {e}")
 
@@ -290,11 +299,11 @@ def generate_insights(analysis_results, cloud_provider='azure'):
             optimized_cpw = (total_cost - total_savings) / total_workloads_for_biz
             diff = ((cpw - benchmark) / benchmark) * 100
             if cpw > benchmark:
-                insights['business_impact'] = f"💼 <strong>BUSINESS METRICS:</strong> ${cpw:.2f}/workload vs ${benchmark}/workload benchmark. Optimization targets ${optimized_cpw:.2f}/workload, {diff:.0f}% above target."
+                insights['business_impact'] = f"<strong>BUSINESS METRICS:</strong> ${cpw:.2f}/workload vs ${benchmark:.2f}/workload benchmark. Optimization targets ${optimized_cpw:.2f}/workload ({diff:.0f}% above benchmark)."
             else:
-                insights['business_impact'] = f"💼 <strong>BUSINESS EXCELLENCE:</strong> ${cpw:.2f}/workload is {-diff:.0f}% below benchmark (${benchmark}) - excellent efficiency!"
+                insights['business_impact'] = f"<strong>BUSINESS EXCELLENCE:</strong> ${cpw:.2f}/workload is {-diff:.0f}% below benchmark (${benchmark:.2f}) - excellent efficiency!"
         else:
-            insights['business_impact'] = f"💼 <strong>BUSINESS BASELINE:</strong> Current monthly cost ${total_cost:.0f} being analyzed."
+            insights['business_impact'] = f"<strong>BUSINESS BASELINE:</strong> Current monthly cost ${total_cost:.0f} being analyzed."
     except Exception as e:
         logger.error(f"Business impact insight failed: {e}")
 
@@ -566,7 +575,7 @@ def _extract_hpa_efficiency(analysis_data, hpa_recommendations):
         total_cost = ensure_float(analysis_data.get('total_cost', 0))
         if actual_core_savings > 0 and total_cost > 0:
             hpa_efficiency = min(50.0, (actual_core_savings / total_cost) * 100)
-            logger.info(f"🔧 Calculated core optimization efficiency from savings: {hpa_efficiency:.1f}%")
+            logger.info(f"Calculated core optimization efficiency from savings: {hpa_efficiency:.1f}%")
     
     return hpa_efficiency
 
@@ -686,7 +695,7 @@ def _extract_real_hpa_replica_data(hpa_state_data, total_hpas):
     
     # If we have detailed HPA specs, use them
     if existing_hpas and len(existing_hpas) > 0:
-        logger.info(f"🔍 Processing {len(existing_hpas)} real HPAs with complete specifications")
+        logger.info(f"Processing {len(existing_hpas)} real HPAs with complete specifications")
     
     # Extract real replica data by HPA type
     cpu_hpa_replicas = []
@@ -747,8 +756,8 @@ def _extract_real_hpa_replica_data(hpa_state_data, total_hpas):
     total_hpas = len(existing_hpas)
     avg_current = total_current_replicas / max(total_hpas, 1)
     
-    logger.info(f"📊 Real HPA Analysis: {len(cpu_hpa_replicas)} CPU, {len(memory_hpa_replicas)} Memory, {len(mixed_hpa_replicas)} Mixed, {len(custom_hpa_replicas)} Custom")
-    logger.info(f"📊 Real Replica Stats: Avg={avg_current:.1f}, Total Current={total_current_replicas}")
+    logger.info(f"Real HPA Analysis: {len(cpu_hpa_replicas)} CPU, {len(memory_hpa_replicas)} Memory, {len(mixed_hpa_replicas)} Mixed, {len(custom_hpa_replicas)} Custom")
+    logger.info(f"Real Replica Stats: Avg={avg_current:.1f}, Total Current={total_current_replicas}")
     
     return {
         'total_hpas': total_hpas,
@@ -779,7 +788,7 @@ def _extract_real_replica_arrays_for_chart(current_replicas_data, analysis_data=
     total_current_replicas = current_replicas_data.get('total_current_replicas', 0)
     avg_current = current_replicas_data.get('current_avg', 1.0)
     
-    logger.info(f"🔍 Calculating scaling scenarios for {total_hpas} HPAs with avg {avg_current} replicas")
+    logger.info(f"Calculating scaling scenarios for {total_hpas} HPAs with avg {avg_current} replicas")
     
     # Calculate realistic scaling scenarios based on actual cluster characteristics
     return _calculate_believable_scaling_scenarios(
@@ -925,8 +934,8 @@ def _calculate_believable_scaling_scenarios(cpu_hpas, memory_hpas, mixed_hpas, t
         }
     }
     
-    logger.info(f"📊 Current HPA distribution: {cpu_count} CPU, {memory_count} Memory, {mixed_count} Mixed")
-    logger.info(f"🕒 Calculating time-based scaling patterns from actual cluster load")
+    logger.info(f"Current HPA distribution: {cpu_count} CPU, {memory_count} Memory, {mixed_count} Mixed")
+    logger.info(f"Calculating time-based scaling patterns from actual cluster load")
     
     # Calculate CPU-based scaling strategy using time patterns
     cpu_replicas = _calculate_cpu_time_based_pattern(
@@ -940,7 +949,7 @@ def _calculate_believable_scaling_scenarios(cpu_hpas, memory_hpas, mixed_hpas, t
         )
         logger.info(f"✅ Calculated memory-based scaling patterns for {len(memory_hpas)} Memory + {len(mixed_hpas)} Mixed HPAs")
     else:
-        logger.info("ℹ️ No Memory/Mixed HPAs found - skipping memory-based scaling calculations")
+        logger.info("No Memory/Mixed HPAs found - skipping memory-based scaling calculations")
         memory_replicas = [0, 0, 0, 0]  # Default pattern for 4 time periods (night/morning/afternoon/evening)
     
     # Calculate Mixed strategy using max() approach from hpa_test.py (enterprise best practice)
@@ -948,7 +957,7 @@ def _calculate_believable_scaling_scenarios(cpu_hpas, memory_hpas, mixed_hpas, t
         cpu_replicas, memory_replicas, total_hpas, analysis_data
     )
     
-    logger.info(f"🏢 Enterprise Strategy Results:")
+    logger.info(f"Enterprise Strategy Results:")
     logger.info(f"   CPU-based: {cpu_replicas}")
     logger.info(f"   Memory-based: {memory_replicas}")
     logger.info(f"   Mixed (max): {mixed_replicas}")
@@ -971,7 +980,7 @@ def _calculate_mixed_enterprise_strategy(cpu_replicas, memory_replicas, total_hp
         period_names = ['night', 'morning', 'afternoon', 'evening']
         period_name = period_names[i] if i < len(period_names) else f'period_{i}'
         
-        logger.info(f"🔒 Mixed {period_name}: max({cpu_replicas[i]}, {memory_replicas[i]}) = {safe_replicas} (enterprise safety)")
+        logger.info(f"Mixed {period_name}: max({cpu_replicas[i]}, {memory_replicas[i]}) = {safe_replicas} (enterprise safety)")
     
     return mixed_replicas
 
@@ -999,8 +1008,8 @@ def _calculate_cpu_time_based_pattern(cpu_hpas, mixed_hpas, avg_current, time_sc
     # Enterprise safety constraint: Never go below 10% of current replicas
     safety_minimum = max(1, int(total_current_replicas * 0.10))
     
-    logger.info(f"🏢 CPU Strategy Analysis: {total_current_replicas} total replicas, {cluster_cpu_usage}% cluster CPU")
-    logger.info(f"🔒 Safety minimum: {safety_minimum} replicas (10% of current for enterprise stability)")
+    logger.info(f"CPU Strategy Analysis: {total_current_replicas} total replicas, {cluster_cpu_usage}% cluster CPU")
+    logger.info(f"Safety minimum: {safety_minimum} replicas (10% of current for enterprise stability)")
     
     # Calculate time-based CPU optimization scenarios
     cpu_pattern = []
@@ -1018,7 +1027,7 @@ def _calculate_cpu_time_based_pattern(cpu_hpas, mixed_hpas, avg_current, time_sc
         # Apply enterprise safety constraints
         safe_replicas = max(safety_minimum, optimal_replicas)
         
-        logger.info(f"⚡ CPU {period_name}: {expected_cpu:.1f}% → {safe_replicas} replicas (scale: {scale_factor:.3f}, safety: {safety_minimum})")
+        logger.info(f"CPU {period_name}: {expected_cpu:.1f}% → {safe_replicas} replicas (scale: {scale_factor:.3f}, safety: {safety_minimum})")
         
         cpu_pattern.append(safe_replicas)
     
@@ -1048,8 +1057,8 @@ def _calculate_memory_time_based_pattern(memory_hpas, mixed_hpas, avg_current, t
     # Enterprise safety constraint: Never go below 10% of current replicas
     safety_minimum = max(1, int(total_current_replicas * 0.10))
     
-    logger.info(f"🏢 Memory Strategy Analysis: {total_current_replicas} total replicas, {cluster_memory_usage}% cluster Memory")
-    logger.info(f"🔒 Safety minimum: {safety_minimum} replicas (10% of current for enterprise stability)")
+    logger.info(f"Memory Strategy Analysis: {total_current_replicas} total replicas, {cluster_memory_usage}% cluster Memory")
+    logger.info(f"Safety minimum: {safety_minimum} replicas (10% of current for enterprise stability)")
     
     # Calculate time-based Memory optimization scenarios
     memory_pattern = []
@@ -1067,7 +1076,7 @@ def _calculate_memory_time_based_pattern(memory_hpas, mixed_hpas, avg_current, t
         # Apply enterprise safety constraints
         safe_replicas = max(safety_minimum, optimal_replicas)
         
-        logger.info(f"💾 Memory {period_name}: {expected_memory:.1f}% → {safe_replicas} replicas (scale: {scale_factor:.3f}, safety: {safety_minimum})")
+        logger.info(f"Memory {period_name}: {expected_memory:.1f}% → {safe_replicas} replicas (scale: {scale_factor:.3f}, safety: {safety_minimum})")
         
         memory_pattern.append(safe_replicas)
     
@@ -1079,7 +1088,7 @@ def generate_node_utilization_data(analysis_data):
     if not analysis_data:
         raise ValueError("No analysis data provided")
     
-    logger.info("🔧 Generating node utilization data from REAL metrics")
+    logger.info("Generating node utilization data from REAL metrics")
     
     # Validate we have real node data flag
     if not analysis_data.get('has_real_node_data'):
@@ -1205,7 +1214,7 @@ def generate_namespace_data(analysis_data=None):
     if not analysis_data:
         raise ValueError("No analysis data provided")
     
-    logger.info("🔍 Extracting REAL namespace data from analysis")
+    logger.info("Extracting REAL namespace data from analysis")
     
     # Get REAL namespace costs
     namespace_costs = analysis_data.get('namespace_costs')
@@ -1231,7 +1240,7 @@ def generate_namespace_data(analysis_data=None):
             if cost_float >= 0:
                 valid_namespaces[namespace] = cost_float
         except (ValueError, TypeError):
-            logger.warning(f"⚠️ Invalid cost for namespace {namespace}: {cost}")
+            logger.warning(f"Invalid cost for namespace {namespace}: {cost}")
     
     if not valid_namespaces:
         raise ValueError("No valid namespace costs after processing")
@@ -1250,7 +1259,7 @@ def generate_workload_data(analysis_data=None):
     if not analysis_data:
         raise ValueError("No analysis data provided")
     
-    logger.info("🔍 Extracting REAL workload data from analysis")
+    logger.info("Extracting REAL workload data from analysis")
     
     # Get REAL workload costs
     workload_costs = analysis_data.get('workload_costs')
@@ -1287,7 +1296,7 @@ def generate_workload_data(analysis_data=None):
                 valid_workloads.append((workload_name, cost, workload_type, namespace, replicas))
                 
         except Exception as workload_error:
-            logger.warning(f"⚠️ Error processing workload {workload_name}: {workload_error}")
+            logger.warning(f"Error processing workload {workload_name}: {workload_error}")
     
     if not valid_workloads:
         raise ValueError("No valid workload data after processing")
@@ -1299,96 +1308,8 @@ def generate_workload_data(analysis_data=None):
 
 
 def generate_execution_commands(analysis_data):
-    """Generate actionable kubectl/az/aws commands from analysis data.
+    """Deprecated — commands are generated by the AI plan generation service.
 
-    Returns Dict[str, List[Dict]] — category name → list of {description, command, priority}.
-    Cloud-aware: uses cloud_provider to emit provider-specific commands.
+    Returns empty dict. Kept as a stub so callers don't break.
     """
-    if not analysis_data:
-        raise ValueError("No analysis data provided")
-
-    cloud = analysis_data.get('cloud_provider', 'azure')
-    commands = {}
-
-    # --- Node optimization commands ---
-    node_cmds = []
-    eai = analysis_data.get('enhanced_analysis_input', {})
-    if isinstance(eai, dict):
-        node_opt = eai.get('node_optimization', {})
-        recs = node_opt.get('recommendations', []) if isinstance(node_opt, dict) else []
-        for rec in (recs if isinstance(recs, list) else []):
-            if not isinstance(rec, dict):
-                continue
-            pool = rec.get('node_pool', rec.get('nodegroup', 'default'))
-            cur_vm = rec.get('current_vm_size', rec.get('current_vm', ''))
-            new_vm = rec.get('recommended_vm_size', rec.get('recommended_vm', ''))
-            savings = rec.get('monthly_savings', 0)
-            if cur_vm and new_vm and cur_vm != new_vm:
-                desc = f"Resize pool '{pool}': {cur_vm} -> {new_vm}"
-                if savings:
-                    desc += f" (saves ~${ensure_float(savings):.0f}/mo)"
-                if cloud == 'aws':
-                    cmd = f"# Update EKS nodegroup instance type\naws eks update-nodegroup-config --cluster-name $CLUSTER --nodegroup-name {pool} --scaling-config minSize=1,maxSize=10,desiredSize=3"
-                elif cloud == 'gcp':
-                    cmd = f"# Update GKE node pool machine type\ngcloud container node-pools update {pool} --cluster=$CLUSTER --machine-type={new_vm}"
-                else:
-                    cmd = f"az aks nodepool update --resource-group $RG --cluster-name $CLUSTER --name {pool} --node-vm-size {new_vm}"
-                node_cmds.append({'description': desc, 'command': cmd, 'priority': 'high'})
-    if node_cmds:
-        commands['Node Optimization'] = node_cmds
-
-    # --- HPA commands ---
-    hpa_cmds = []
-    hpa_recs = analysis_data.get('hpa_recommendations', {})
-    if isinstance(hpa_recs, dict):
-        wc = hpa_recs.get('workload_characteristics', {})
-        if isinstance(wc, dict):
-            high_cpu = wc.get('high_cpu_workloads', [])
-            for wl in (high_cpu if isinstance(high_cpu, list) else []):
-                if not isinstance(wl, dict):
-                    continue
-                name = wl.get('name', '')
-                ns = wl.get('namespace', 'default')
-                cpu_pct = wl.get('cpu_usage_pct', wl.get('cpu_utilization', 0))
-                if name:
-                    desc = f"Add HPA for {ns}/{name} (CPU: {ensure_float(cpu_pct):.0f}%)"
-                    cmd = f"kubectl autoscale deployment {name} -n {ns} --cpu-percent=80 --min=2 --max=10"
-                    hpa_cmds.append({'description': desc, 'command': cmd, 'priority': 'high'})
-    if hpa_cmds:
-        commands['HPA Scaling'] = hpa_cmds
-
-    # --- Rightsizing commands ---
-    rs_cmds = []
-    pod_analysis = analysis_data.get('pod_cost_analysis', {})
-    if isinstance(pod_analysis, dict):
-        over_provisioned = pod_analysis.get('over_provisioned_pods', [])
-        for pod in (over_provisioned if isinstance(over_provisioned, list) else [])[:5]:
-            if not isinstance(pod, dict):
-                continue
-            name = pod.get('name', pod.get('pod_name', ''))
-            ns = pod.get('namespace', 'default')
-            if name:
-                desc = f"Rightsizing: reduce resources for {ns}/{name}"
-                cmd = f"kubectl set resources deployment {name} -n {ns} --requests=cpu=100m,memory=128Mi --limits=cpu=500m,memory=512Mi"
-                rs_cmds.append({'description': desc, 'command': cmd, 'priority': 'medium'})
-    if rs_cmds:
-        commands['Rightsizing'] = rs_cmds
-
-    # --- Validation commands ---
-    val_cmds = [
-        {'description': 'Check node resource utilization', 'command': 'kubectl top nodes', 'priority': 'low'},
-        {'description': 'List all HPAs', 'command': 'kubectl get hpa --all-namespaces', 'priority': 'low'},
-        {'description': 'Check pod resource requests vs limits', 'command': 'kubectl top pods --all-namespaces --sort-by=cpu | head -20', 'priority': 'low'},
-    ]
-    if cloud == 'azure':
-        val_cmds.append({'description': 'Show AKS cluster info', 'command': 'az aks show --resource-group $RG --name $CLUSTER -o table', 'priority': 'low'})
-    elif cloud == 'aws':
-        val_cmds.append({'description': 'Show EKS cluster info', 'command': 'aws eks describe-cluster --name $CLUSTER --query "cluster.{status:status,version:version,endpoint:endpoint}" --output table', 'priority': 'low'})
-    elif cloud == 'gcp':
-        val_cmds.append({'description': 'Show GKE cluster info', 'command': 'gcloud container clusters describe $CLUSTER --format="table(status,currentMasterVersion,endpoint)"', 'priority': 'low'})
-    commands['Validation'] = val_cmds
-
-    if not commands:
-        raise ValueError("No execution commands could be generated from analysis data")
-
-    return commands
+    return {}

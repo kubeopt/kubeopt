@@ -156,17 +156,15 @@ class AKSScorer:
 
     @staticmethod
     def from_default_config() -> "AKSScorer":
-        """Load scorer from default configuration in config directory"""
-        config_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "config", "aks_scoring.yaml"
-        )
-        return AKSScorer.from_yaml(config_path)
+        """Load scorer from default configuration via StandardsLoader (base + Azure overlay)"""
+        from shared.standards.standards_loader import get_standards_loader
+        loader = get_standards_loader('azure')
+        return AKSScorer(loader.load_scoring_standards())
 
     @staticmethod
     def from_config(cloud_provider: str = 'azure') -> "AKSScorer":
         """Load scorer via StandardsLoader with cloud-provider-aware YAML resolution.
-        Tries provider-specific file (e.g. eks_scoring.yaml) first, falls back to aks_scoring.yaml."""
+        Loads base scoring.yaml + provider overlay (e.g. azure_scoring.yaml) via StandardsLoader."""
         from shared.standards.standards_loader import get_standards_loader
         loader = get_standards_loader(cloud_provider)
         cfg = loader.load_scoring_standards()

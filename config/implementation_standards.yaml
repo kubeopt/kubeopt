@@ -1,21 +1,20 @@
-# AKS Implementation Standards - Professional Services Costs & Timelines
-# Complements aks_scoring.yaml (focuses on implementation, not savings calculation)
-# Based on CNCF, Azure Well-Architected Framework, and Industry Best Practices (2025)
+# Kubernetes Implementation Standards - Professional Services Costs & Timelines
+# Complements scoring.yaml (focuses on implementation, not savings calculation)
+# Based on CNCF, Well-Architected Frameworks, and Industry Best Practices (2025)
 
 version: 2025.1
 metadata:
-  description: "Professional services costs and implementation timelines for AKS optimizations"
-  complements: "aks_scoring.yaml"
+  description: "Professional services costs and implementation timelines for Kubernetes optimizations"
+  complements: "scoring.yaml"
   focus: "Implementation costs, timelines, and effort estimation"
   sources:
     - "CNCF Annual Survey 2024"
-    - "Azure Professional Services Rate Cards"
+    - "Cloud Professional Services Rate Cards"
     - "Kubernetes Implementation Best Practices"
-    - "Microsoft Partner Network Standards"
 
 # Professional Implementation Costs (USD) - Labor/Consulting
 implementation_costs:
-  
+
   # Horizontal Pod Autoscaler Implementation
   horizontal_scaling:
     base_cost: 120                    # 2 days @ $60/hour (basic HPA setup)
@@ -29,8 +28,8 @@ implementation_costs:
     small_cluster_adjustments:
       base_cost_reduction: 0.5        # 50% reduction for small clusters
       prerequisite_reduction: 0.3     # 70% reduction in prerequisites
-    
-  # Resource Rightsizing (VPA/Analysis)  
+
+  # Resource Rightsizing (VPA/Analysis)
   resource_optimization:
     base_cost: 180                    # 3 days analysis and implementation
     complexity_multipliers:
@@ -38,7 +37,7 @@ implementation_costs:
       mixed_workloads: 1.5            # Mix of stateful/stateless
       complex_patterns: 2.0           # Batch jobs, complex scheduling
     per_workload_analysis: 15         # Additional cost per workload beyond 10
-    
+
   # Cluster Autoscaler Setup
   cluster_autoscaling:
     base_cost: 200                    # 3-4 days setup and tuning
@@ -46,7 +45,7 @@ implementation_costs:
       single_nodepool: 1.0            # Single node pool scenario
       multiple_nodepools: 1.4         # Multiple node pools
       spot_mixed_nodepools: 1.8       # Spot + on-demand mixed
-      
+
   # Storage Class Optimization
   storage_optimization:
     base_cost: 160                    # Storage analysis and migration
@@ -55,7 +54,7 @@ implementation_costs:
       persistent_volume_resize: 1.5   # PV resizing required
       cross_region_migration: 2.0     # Cross-region considerations
     per_persistent_volume: 20         # Cost per PV migration beyond 20
-    
+
   # Network Policy Implementation
   network_optimization:
     base_cost: 240                    # Network segmentation and policies
@@ -64,14 +63,14 @@ implementation_costs:
       micro_segmentation: 1.8         # Detailed micro-segmentation
       service_mesh_integration: 2.5   # Istio/Linkerd integration
 
-  # Security Policy Implementation  
+  # Security Policy Implementation
   security_hardening:
     base_cost: 300                    # Pod Security Standards, RBAC
     complexity_multipliers:
       pod_security_standards: 1.0     # Basic PSS implementation
       rbac_fine_tuning: 1.5          # Detailed RBAC configuration
       admission_controllers: 2.0      # Custom admission controllers
-      
+
   # Monitoring & Observability Enhancement
   observability_setup:
     base_cost: 220                    # Prometheus, Grafana, alerting
@@ -83,15 +82,15 @@ implementation_costs:
 # Regional Professional Service Rates (USD per hour)
 regional_rates:
   base_hourly_rate: 60               # Senior Kubernetes consultant baseline
-  
+
   regional_multipliers:
     north_america: 1.1               # US/Canada: $66/hour
-    western_europe: 1.0              # EU: $60/hour baseline  
+    western_europe: 1.0              # EU: $60/hour baseline
     eastern_europe: 0.7              # Eastern EU: $42/hour
     asia_pacific: 0.8                # APAC: $48/hour
     latin_america: 0.6               # LATAM: $36/hour
     middle_east_africa: 0.7          # MEA: $42/hour
-    
+
   expertise_multipliers:
     junior_consultant: 0.7           # $42/hour (junior)
     senior_consultant: 1.0           # $60/hour (baseline)
@@ -100,26 +99,26 @@ regional_rates:
 
 # Implementation Timelines (Business Days)
 implementation_timelines:
-  
+
   # Core Autoscaling Features
   autoscaling:
     hpa_basic: 2                     # Basic CPU/Memory HPA
     hpa_custom_metrics: 4            # Custom metrics integration
     vpa_setup: 2                     # VPA implementation
     cluster_autoscaler: 3            # Cluster Autoscaler configuration
-    
+
   # Resource Optimization
   resource_optimization:
     analysis_phase: 2                # Resource usage analysis
     implementation_phase: 3          # Apply rightsizing changes
     validation_phase: 2              # Performance validation
-    
+
   # Infrastructure Optimization
   infrastructure:
     storage_optimization: 4          # Storage class optimization
     network_policies: 5              # Network segmentation
     spot_vm_integration: 3           # Spot VM node pools
-    
+
   # Advanced Features
   advanced:
     security_hardening: 7            # Complete security implementation
@@ -129,20 +128,20 @@ implementation_timelines:
 
 # Complexity Assessment Factors
 complexity_factors:
-  
+
   # Cluster Size Impact
   cluster_size:
     small: {nodes: "<10", multiplier: 0.8}      # Small clusters
-    medium: {nodes: "10-50", multiplier: 1.0}   # Medium clusters  
+    medium: {nodes: "10-50", multiplier: 1.0}   # Medium clusters
     large: {nodes: "50-200", multiplier: 1.3}   # Large clusters
     enterprise: {nodes: ">200", multiplier: 1.8} # Enterprise scale
-    
+
   # Workload Complexity
   workload_complexity:
     simple: {description: "Stateless apps", multiplier: 1.0}
     moderate: {description: "Mixed stateful/stateless", multiplier: 1.4}
     complex: {description: "Batch, ML, complex scheduling", multiplier: 1.8}
-    
+
   # Existing Infrastructure Maturity
   infrastructure_maturity:
     greenfield: {description: "New deployment", multiplier: 0.9}
@@ -151,20 +150,20 @@ complexity_factors:
 
 # Risk Assessment and Mitigation
 risk_assessment:
-  
+
   # Implementation Risk Levels
   risk_levels:
     low: {probability: 0.1, impact_multiplier: 1.1}     # 10% risk, 10% cost buffer
     medium: {probability: 0.2, impact_multiplier: 1.2}  # 20% risk, 20% cost buffer
     high: {probability: 0.3, impact_multiplier: 1.4}    # 30% risk, 40% cost buffer
-    
+
   # Risk Mitigation Costs
   mitigation_strategies:
     testing_environment: 40          # Additional testing env setup
     phased_rollout: 20               # Gradual rollout overhead
     enhanced_monitoring: 60          # Additional monitoring during rollout
     rollback_procedures: 30          # Rollback procedure documentation
-    
+
   # Risk Factors by Optimization Type
   risk_by_type:
     horizontal_scaling: "low"        # HPA is well-established
@@ -176,20 +175,20 @@ risk_assessment:
 
 # Quality Assurance Standards
 quality_standards:
-  
+
   # Testing Requirements (Additional Costs)
   testing_overhead:
     unit_testing: 0.15               # 15% of implementation cost
     integration_testing: 0.20       # 20% of implementation cost
     performance_testing: 0.25       # 25% of implementation cost
     security_testing: 0.30          # 30% of implementation cost
-    
+
   # Documentation Requirements
   documentation_effort:
     implementation_guide: 8          # Hours for implementation docs
     operational_runbooks: 12         # Hours for operational procedures
     troubleshooting_guide: 6         # Hours for troubleshooting docs
-    
+
   # Knowledge Transfer
   knowledge_transfer:
     team_training: 16                # Hours for team training
@@ -197,34 +196,34 @@ quality_standards:
 
 # Success Metrics and Validation
 success_criteria:
-  
+
   # Performance Validation Timeframes
   validation_periods:
     initial_validation: 7            # Days for initial performance check
     stability_period: 30             # Days for stability validation
     optimization_tuning: 14          # Days for fine-tuning
-    
-  # Success Thresholds (from aks_scoring.yaml integration)
+
+  # Success Thresholds (from scoring.yaml integration)
   integration_with_scoring:
-    reference_file: "aks_scoring.yaml"
+    reference_file: "scoring.yaml"
     use_existing_thresholds: true    # Use HPA coverage, savings targets, etc.
-    
+
 # Cost Processing Standards
 cost_processing:
-  
+
   # System Cost Allocation
   system_cost_allocation:
     system_pod_percentage: 0.10           # 10% for system pods
     idle_resource_threshold: 0.15         # 15% threshold for idle detection
     load_balancer_allocation_method: "proportional"  # proportional or equal
     cross_zone_data_transfer_factor: 0.02 # 2% of networking costs
-    
+
   # Cost Categorization Weights
   allocation_weights:
     node_pools: 3.0                       # Highest weight - directly attributable
     storage: 2.5
     networking: 2.0
-    aks_control_plane: 1.0                # Shared cost
+    control_plane: 1.0                    # Shared cost
     container_registry: 1.5
     monitoring: 1.0
     security: 1.0
@@ -238,14 +237,14 @@ cost_processing:
     governance_compliance: 0.5            # Usually low cost
     support_management: 0.5               # Usually low cost
     uncategorized: 0.5                    # Lowest weight for unknown services
-    
+
   # Cost Distribution by Type
   cost_distribution:
     compute_percentage: 0.60              # ~60% compute
     storage_percentage: 0.20              # ~20% storage
     network_percentage: 0.15              # ~15% networking
     other_percentage: 0.05                # ~5% other services
-    
+
   # Fallback Cost Estimates (USD)
   fallback_costs:
     total_cost: 750.0
@@ -256,7 +255,7 @@ cost_processing:
 
 # Machine Learning & Analytics Standards
 ml_analytics:
-  
+
   # Anomaly Detection Parameters
   anomaly_detection:
     isolation_forest:
@@ -264,61 +263,61 @@ ml_analytics:
       n_estimators: 50                    # Model complexity
       max_samples: 100                    # Training sample limit
       random_state: 42                    # Reproducibility
-      
+
     cost_spike_detection:
       spike_threshold_multiplier: 2.0     # 2x standard deviation
       minimum_spike_percentage: 10.0      # Minimum 10% increase to consider
       statistical_confidence: 0.95        # 95% confidence for anomalies
-      
+
     budget_validation:
       minimum_budget: 100.0               # Minimum viable budget
       maximum_budget: 100000.0            # Maximum reasonable budget
-      
+
   # Training Data Generation
   training_data:
     sample_size: 200                      # Samples for model training
     cost_variation_factor: 0.1            # 10% variation from base
     minimum_variation: 10.0               # Minimum $10 variation
     bounded_variation_multiplier: 2.0     # Maximum 2x base cost variation
-    
+
   # Prediction Parameters
   cost_prediction:
     prediction_horizon_minutes: 30        # Default prediction window
     ensemble_methods: 3                   # Number of prediction methods
     confidence_threshold: 0.7             # Minimum confidence for predictions
-    
+
 # Monitoring & Alerting Standards
 monitoring_alerting:
-  
+
   # Alert Thresholds
   budget_alerts:
     warning_percentage: 0.8               # 80% budget warning
     enforcement_percentage: 0.95          # 95% budget enforcement
     emergency_percentage: 1.1             # 110% emergency action
-    
+
   # CPU Monitoring Thresholds
   cpu_monitoring:
     warning_threshold: 75.0               # CPU warning at 75%
     critical_threshold: 90.0              # CPU critical at 90%
     efficiency_minimum: 40.0              # Minimum 40% efficiency
     high_cpu_definition: 80.0             # High CPU workload threshold
-    
+
   # Detection Intervals
   detection_intervals:
     real_time_seconds: 300                # 5 minutes for real-time detection
     alert_check_seconds: 60               # 1 minute for alert checks
     guardrail_check_seconds: 30           # 30 seconds for guardrails
-    
+
   # Notification Settings
   notifications:
     default_channels: ["email", "inapp", "slack"]  # Default notification channels
     retry_attempts: 3                     # Notification retry attempts
     retry_delay_seconds: 5                # Delay between retries
     timeout_seconds: 10                   # Request timeout
-    
+
 # Infrastructure Scaling Standards
 infrastructure_scaling:
-  
+
   # Cluster Scaling Limits
   cluster_scaling:
     min_nodes: 1                          # Minimum cluster nodes
@@ -326,13 +325,13 @@ infrastructure_scaling:
     scale_up_threshold: 80.0              # CPU/Memory threshold for scale up
     scale_down_threshold: 30.0            # CPU/Memory threshold for scale down
     cooldown_minutes: 5                   # Cooldown between scaling events
-    
+
   # Resource Limits
   resource_limits:
     max_cpu_cores_per_pod: 8.0            # Maximum CPU cores per pod
     max_memory_gb_per_pod: 32.0           # Maximum memory GB per pod
     max_storage_gb_per_pvc: 1000.0        # Maximum storage GB per PVC
-    
+
   # HPA Settings
   hpa_settings:
     min_replicas: 1                       # Minimum HPA replicas
@@ -343,56 +342,56 @@ infrastructure_scaling:
 
 # Security & Compliance Standards
 security_compliance:
-  
+
   # Security Monitoring
   security_monitoring:
     vulnerability_scan_frequency_days: 7   # Weekly vulnerability scans
     compliance_check_frequency_days: 30    # Monthly compliance checks
     security_alert_retention_days: 90      # Security alert retention
-    
+
   # Access Controls
   access_controls:
     max_admin_users: 5                     # Maximum cluster admin users
     rbac_review_frequency_days: 30         # RBAC review frequency
     service_account_rotation_days: 90      # Service account key rotation
-    
+
 # Optimization Decision Thresholds
 optimization_thresholds:
-  
+
   # ROI and Payback Standards
   payback_threshold_months: 18              # Maximum acceptable payback period
   minimum_monthly_savings: 5.0             # Minimum monthly savings to justify effort
   minimum_savings_percentage: 0.005        # Minimum 0.5% of total cost
-  
+
   # Cluster Size Adjustments
   enterprise_clusters:
     payback_threshold_months: 24            # Enterprise can wait longer for ROI
     minimum_savings_percentage: 0.01       # 1% for enterprise clusters
     minimum_monthly_savings: 25.0
-    
+
   small_clusters:
     payback_threshold_months: 15            # Small clusters need faster payback
     minimum_savings_percentage: 0.002      # 0.2% for small clusters
     minimum_monthly_savings: 2.0
-    
+
   # Implementation Priority Thresholds
   priority_thresholds:
     high_priority_savings: 100.0            # $100+ monthly savings = high priority
-    
+
   # Component-Specific Optimization Thresholds (minimum cost to analyze)
   component_thresholds:
     storage_optimization_minimum: 1.0       # $1+ storage cost worth analyzing
     networking_optimization_minimum: 2.0    # $2+ networking cost worth analyzing
     compute_optimization_minimum: 2.0       # $2+ compute cost worth analyzing
-    
-  # Small cluster adjustments for thresholds  
+
+  # Small cluster adjustments for thresholds
   small_cluster_thresholds:
     storage_optimization_minimum: 0.5       # $0.50+ for small clusters
     networking_optimization_minimum: 1.0    # $1+ for small clusters
     compute_optimization_minimum: 1.0       # $1+ for small clusters
     medium_priority_savings: 25.0           # $25+ monthly savings = medium priority
     low_priority_savings: 5.0               # $5+ monthly savings = low priority
-    
+
   # Dynamic Savings Calculation Standards
   savings_calculation:
     base_savings_percentage: 0.08           # 8% base savings potential
@@ -421,7 +420,7 @@ optimization_thresholds:
       network_percentage_threshold: 0.20    # 20% network cost threshold
       high_cpu_threshold: 500               # 500% CPU utilization threshold
       moderate_cpu_threshold: 200           # 200% CPU utilization threshold
-      
+
   # Optimization Objectives Standards
   optimization_objectives:
     base_objectives:
@@ -436,7 +435,7 @@ optimization_thresholds:
       enterprise_efficiency_bonus: 0.1      # +10% operational efficiency for enterprise
     cost_thresholds:
       high_cost_threshold: 5000             # $5000+ monthly cost = high-cost cluster
-      
+
     # Cluster Intelligence Adjustments
     cluster_intelligence_adjustments:
       high_complexity_operational_bonus: 0.1     # +10% operational focus for high complexity
@@ -453,7 +452,7 @@ optimization_thresholds:
       medium_hpa_threshold: 50                    # <50% coverage = medium HPA potential
       workload_complexity_high_threshold: 50      # >50 workloads = high complexity
       workload_complexity_medium_threshold: 20    # >20 workloads = medium complexity
-      
+
   # Individual Opportunity Optimization Potentials
   opportunity_optimization:
     storage_optimization_percentage: 0.15   # 15% storage cost reduction potential
@@ -465,7 +464,7 @@ optimization_thresholds:
 
 # Enterprise Strategy Patterns (Dynamic Configuration)
 enterprise_patterns:
-  
+
   # Strategy Execution Patterns
   cost_optimization_patterns:
     enterprise_conservative:
@@ -473,70 +472,70 @@ enterprise_patterns:
       risk_tolerance: 0.3                   # Low risk tolerance
       parallel_execution: false             # Sequential execution
       validation_intensity: 'high'          # High validation requirements
-      
+
     enterprise_aggressive:
       phases: ['assessment', 'multi_track_optimization', 'governance']
       risk_tolerance: 0.7                   # Higher risk tolerance
       parallel_execution: true              # Parallel optimization tracks
       validation_intensity: 'standard'      # Standard validation
-      
+
     startup_agile:
       phases: ['quick_wins', 'iterative_optimization']
       risk_tolerance: 0.8                   # High risk tolerance
       parallel_execution: true              # Fast execution
       validation_intensity: 'minimal'       # Minimal validation
-      
-  # Performance Optimization Patterns  
+
+  # Performance Optimization Patterns
   performance_optimization_patterns:
     latency_critical:
       focus_areas: ['networking', 'compute', 'storage_performance']
       trade_offs:
         cost: 0.3                           # Lower cost priority
         performance: 0.7                    # Higher performance priority
-        
+
     throughput_optimized:
       focus_areas: ['compute_scaling', 'load_balancing', 'caching']
       trade_offs:
         cost: 0.4                           # Balanced cost priority
         performance: 0.6                    # Higher performance priority
-        
+
   # Security Hardening Patterns
   security_hardening_patterns:
     compliance_driven:
       requirements: ['pod_security', 'network_policies', 'rbac', 'audit_logging']
       timeline_impact: 1.3                  # 30% timeline increase
-      
+
     zero_trust:
       requirements: ['network_segmentation', 'identity_verification', 'encryption']
       timeline_impact: 1.5                  # 50% timeline increase
 
 # Industry Benchmarks (Configurable)
 industry_benchmarks:
-  
+
   # Cost Optimization Benchmarks
   cost_optimization:
     enterprise:
       target_savings: 0.25                  # 25% target savings
       typical_timeline_weeks: 16            # 16 weeks typical timeline
       success_rate: 0.85                    # 85% success rate
-      
+
     mid_market:
       target_savings: 0.20                  # 20% target savings
       typical_timeline_weeks: 12            # 12 weeks typical timeline
       success_rate: 0.80                    # 80% success rate
-      
+
     startup:
       target_savings: 0.15                  # 15% target savings (less optimization potential)
       typical_timeline_weeks: 8             # 8 weeks typical timeline
       success_rate: 0.75                    # 75% success rate
-      
+
   # Performance Optimization Benchmarks
   performance_optimization:
     enterprise:
       target_improvement: 0.30              # 30% performance improvement
       typical_timeline_weeks: 20            # 20 weeks typical timeline
       success_rate: 0.80                    # 80% success rate
-      
+
     mid_market:
       target_improvement: 0.25              # 25% performance improvement
       typical_timeline_weeks: 16            # 16 weeks typical timeline
@@ -544,46 +543,46 @@ industry_benchmarks:
 
 # Cost Estimation Integration
 cost_calculation:
-  
+
   # Formula: base_cost * complexity_multiplier * cluster_size_multiplier * regional_multiplier * expertise_multiplier + prerequisites + risk_buffer
-  
+
   estimation_formula: |
     total_cost = (
-      base_cost * 
-      complexity_multiplier * 
-      cluster_size_multiplier * 
-      regional_multiplier * 
+      base_cost *
+      complexity_multiplier *
+      cluster_size_multiplier *
+      regional_multiplier *
       expertise_multiplier
     ) + prerequisite_costs + risk_mitigation_costs
-    
+
   # Minimum viable implementation costs
   minimum_costs:
     any_optimization: 100            # Minimum cost for any optimization
     complex_optimization: 300        # Minimum for complex optimizations
-    
+
   # Maximum reasonable costs (fail-safe)
   maximum_costs:
     single_optimization: 2000        # Maximum for any single optimization
-    comprehensive_project: 10000     # Maximum for comprehensive AKS optimization
+    comprehensive_project: 10000     # Maximum for comprehensive Kubernetes optimization
 
 # Governance and Security Standards
 governance_standards:
-  
+
   # Minimum namespace requirements for governance analysis
   minimum_namespaces: 3              # Minimum for dev/staging/prod separation
-  
+
   # Optimal namespace distribution by cluster size
   namespace_recommendations:
     small_cluster: 5                 # 1-50 workloads
-    medium_cluster: 8                # 51-200 workloads  
+    medium_cluster: 8                # 51-200 workloads
     large_cluster: 12                # 201+ workloads
-    
+
   # Security governance requirements
   security_minimums:
     rbac_enabled: true               # RBAC must be enabled
     network_policies_coverage: 0.7   # 70% of namespaces should have network policies
     pod_security_standards: 0.8      # 80% compliance with pod security standards
-    
+
   # Compliance thresholds
   compliance_targets:
     audit_logging: 0.9               # 90% audit trail coverage
@@ -592,36 +591,36 @@ governance_standards:
 
 # =============================================
 # MONITORING & LOG ANALYTICS OPTIMIZATION STANDARDS
-# Based on AKS and Azure Monitor best practices
+# Based on Kubernetes and cloud monitoring best practices
 # =============================================
 monitoring_optimization:
-  # Log retention optimization (AKS best practice)
+  # Log retention optimization (Kubernetes best practice)
   min_log_retention_days: 7          # Minimum retention for non-critical logs
   critical_log_retention_days: 30    # Critical logs retention
   audit_log_retention_days: 90       # Audit logs per compliance requirements
-  
+
   # Data ingestion optimization
   log_sampling_rate: 0.1             # 10% sampling for verbose logs
   metrics_collection_interval_sec: 30 # Default collection interval
   critical_metrics_interval_sec: 15   # Critical metrics interval
-  
+
   # Storage optimization
   high_volume_threshold_gb: 50       # GB/month threshold for high volume
   compression_target_ratio: 10       # Target 10:1 compression ratio
-  
+
   # Cost optimization thresholds
   monitoring_thresholds:
     critical_proportion: 0.5        # >50% of total cost is critical
     high_proportion: 0.3            # >30% of total cost is high
     moderate_proportion: 0.2        # >20% of total cost is moderate
-    
-  # Savings potential based on AKS optimization patterns
+
+  # Savings potential based on Kubernetes optimization patterns
   monitoring_savings:
     critical_rate: 0.35             # 35% savings when >50% of costs
     high_rate: 0.30                 # 30% savings when 30-50% of costs
     moderate_rate: 0.25             # 25% savings when 20-30% of costs
     baseline_rate: 0.20             # 20% baseline savings potential
-    
+
   # Optimization multipliers
   retention_savings_multiplier: 0.3  # 30% of retention reduction translates to savings
   compression_savings_multiplier: 0.15 # 15% savings from better compression
@@ -631,7 +630,7 @@ monitoring_optimization:
   max_total_savings_rate: 0.40       # Cap total savings at 40%
 
 # Cost Category Optimization Standards
-# Based on AKS cost optimization best practices
+# Based on Kubernetes cost optimization best practices
 # =============================================
 cost_category_optimization:
   # Networking optimization potential
@@ -641,14 +640,14 @@ cost_category_optimization:
     ingress_consolidation: 0.15       # 15% from ingress consolidation
     traffic_routing_optimization: 0.10 # 10% from traffic optimization
     max_savings_rate: 0.20            # Maximum 20% networking savings
-    
-  # Control plane optimization potential  
+
+  # Control plane optimization potential
   control_plane_optimization:
     base_savings_rate: 0.08           # 8% baseline control plane optimization
     api_server_optimization: 0.12     # 12% from API server optimization
     etcd_optimization: 0.10           # 10% from etcd optimization
     max_savings_rate: 0.15            # Maximum 15% control plane savings
-    
+
   # Container registry optimization potential
   registry_optimization:
     base_savings_rate: 0.20           # 20% baseline registry optimization
@@ -656,8 +655,8 @@ cost_category_optimization:
     layer_optimization: 0.30          # 30% from layer optimization
     geo_replication_optimization: 0.15 # 15% from geo-replication optimization
     max_savings_rate: 0.35            # Maximum 35% registry savings
-  
-  # Log categories and optimization potential (AKS specific)
+
+  # Log categories and optimization potential (standard Kubernetes)
   log_categories:
     kube_audit:
       retention_days: 90            # Compliance requirement

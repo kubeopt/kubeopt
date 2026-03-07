@@ -7,7 +7,7 @@ Successfully migrated from hardcoded standards to centralized YAML configuration
 ## ✅ **What Was Completed**
 
 ### **1. Centralized Standards Configuration**
-- **Created**: `config/aks_scoring.yaml` - Single source of truth for all standards
+- **Created**: `config/scoring.yaml` + `config/azure_scoring.yaml` - Cloud-agnostic base + Azure overlay
 - **Sources**: CNCF, FinOps Foundation, Google SRE, Azure Well-Architected Framework
 - **Coverage**: All industry standards now configurable via YAML
 
@@ -124,7 +124,7 @@ _get_standard_value('category', 'metric', default_value)
 
 ## 📝 **Files Modified**
 
-1. **`config/aks_scoring.yaml`** - ✨ New centralized configuration
+1. **`config/scoring.yaml`** + **`config/azure_scoring.yaml`** - Centralized configuration (base + overlay)
 2. **`analytics/processors/aks_scorer.py`** - ✨ New scoring engine
 3. **`analytics/processors/algorithmic_cost_analyzer.py`** - 🔄 Migrated to YAML standards
 4. **`presentation/web/templates/unified_dashboard.html`** - 🔄 Added excellence scores UI
