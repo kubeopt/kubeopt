@@ -581,6 +581,7 @@ class KubernetesDataCache:
                 cluster_name=self.cluster_name,
                 region=self.region,
                 project_id=self.subscription_id,
+                zone=self.region,
             )
         return ClusterIdentifier(
             provider=provider,

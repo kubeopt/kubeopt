@@ -1317,6 +1317,21 @@ def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, 
     if _provider == CloudProvider.AWS:
         return _execute_aws_cost_query(resource_group, cluster_name, start_date, end_date, subscription_id, region)
 
+    # --- GCP: use BigQuery billing or Compute pricing fallback ---
+    if _provider == CloudProvider.GCP:
+        try:
+            from infrastructure.cloud_providers.gcp.costs import GCPCostManager
+            from datetime import datetime as dt
+            cost_mgr = GCPCostManager()
+            _start = dt.strptime(start_date, '%Y-%m-%d') if isinstance(start_date, str) else start_date
+            _end = dt.strptime(end_date, '%Y-%m-%d') if isinstance(end_date, str) else end_date
+            _ci = ClusterIdentifier(provider=_provider, cluster_name=cluster_name,
+                                    region=region, project_id=subscription_id, zone=region)
+            return cost_mgr.get_cluster_costs(_ci, _start, _end)
+        except Exception as e:
+            logger.warning(f"GCP cost query failed: {e}")
+            return None
+
     # --- Azure path ---
     logger.info(f"🔄 EXECUTING: Azure Cost API query for {cluster_name}")
 

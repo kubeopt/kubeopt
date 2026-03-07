@@ -86,6 +86,9 @@ async def add_cluster(
             if target == CloudProvider.AWS:
                 from infrastructure.cloud_providers.aws.accounts import AWSAccountManager
                 account_mgr = AWSAccountManager()
+            elif target == CloudProvider.GCP:
+                from infrastructure.cloud_providers.gcp.accounts import GCPAccountManager
+                account_mgr = GCPAccountManager()
             else:
                 from infrastructure.cloud_providers.registry import ProviderRegistry
                 account_mgr = ProviderRegistry().get_account_manager()
@@ -109,6 +112,36 @@ async def add_cluster(
     except Exception as e:
         logger.error(f"Failed to add cluster: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to add cluster: {e}")
+
+
+@router.get("/discover-clusters")
+async def discover_clusters(
+    provider: str = "gcp",
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Auto-discover clusters from cloud provider."""
+    try:
+        from infrastructure.cloud_providers.types import CloudProvider as CP
+        target = CP.from_string(provider)
+
+        if target == CP.GCP:
+            from infrastructure.cloud_providers.gcp.accounts import GCPAccountManager
+            account_mgr = GCPAccountManager()
+        elif target == CP.AWS:
+            from infrastructure.cloud_providers.aws.accounts import AWSAccountManager
+            account_mgr = AWSAccountManager()
+        else:
+            from infrastructure.cloud_providers.registry import ProviderRegistry
+            account_mgr = ProviderRegistry().get_account_manager()
+
+        clusters = account_mgr.discover_clusters()
+        return {
+            "clusters": [c.to_dict() for c in clusters],
+            "total": len(clusters),
+        }
+    except Exception as e:
+        logger.error(f"Cluster discovery failed for {provider}: {e}")
+        raise HTTPException(status_code=500, detail=f"Cluster discovery failed: {e}")
 
 
 @router.delete("/cluster/{cluster_id:path}/remove")
