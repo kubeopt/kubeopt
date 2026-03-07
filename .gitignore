@@ -121,6 +121,7 @@ credentials.txt
 credentials.json
 auth_config.json
 config_sensitive.yaml
+.gcp_service_account.json
 
 # IDE and OS
 .vscode/

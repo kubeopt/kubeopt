@@ -1,5 +1,6 @@
-"""GCP Authenticator — google.auth.default() credential chain with class-level singleton."""
+"""GCP Authenticator — service account JSON (preferred) or ADC fallback."""
 
+import json
 import os
 import logging
 from typing import Optional
@@ -8,14 +9,18 @@ from infrastructure.cloud_providers.base import CloudAuthenticator
 
 logger = logging.getLogger(__name__)
 
+# Path where the UI-uploaded service account key is persisted
+_SA_KEY_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '.gcp_service_account.json'))
+
 
 class GCPAuthenticator(CloudAuthenticator):
-    """Authenticates with GCP using Application Default Credentials.
+    """Authenticates with GCP.
 
-    Credential chain:
-    1. GOOGLE_APPLICATION_CREDENTIALS env var (service account JSON)
-    2. gcloud CLI auth (gcloud auth application-default login)
-    3. GCE metadata server (when running on GCP)
+    Credential priority:
+    1. Saved service account key (uploaded via UI, stored at .gcp_service_account.json)
+    2. GOOGLE_APPLICATION_CREDENTIALS env var (service account JSON file path)
+    3. gcloud CLI auth (gcloud auth application-default login)
+    4. GCE metadata server (when running on GCP)
     """
 
     def __init__(self):
@@ -27,6 +32,7 @@ class GCPAuthenticator(CloudAuthenticator):
         try:
             import google.auth
             from google.auth.exceptions import DefaultCredentialsError
+            from google.oauth2 import service_account
         except ImportError:
             logger.error("google-auth not installed. Run: pip install google-auth")
             self._authenticated = False
@@ -34,9 +40,26 @@ class GCPAuthenticator(CloudAuthenticator):
 
         try:
             scopes = ['https://www.googleapis.com/auth/cloud-platform']
+
+            # Priority 1: Saved service account key from UI upload
+            if os.path.exists(_SA_KEY_PATH):
+                try:
+                    with open(_SA_KEY_PATH, 'r') as f:
+                        sa_info = json.load(f)
+                    credentials = service_account.Credentials.from_service_account_info(
+                        sa_info, scopes=scopes
+                    )
+                    self._project_id = sa_info.get('project_id')
+                    self._credentials = credentials
+                    self._authenticated = True
+                    logger.info(f"GCP authenticated via saved service account key (project: {self._project_id})")
+                    return True
+                except Exception as e:
+                    logger.warning(f"Saved GCP service account key invalid, falling back to ADC: {e}")
+
+            # Priority 2-4: Application Default Credentials (env var, gcloud CLI, metadata)
             credentials, project = google.auth.default(scopes=scopes)
 
-            # Project can come from credentials, env var, or explicit config
             self._project_id = (
                 project
                 or os.getenv('GOOGLE_CLOUD_PROJECT')
@@ -52,7 +75,7 @@ class GCPAuthenticator(CloudAuthenticator):
             self._authenticated = True
 
             masked_project = f"***{self._project_id[-6:]}" if self._project_id and len(self._project_id) > 6 else self._project_id
-            logger.info(f"GCP authenticated: project={masked_project}")
+            logger.info(f"GCP authenticated via ADC: project={masked_project}")
             return True
 
         except DefaultCredentialsError as e:
