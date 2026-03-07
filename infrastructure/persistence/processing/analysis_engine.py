@@ -203,15 +203,21 @@ class MultiSubscriptionAnalysisEngine:
                 # Don't fail - let comprehensive fetch handle everything
                 cost_validation_result = {'available': True, 'subscription_id': subscription_id, 'cache_hit': False}
             
-            # Step 3: Create subscription-aware config
+            # Step 3: Normalize resource_group for non-Azure providers
+            # Background processor uses subscription_id as resource_group for AWS/GCP cache keys
+            # Analysis engine must match to find the pre-created cache with cloud adapters
+            if cloud_provider in ('aws', 'gcp') and not resource_group:
+                resource_group = subscription_id
+
+            # Step 4: Create subscription-aware config
             if config is None:
                 config = AnalysisConfig(AnalysisType.MULTI_SUBSCRIPTION, subscription_id, cloud_provider=cloud_provider, region=region)
             else:
                 config.subscription_id = subscription_id
                 config.cloud_provider = cloud_provider
                 config.region = region
-            
-            # Step 4: Run analysis with subscription context and cluster config support
+
+            # Step 5: Run analysis with subscription context and cluster config support
             return self._run_analysis_with_subscription_context(
                 resource_group, cluster_name, subscription_id, days, enable_pod_analysis, config, cost_validation_result
             )
