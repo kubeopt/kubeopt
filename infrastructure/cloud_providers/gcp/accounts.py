@@ -67,10 +67,22 @@ class GCPAccountManager(CloudAccountManager):
             client = container_v1.ClusterManagerClient(credentials=auth.credentials)
             project = cluster.project_id or auth.project_id
             location = cluster.zone or cluster.region
-            name = f"projects/{project}/locations/{location}/clusters/{cluster.cluster_name}"
 
-            result = client.get_cluster(name=name)
-            return result.status.name in ('RUNNING', 'RECONCILING', 'PROVISIONING')
+            if location:
+                name = f"projects/{project}/locations/{location}/clusters/{cluster.cluster_name}"
+                result = client.get_cluster(name=name)
+                return result.status.name in ('RUNNING', 'RECONCILING', 'PROVISIONING')
+
+            # No location — use wildcard discovery to find the cluster
+            parent = f"projects/{project}/locations/-"
+            response = client.list_clusters(parent=parent)
+            for c in response.clusters:
+                if c.name == cluster.cluster_name:
+                    logger.info(f"Found GKE cluster '{c.name}' in location '{c.location}' via discovery")
+                    return c.status.name in ('RUNNING', 'RECONCILING', 'PROVISIONING')
+
+            logger.warning(f"GKE cluster '{cluster.cluster_name}' not found in project '{project}'")
+            return False
 
         except Exception as e:
             logger.warning(f"GKE cluster access validation failed: {e}")

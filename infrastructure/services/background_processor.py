@@ -214,6 +214,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
                 cluster_name=cluster_name,
                 region=region or '',
                 project_id=subscription_id,
+                zone=region or '',
             )
         else:
             cluster_ident = ClusterIdentifier(

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import subprocess
 from typing import Optional
 
@@ -9,6 +10,18 @@ from infrastructure.cloud_providers.base import KubernetesCommandExecutor
 from infrastructure.cloud_providers.types import ClusterIdentifier
 
 logger = logging.getLogger(__name__)
+
+# Ensure gke-gcloud-auth-plugin is on PATH for kubectl
+_GCLOUD_SDK_PATHS = [
+    '/opt/homebrew/share/google-cloud-sdk/bin',
+    '/usr/local/share/google-cloud-sdk/bin',
+    os.path.expanduser('~/google-cloud-sdk/bin'),
+    '/usr/lib/google-cloud-sdk/bin',
+]
+for _p in _GCLOUD_SDK_PATHS:
+    if os.path.isdir(_p) and _p not in os.environ.get('PATH', ''):
+        os.environ['PATH'] = _p + ':' + os.environ.get('PATH', '')
+        break
 
 
 class GCPKubernetesExecutor(KubernetesCommandExecutor):
@@ -40,7 +53,8 @@ class GCPKubernetesExecutor(KubernetesCommandExecutor):
 
     def execute_kubectl(self, cluster: ClusterIdentifier, command: str, timeout: int = 180) -> Optional[str]:
         try:
-            full_command = f"kubectl {command}"
+            # Commands from the cache already include 'kubectl' prefix
+            full_command = command if command.startswith(('kubectl ', 'echo ', '/')) else f"kubectl {command}"
             logger.debug(f"GKE kubectl: {full_command[:100]}...")
 
             result = subprocess.run(
