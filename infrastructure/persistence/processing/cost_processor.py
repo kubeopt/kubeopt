@@ -1317,7 +1317,7 @@ def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, 
     if _provider == CloudProvider.AWS:
         return _execute_aws_cost_query(resource_group, cluster_name, start_date, end_date, subscription_id, region)
 
-    # --- GCP: use BigQuery billing or Compute pricing fallback ---
+    # --- GCP: use BigQuery billing or estimate from node types ---
     if _provider == CloudProvider.GCP:
         try:
             from infrastructure.cloud_providers.gcp.costs import GCPCostManager
@@ -1327,9 +1327,22 @@ def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, 
             _end = dt.strptime(end_date, '%Y-%m-%d') if isinstance(end_date, str) else end_date
             _ci = ClusterIdentifier(provider=_provider, cluster_name=cluster_name,
                                     region=region, project_id=subscription_id, zone=region)
-            return cost_mgr.get_cluster_costs(_ci, _start, _end)
+            bq_result = cost_mgr.get_cluster_costs(_ci, _start, _end)
+            if bq_result is not None:
+                # Convert BigQuery result to DataFrame
+                import pandas as pd
+                rows = [{'ResourceType': svc, 'Cost': cost, 'Category': 'GKE', 'Subcategory': svc}
+                        for svc, cost in bq_result.get('breakdown', {}).items()]
+                if rows:
+                    return pd.DataFrame(rows)
         except Exception as e:
-            logger.warning(f"GCP cost query failed: {e}")
+            logger.warning(f"GCP BigQuery cost query failed: {e}")
+
+        # Fallback: estimate costs from GKE node pools via Container API
+        try:
+            return _estimate_gcp_costs(subscription_id, cluster_name, region, start_date, end_date)
+        except Exception as e:
+            logger.warning(f"GCP cost estimation failed: {e}")
             return None
 
     # --- Azure path ---
@@ -1779,6 +1792,101 @@ def _gcp_service_to_category(service_name: str) -> tuple:
         return ('Security', 'Cloud KMS')
     else:
         return ('Other Services', service_name)
+
+
+def _estimate_gcp_costs(project_id, cluster_name, region, start_date, end_date):
+    """Estimate GKE cluster costs from node pool machine types when billing export is unavailable."""
+    import pandas as pd
+    from datetime import datetime as dt
+    from infrastructure.cloud_providers.gcp.costs import GCPCostManager, _DEFAULT_PRICING
+
+    _start = dt.strptime(start_date, '%Y-%m-%d') if isinstance(start_date, str) else start_date
+    _end = dt.strptime(end_date, '%Y-%m-%d') if isinstance(end_date, str) else end_date
+    days = max((_end - _start).days, 1)
+
+    # Get node pools from GKE Container API
+    from infrastructure.cloud_providers.gcp.authenticator import GCPAuthenticator
+    from google.cloud import container_v1
+
+    auth = GCPAuthenticator()
+    auth.authenticate()
+    client = container_v1.ClusterManagerClient(credentials=auth.credentials)
+
+    zone = region if region and len(region.split('-')) >= 3 else f"{region}-a"
+    path = f"projects/{project_id}/locations/{zone}/clusters/{cluster_name}"
+
+    try:
+        cluster = client.get_cluster(name=path)
+    except Exception:
+        # Try wildcard
+        parent = f"projects/{project_id}/locations/-"
+        resp = client.list_clusters(parent=parent)
+        cluster = next((c for c in resp.clusters if c.name == cluster_name), None)
+        if not cluster:
+            return None
+
+    rows = []
+    total_node_cost = 0.0
+
+    for np in cluster.node_pools:
+        machine_type = np.config.machine_type if np.config else 'e2-standard-4'
+        node_count = np.initial_node_count or 1
+        # Try autoscaling current size
+        if np.autoscaling and np.autoscaling.enabled:
+            node_count = max(np.autoscaling.min_node_count, node_count)
+
+        pricing = _DEFAULT_PRICING.get(machine_type)
+        if not pricing:
+            # Estimate from e2-small: 2 shared vCPU, 2GB, ~$0.017/hr
+            if 'small' in machine_type:
+                hourly = 0.017
+            elif 'micro' in machine_type:
+                hourly = 0.008
+            elif 'medium' in machine_type:
+                hourly = 0.034
+            else:
+                hourly = 0.067  # Default to e2-standard-2
+        else:
+            hourly = pricing['hourly']
+
+        pool_daily = hourly * 24 * node_count
+        pool_period = pool_daily * days
+        total_node_cost += pool_period
+
+        rows.append({
+            'ResourceType': f'GCE Instance ({machine_type})',
+            'Cost': round(pool_period, 2),
+            'Category': 'Node Pools',
+            'Subcategory': f'{np.name} ({node_count}x {machine_type})',
+        })
+
+    # GKE Standard management fee: $0.10/hr per cluster
+    mgmt_cost = 0.10 * 24 * days
+    rows.append({
+        'ResourceType': 'GKE Cluster Management',
+        'Cost': round(mgmt_cost, 2),
+        'Category': 'Control Plane',
+        'Subcategory': 'GKE Standard',
+    })
+
+    # Estimate storage: $0.04/GB/month PD-Standard
+    disk_gb = sum((np.config.disk_size_gb or 100) * (np.initial_node_count or 1) for np in cluster.node_pools)
+    storage_cost = (disk_gb * 0.04 / 30) * days
+    rows.append({
+        'ResourceType': 'Persistent Disk',
+        'Cost': round(storage_cost, 2),
+        'Category': 'Storage',
+        'Subcategory': f'PD-Standard ({disk_gb} GB)',
+    })
+
+    logger.info(f"GKE cost estimate for '{cluster_name}': ${sum(r['Cost'] for r in rows):.2f} "
+                f"({days} days, {len(cluster.node_pools)} pools, estimated)")
+
+    df = pd.DataFrame(rows)
+    # Add columns expected by extract_enhanced_cost_components
+    df['CostType'] = 'actual'
+    df['IdleCost'] = 0.0
+    return df
 
 
 def log_cost_details(cost_df):
