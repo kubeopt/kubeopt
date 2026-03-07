@@ -69,6 +69,39 @@ async def save_setting(
             except Exception:
                 pass
 
+        # If GCP credentials changed, write service account key to file and invalidate cached auth
+        if body.key == 'gcp_service_account_key' and body.value:
+            import os
+            try:
+                key_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', '.gcp_service_account.json')
+                key_path = os.path.normpath(key_path)
+                with open(key_path, 'w') as f:
+                    f.write(body.value if isinstance(body.value, str) else str(body.value))
+                os.chmod(key_path, 0o600)
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = key_path
+                logger.info(f"GCP service account key saved to {key_path}")
+            except Exception as e:
+                logger.error(f"Failed to save GCP service account key: {e}")
+
+        if body.key in ('gcp_service_account_key', 'gcp_project_id'):
+            import os
+            if body.key == 'gcp_project_id' and body.value:
+                os.environ['GOOGLE_CLOUD_PROJECT'] = str(body.value)
+            try:
+                from infrastructure.cloud_providers.gcp.accounts import GCPAccountManager
+                from infrastructure.cloud_providers.gcp.executor import GCPKubernetesExecutor
+                from infrastructure.cloud_providers.gcp.inspector import GCPInfrastructureInspector
+                from infrastructure.cloud_providers.gcp.metrics import GCPMetricsCollector
+                from infrastructure.cloud_providers.gcp.costs import GCPCostManager
+                GCPAccountManager._auth_instance = None
+                GCPKubernetesExecutor._auth_instance = None
+                GCPInfrastructureInspector._auth_instance = None
+                GCPMetricsCollector._auth_instance = None
+                GCPCostManager._auth_instance = None
+                logger.info("Invalidated cached GCP authenticators after credential change")
+            except Exception:
+                pass
+
         return {"message": f"Setting '{body.key}' saved successfully"}
     except Exception as e:
         logger.error(f"Failed to save setting: {e}")
@@ -135,17 +168,60 @@ async def test_gcp_connection(
     body: GCPSettings = GCPSettings(),
     user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """Test GCP connection with provided credentials."""
+    """Test GCP connection with provided or saved credentials."""
+    import json as json_mod
     try:
-        from infrastructure.cloud_providers.gcp.authenticator import GCPAuthenticator
-        auth = GCPAuthenticator()
-        connected = auth.is_authenticated()
-        if connected:
-            project = auth.project_id or 'unknown'
-            return {"connected": True, "message": f"GCP connected (project: {project})"}
-        return {"connected": False, "message": "GCP authentication failed. Check GOOGLE_APPLICATION_CREDENTIALS or run: gcloud auth application-default login"}
+        sa_json = body.service_account_json
+
+        # If no credentials in request body, check saved settings
+        if not sa_json:
+            try:
+                import os
+                key_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', '.gcp_service_account.json')
+                key_path = os.path.normpath(key_path)
+                if os.path.exists(key_path):
+                    with open(key_path, 'r') as f:
+                        sa_json = f.read()
+            except Exception:
+                pass
+
+        if sa_json:
+            # Direct credential creation from service account JSON — no ADC, no gcloud needed
+            from google.oauth2 import service_account as sa_module
+            sa_info = json_mod.loads(sa_json)
+            credentials = sa_module.Credentials.from_service_account_info(
+                sa_info, scopes=['https://www.googleapis.com/auth/cloud-platform']
+            )
+            project = sa_info.get('project_id') or body.project_id
+
+            # Validate by making an API call
+            from google.cloud import container_v1
+            client = container_v1.ClusterManagerClient(credentials=credentials)
+            # Simple validation: list clusters (even if empty, proves auth works)
+            parent = f"projects/{project}/locations/-"
+            response = client.list_clusters(parent=parent)
+            cluster_count = len(response.clusters)
+
+            return {
+                "connected": True,
+                "message": f"GCP connected (project: {project}, {cluster_count} cluster(s) found)",
+            }
+        else:
+            # Fall back to ADC (gcloud auth application-default login)
+            from infrastructure.cloud_providers.gcp.authenticator import GCPAuthenticator
+            auth = GCPAuthenticator()
+            connected = auth.authenticate()
+            if connected:
+                project = auth.project_id or 'unknown'
+                return {"connected": True, "message": f"GCP connected via ADC (project: {project})"}
+            return {"connected": False, "message": "No GCP credentials. Upload a service account key JSON file."}
+
     except Exception as e:
-        return {"connected": False, "message": f"GCP connection test failed: {e}"}
+        error_msg = str(e)
+        # Don't leak private key details
+        if 'private_key' in error_msg.lower():
+            error_msg = "Invalid service account key format"
+        return {"connected": False, "message": f"GCP connection test failed: {error_msg}"}
 
 
 @router.post("/test-slack")

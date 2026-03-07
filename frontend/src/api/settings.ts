@@ -16,6 +16,6 @@ export async function testAWSConnection() {
   return api.post<{ connected: boolean; message: string }>('/api/settings/test-aws', {})
 }
 
-export async function testGCPConnection() {
-  return api.post<{ connected: boolean; message: string }>('/api/settings/test-gcp', {})
+export async function testGCPConnection(opts?: { project_id?: string; service_account_json?: string; zone?: string }) {
+  return api.post<{ connected: boolean; message: string }>('/api/settings/test-gcp', opts || {})
 }
