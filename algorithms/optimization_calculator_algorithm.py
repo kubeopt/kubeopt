@@ -21,15 +21,16 @@ class OptimizationCalculatorAlgorithm:
     Extracted from algorithmic_cost_analyzer.py OptimizationCalculatorAlgorithm
     """
     
-    def __init__(self, logger: logging.Logger, algorithm_instances: Dict, aks_scorer=None):
+    def __init__(self, logger: logging.Logger, algorithm_instances: Dict, aks_scorer=None, cloud_provider: str = 'azure'):
         """
         Initialize optimization calculator algorithm
-        
+
         Args:
             logger: Logger instance (required, no default)
             algorithm_instances: Dictionary of algorithm instances
             aks_scorer: AKS scorer instance (optional)
-        
+            cloud_provider: Cloud provider for standards resolution
+
         Raises:
             ValueError: If logger or algorithm_instances is None
         """
@@ -37,9 +38,10 @@ class OptimizationCalculatorAlgorithm:
             raise ValueError("Logger parameter is required")
         if algorithm_instances is None:
             raise ValueError("algorithm_instances parameter is required")
-        
+
         self.logger = logger
         self.aks_scorer = aks_scorer
+        self._cloud_provider = cloud_provider
         
         # Store algorithm instances for calculations
         self.hpa_algorithm = algorithm_instances.get('hpa_algorithm')

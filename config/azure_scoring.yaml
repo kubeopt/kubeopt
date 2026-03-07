@@ -1,0 +1,192 @@
+# Azure-Specific Scoring Overlay
+# Deep-merged on top of scoring.yaml by StandardsLoader
+# Contains Azure pricing, regions, and service-specific configuration
+
+cost_excellence:
+  observability:
+    # Enhanced pricing configuration (Azure Log Analytics)
+    log_analytics_pricing:
+      payg_base_price: 2.76  # Pay-as-you-go baseline (East US)
+      commitment_discount_avg: 0.45  # Average 45% discount on commitment tiers
+      min_meaningful_savings: 50  # Minimum $50/month to suggest optimization
+      max_savings_pct: 0.80  # Cap savings at 80% of current observability spend
+      use_actual_costs: true  # Prioritize actual monitoring costs over theoretical pricing
+
+    # Regional pricing multipliers (relative to East US baseline)
+    regional_multipliers:
+      eastus: 1.00
+      westus: 1.08
+      northeurope: 1.10
+      southeastasia: 1.20
+      australiaeast: 1.20
+      uksouth: 1.04
+
+  # ACR (Azure Container Registry) configuration
+  images:
+    median_image_mb_target: {target: 250, tol_frac: 0.60}  # 250MB median image size
+    mix:
+      acr_sku: 0.35      # ACR SKU appropriateness (Basic/Standard vs Premium)
+      size: 0.35         # Image size optimization
+      retention: 0.15    # Retention policy (>=14 days)
+      geo: 0.15          # Geo-replication right-sizing
+
+  # Azure Defender / security agents
+  sec_tools:
+    mix:
+      defender_scope: 0.60  # Defender scoped to prod (>=70% nonprod excluded)
+      dup_agents: 0.40     # Duplicate security agent detection
+
+official_standards:
+  # Azure-specific pricing for savings calculations
+  savings_opportunities:
+    public_ip_monthly_cost: 3.65            # Azure public IP cost per month
+    lb_monthly_cost_standard: 25            # Azure Load Balancer cost per month
+    lb_monthly_cost_basic: 5.47             # Azure Basic LB cost per month
+
+  # Azure Well-Architected Framework Standards
+  azure_waf:
+    spot_vm_savings:
+      maximum_discount: 90
+      arm64_performance_improvement: 50
+    azure_reservations:
+      maximum_discount: 72
+    monitoring_optimization:
+      prometheus_migration_savings: "significant"
+
+  # Azure Regional Pricing Standards (USD per GB per month)
+  azure_pricing:
+    storage:
+      eastus:
+        standard_lrs: 0.045
+        premium_lrs: 0.135
+        standard_ssd: 0.095
+      westus:
+        standard_lrs: 0.045
+        premium_lrs: 0.135
+        standard_ssd: 0.095
+      westus2:
+        standard_lrs: 0.045
+        premium_lrs: 0.135
+        standard_ssd: 0.095
+      centralus:
+        standard_lrs: 0.045
+        premium_lrs: 0.135
+        standard_ssd: 0.095
+      northeurope:
+        standard_lrs: 0.045
+        premium_lrs: 0.135
+        standard_ssd: 0.095
+      westeurope:
+        standard_lrs: 0.049
+        premium_lrs: 0.144
+        standard_ssd: 0.103
+      japaneast:
+        standard_lrs: 0.053
+        premium_lrs: 0.159
+        standard_ssd: 0.112
+      japanwest:
+        standard_lrs: 0.058
+        premium_lrs: 0.175
+        standard_ssd: 0.123
+      southeastasia:
+        standard_lrs: 0.048
+        premium_lrs: 0.144
+        standard_ssd: 0.102
+      eastasia:
+        standard_lrs: 0.053
+        premium_lrs: 0.159
+        standard_ssd: 0.112
+      australiaeast:
+        standard_lrs: 0.055
+        premium_lrs: 0.165
+        standard_ssd: 0.116
+      australiasoutheast:
+        standard_lrs: 0.055
+        premium_lrs: 0.165
+        standard_ssd: 0.116
+      brazilsouth:
+        standard_lrs: 0.065
+        premium_lrs: 0.195
+        standard_ssd: 0.137
+      canadacentral:
+        standard_lrs: 0.050
+        premium_lrs: 0.150
+        standard_ssd: 0.105
+      canadaeast:
+        standard_lrs: 0.050
+        premium_lrs: 0.150
+        standard_ssd: 0.105
+      uksouth:
+        standard_lrs: 0.048
+        premium_lrs: 0.144
+        standard_ssd: 0.102
+      ukwest:
+        standard_lrs: 0.048
+        premium_lrs: 0.144
+        standard_ssd: 0.102
+
+observability_cost_standards:
+  cost_calculation:
+    # Regional pricing (per GB/month for Azure Log Analytics Pay-as-you-go)
+    regional_pricing:
+      eastus: 2.76
+      westus: 2.99
+      westus2: 2.99
+      centralus: 2.76
+      eastus2: 2.76
+      northcentralus: 2.76
+      southcentralus: 2.76
+      westcentralus: 2.99
+      canadacentral: 3.04
+      canadaeast: 3.04
+      northeurope: 3.04
+      westeurope: 3.04
+      uksouth: 2.87
+      ukwest: 2.87
+      francecentral: 3.16
+      germanywestcentral: 3.16
+      norwayeast: 3.32
+      switzerlandnorth: 3.59
+      swedencentral: 2.76
+      australiaeast: 3.31
+      australiasoutheast: 3.31
+      southeastasia: 3.31
+      eastasia: 3.31
+      japaneast: 3.31
+      japanwest: 3.31
+      koreacentral: 3.31
+      koreasouth: 3.31
+      southafricanorth: 3.73
+      uaenorth: 3.73
+      brazilsouth: 4.14
+      southindia: 3.31
+      centralindia: 3.31
+      westindia: 3.31
+
+    # Azure-specific naming pattern weights for cluster attribution
+    naming_attribution:
+      exact_cluster_name_match: 0.9        # 90% attribution if workspace name contains cluster name
+      resource_group_match: 0.6            # 60% attribution if same resource group
+      container_insights_match: 0.8        # 80% attribution if Container Insights detected
+      aks_related_match: 0.5               # 50% attribution if AKS-related naming detected
+      default_fallback: 0.3                # 30% attribution as fallback
+
+    # Azure-specific estimation factors (merged on top of base)
+    estimation_factors:
+      container_insights_overhead: 0.15    # 15% additional cost for Container Insights
+      prometheus_metrics_factor: 0.10      # 10% additional cost for Prometheus metrics
+
+# Azure regional pricing references
+regional_pricing:
+  eastus:
+    ref_vcpu_price: 0.045
+    ref_net_price_per_gb: 0.02
+    spot_discount_avg: 0.70  # 70% average spot discount
+  westus2:
+    ref_vcpu_price: 0.048
+    ref_net_price_per_gb: 0.021
+    spot_discount_avg: 0.72
+  northeurope:
+    ref_vcpu_price: 0.050
+    ref_net_price_per_gb: 0.022
+    spot_discount_avg: 0.68

@@ -155,10 +155,10 @@ class KubernetesDataCache:
                 )
                 logger.info(f"✅ {self.cluster_name}: Azure Metric Collector initialized (40-45% load reduction enabled)")
             except Exception as e:
-                logger.warning(f"⚠️ {self.cluster_name}: Azure Metric Collector initialization failed: {e}")
-                logger.info(f"ℹ️ {self.cluster_name}: Will use kubectl for all queries")
+                logger.warning(f"{self.cluster_name}: Azure Metric Collector initialization failed: {e}")
+                logger.info(f"{self.cluster_name}: Will use kubectl for all queries")
         elif self.cloud_provider != 'azure':
-            logger.info(f"ℹ️ {self.cluster_name}: Skipping Azure Metric Collector ({self.cloud_provider} cluster)")
+            logger.info(f"{self.cluster_name}: Skipping Azure Metric Collector ({self.cloud_provider} cluster)")
         
         # NO FALLBACK COLLECTORS - violates .clauderc production standards
         # Fallbacks hide issues and provide incomplete data
@@ -167,10 +167,10 @@ class KubernetesDataCache:
         
         # CONDITIONAL: Only fetch data if explicitly requested (e.g., during analysis)
         if auto_fetch:
-            logger.info(f"🚀 {self.cluster_name}: Auto-fetching data on cache creation...")
+            logger.info(f"{self.cluster_name}: Auto-fetching data on cache creation...")
             self.fetch_all_data()
         else:
-            logger.info(f"💤 {self.cluster_name}: Cache created - kubectl commands will run on demand")
+            logger.info(f"{self.cluster_name}: Cache created - kubectl commands will run on demand")
     
     def _is_cache_valid(self, resource_name: str) -> bool:
         """
@@ -192,7 +192,7 @@ class KubernetesDataCache:
             logger.debug(f"✅ {self.cluster_name}: Using cached {resource_name} (age: {age:.0f}s, ttl: {ttl}s)")
             return True
         else:
-            logger.debug(f"🔄 {self.cluster_name}: Cache expired for {resource_name} (age: {age:.0f}s > ttl: {ttl}s)")
+            logger.debug(f"{self.cluster_name}: Cache expired for {resource_name} (age: {age:.0f}s > ttl: {ttl}s)")
             return False
     
     # === KUBERNETES RESOURCE PARSING UTILITIES ===
@@ -213,7 +213,7 @@ class KubernetesDataCache:
                 # Whole cores (e.g., "4" -> 4.0 cores)
                 return float(cpu_str)
         except (ValueError, TypeError) as e:
-            logger.warning(f"⚠️ Failed to parse CPU value '{cpu_str}': {e}")
+            logger.warning(f"Failed to parse CPU value '{cpu_str}': {e}")
             return None
     
     def _parse_memory_bytes(self, memory_str: str) -> Optional[float]:
@@ -241,7 +241,7 @@ class KubernetesDataCache:
                 # Raw bytes
                 return float(memory_str)
         except (ValueError, TypeError) as e:
-            logger.warning(f"⚠️ Failed to parse memory value '{memory_str}': {e}")
+            logger.warning(f"Failed to parse memory value '{memory_str}': {e}")
             return None
     
     def _process_nodes_data(self, raw_nodes_data: Any) -> List[Dict[str, Any]]:
@@ -250,7 +250,7 @@ class KubernetesDataCache:
         This ensures universal compatibility across all cluster sizes and configurations.
         """
         if not raw_nodes_data:
-            logger.warning("⚠️ No nodes data to process")
+            logger.warning("No nodes data to process")
             return []
         
         # Handle both string JSON and dict
@@ -264,7 +264,7 @@ class KubernetesDataCache:
             nodes_json = raw_nodes_data
         
         if not isinstance(nodes_json, dict) or 'items' not in nodes_json:
-            logger.warning(f"⚠️ Invalid nodes data structure: {type(nodes_json)}")
+            logger.warning(f"Invalid nodes data structure: {type(nodes_json)}")
             return []
         
         processed_nodes = []
@@ -651,7 +651,7 @@ class KubernetesDataCache:
             try:
                 # Replace kubectl top nodes (35-40% load reduction) - TEMPORARILY DISABLED
                 if False and 'kubectl top nodes' in cmd:
-                    logger.info(f"🔄 {self.cluster_name}: Using Azure Monitor instead of kubectl top nodes")
+                    logger.info(f"{self.cluster_name}: Using Azure Monitor instead of kubectl top nodes")
                     result = self.azure_collector.get_node_metrics()
                     # Convert to kubectl top nodes format
                     if result and 'nodes' in result:
@@ -670,7 +670,7 @@ class KubernetesDataCache:
                 # NOTE: Disabled Azure SDK replacement for nodes - kubectl provides more complete data
                 # The ML pipeline requires full kubectl node structure with all status fields
                 elif False and cmd == 'kubectl get nodes -o json':  # DISABLED - kubectl needed for ML
-                    logger.info(f"🔄 {self.cluster_name}: Using Azure ARM instead of kubectl get nodes")
+                    logger.info(f"{self.cluster_name}: Using Azure ARM instead of kubectl get nodes")
                     result = self.azure_collector.get_node_info()
                     # Convert Azure format to kubectl format with ACTUAL resource values
                     if result and 'nodes' in result:
@@ -709,7 +709,7 @@ class KubernetesDataCache:
                 
                 # Replace kubectl cluster-info (~1% load reduction)
                 elif cmd == 'kubectl cluster-info':
-                    logger.info(f"🔄 {self.cluster_name}: Using Azure ARM instead of kubectl cluster-info")
+                    logger.info(f"{self.cluster_name}: Using Azure ARM instead of kubectl cluster-info")
                     result = self.azure_collector.get_cluster_info()
                     if result and 'cluster_info' in result:
                         info = result['cluster_info']
@@ -720,7 +720,7 @@ class KubernetesDataCache:
                         return f"Kubernetes control plane is running at {api_server}"
                 
             except Exception as e:
-                logger.warning(f"⚠️ {self.cluster_name}: Azure replacement failed for '{cmd[:50]}...', falling back to kubectl: {e}")
+                logger.warning(f"{self.cluster_name}: Azure replacement failed for '{cmd[:50]}...', falling back to kubectl: {e}")
         
         # Always use server-side execution via begin_run_command() (ARM API)
         # Works for ALL AKS clusters: AAD, local RBAC, public, private
@@ -760,7 +760,7 @@ class KubernetesDataCache:
                 else:
                     timeout = 75
 
-                logger.info(f"🕐 {self.cluster_name}: Using {timeout}s timeout for: {cmd[:50]}...")
+                logger.info(f"{self.cluster_name}: Using {timeout}s timeout for: {cmd[:50]}...")
 
             result_output = azure_sdk_manager.execute_aks_command(
                 subscription_id=self.subscription_id,
@@ -776,20 +776,20 @@ class KubernetesDataCache:
                 return result_output
             else:
                 if "kubectl top" in cmd:
-                    logger.warning(f"⚠️ {self.cluster_name}: kubectl top failed (metrics not available for some pods): {cmd[:60]}...")
+                    logger.warning(f"{self.cluster_name}: kubectl top failed (metrics not available for some pods): {cmd[:60]}...")
                 elif "kubectl get hpa" in cmd:
-                    logger.warning(f"⚠️ {self.cluster_name}: HPA command failed: {cmd[:60]}...")
+                    logger.warning(f"{self.cluster_name}: HPA command failed: {cmd[:60]}...")
                 elif "NotFound" in str(result_output) or "not found" in str(result_output):
-                    logger.debug(f"📋 {self.cluster_name}: Optional resource not found: {cmd[:60]}...")
+                    logger.debug(f"{self.cluster_name}: Optional resource not found: {cmd[:60]}...")
                     return None
                 elif "server doesn't have a resource type" in str(result_output).lower():
-                    logger.debug(f"📋 {self.cluster_name}: Resource type not available: {cmd[:60]}...")
+                    logger.debug(f"{self.cluster_name}: Resource type not available: {cmd[:60]}...")
                     return None
                 elif "podsecuritypolicies" in cmd:
-                    logger.debug(f"📋 {self.cluster_name}: PodSecurityPolicy deprecated/removed: {cmd[:60]}...")
+                    logger.debug(f"{self.cluster_name}: PodSecurityPolicy deprecated/removed: {cmd[:60]}...")
                     return None
                 else:
-                    logger.warning(f"⚠️ {self.cluster_name}: kubectl command failed: {cmd[:60]}...")
+                    logger.warning(f"{self.cluster_name}: kubectl command failed: {cmd[:60]}...")
                     if any(critical in cmd for critical in ["get nodes", "get namespaces", "version"]):
                         logger.error(f"❌ CRITICAL: kubectl command failed in {cmd_duration:.1f}s: {cmd[:60]}...")
                         raise RuntimeError(f"Critical kubectl command failed: {cmd[:60]}...")
@@ -805,13 +805,13 @@ class KubernetesDataCache:
                     raise TimeoutError(f"Critical kubectl command timed out after {timeout}s: {cmd[:60]}...")
                 return None
             elif "NotFound" in str(e) or "not found" in str(e):
-                logger.debug(f"📋 {self.cluster_name}: Optional resource not found (exception): {cmd[:60]}...")
+                logger.debug(f"{self.cluster_name}: Optional resource not found (exception): {cmd[:60]}...")
                 return None
             elif "server doesn't have a resource type" in str(e).lower():
-                logger.debug(f"📋 {self.cluster_name}: Resource type not available (exception): {cmd[:60]}...")
+                logger.debug(f"{self.cluster_name}: Resource type not available (exception): {cmd[:60]}...")
                 return None
             elif "podsecuritypolicies" in cmd:
-                logger.debug(f"📋 {self.cluster_name}: PodSecurityPolicy deprecated/removed (exception): {cmd[:60]}...")
+                logger.debug(f"{self.cluster_name}: PodSecurityPolicy deprecated/removed (exception): {cmd[:60]}...")
                 return None
             else:
                 logger.error(f"❌ {self.cluster_name}: kubectl SDK error: {cmd[:60]}... - {e}")
@@ -851,7 +851,7 @@ class KubernetesDataCache:
                 logger.debug(f"✅ {self.cluster_name}: Extracted kubectl output ({len(kubectl_output)} chars) from Azure CLI response")
                 return kubectl_output
             else:
-                logger.warning(f"⚠️ {self.cluster_name}: No kubectl output found in Azure CLI response for: {cmd[:50]}...")
+                logger.warning(f"{self.cluster_name}: No kubectl output found in Azure CLI response for: {cmd[:50]}...")
                 return None
                 
         except Exception as e:
@@ -874,7 +874,7 @@ class KubernetesDataCache:
         
         # Determine which batches need refresh
         if force_refresh:
-            logger.info(f"🔄 {self.cluster_name}: FORCE REFRESH - fetching all {len(all_batched_commands)} batches")
+            logger.info(f"{self.cluster_name}: FORCE REFRESH - fetching all {len(all_batched_commands)} batches")
             batches_to_fetch = all_batched_commands
             cached_results = {}
         else:
@@ -897,7 +897,7 @@ class KubernetesDataCache:
                 
                 # Need to fetch this batch
                 batches_to_fetch[batch_name] = batch_cmd
-                logger.info(f"🔄 {self.cluster_name}: Will refresh {batch_name} (expired or missing)")
+                logger.info(f"{self.cluster_name}: Will refresh {batch_name} (expired or missing)")
         
         # Log cache efficiency
         total_batches = len(all_batched_commands)
@@ -905,8 +905,8 @@ class KubernetesDataCache:
         cached_count = len(cached_results)
         cache_hit_rate = (cached_count / total_batches * 100) if total_batches > 0 else 0
         
-        logger.info(f"📊 {self.cluster_name}: Cache efficiency - {cached_count}/{total_batches} cached ({cache_hit_rate:.0f}% hit rate)")
-        logger.info(f"🚀 {self.cluster_name}: Fetching {fetching_count} expired batches, using {cached_count} cached batches")
+        logger.info(f"{self.cluster_name}: Cache efficiency - {cached_count}/{total_batches} cached ({cache_hit_rate:.0f}% hit rate)")
+        logger.info(f"{self.cluster_name}: Fetching {fetching_count} expired batches, using {cached_count} cached batches")
         
         # Fetch only expired batches
         if batches_to_fetch:
@@ -914,7 +914,7 @@ class KubernetesDataCache:
             
             # Retry failed batches if any
             if failed_batches:
-                logger.info(f"🔄 {self.cluster_name}: Retrying {len(failed_batches)} failed batches...")
+                logger.info(f"{self.cluster_name}: Retrying {len(failed_batches)} failed batches...")
                 retry_results, still_failed = self._execute_batched_commands(failed_batches, attempt=2)
                 batch_results.update(retry_results)
                 
@@ -928,7 +928,7 @@ class KubernetesDataCache:
                         # Fail explicitly per .clauderc for critical data only
                         raise RuntimeError(f"Failed to fetch critical Kubernetes data: {list(critical_failures.keys())}")
                     else:
-                        logger.warning(f"⚠️ {self.cluster_name}: {len(still_failed)} non-critical batches failed (metrics-server issues) - analysis will continue")
+                        logger.warning(f"{self.cluster_name}: {len(still_failed)} non-critical batches failed (metrics-server issues) - analysis will continue")
             
             # Parse fresh batch results
             fresh_parsed = self._parse_batched_results(batch_results)
@@ -950,10 +950,10 @@ class KubernetesDataCache:
         
         # Log final statistics
         duration = time.time() - start_time
-        logger.info(f"⚡ {self.cluster_name}: Smart fetch completed in {duration:.1f}s")
+        logger.info(f"{self.cluster_name}: Smart fetch completed in {duration:.1f}s")
         if not force_refresh and cached_count > 0:
             time_saved = cached_count * 35  # Estimate 35s per batch saved
-            logger.info(f"💰 {self.cluster_name}: Saved ~{time_saved}s by using {cached_count} cached batches")
+            logger.info(f"{self.cluster_name}: Saved ~{time_saved}s by using {cached_count} cached batches")
         
         return self._finalize_results(all_results, start_time)
 
@@ -967,21 +967,21 @@ class KubernetesDataCache:
                 # Special handling for metrics commands - add delay and retry
                 if key in ["metrics_nodes", "metrics_pods"] and attempt == 1:
                     # Delay metrics collection to let metrics-server warm up
-                    logger.info(f"⏱️ {self.cluster_name}: Delaying metrics batch '{key}' by 2 seconds for metrics-server...")
+                    logger.info(f"{self.cluster_name}: Delaying metrics batch '{key}' by 2 seconds for metrics-server...")
                     time.sleep(2)
                 
-                logger.info(f"🎯 {self.cluster_name}: Executing batch '{key}' (attempt {attempt})...")
+                logger.info(f"{self.cluster_name}: Executing batch '{key}' (attempt {attempt})...")
                 
                 # Increase timeout for metrics commands on retry
                 timeout = 180
                 if key in ["metrics_nodes", "metrics_pods"] and attempt > 1:
                     timeout = 240  # Give more time on retry
-                    logger.info(f"⏱️ {self.cluster_name}: Using extended timeout {timeout}s for metrics retry")
+                    logger.info(f"{self.cluster_name}: Using extended timeout {timeout}s for metrics retry")
                 
                 output = self._execute_kubectl_command(cmd, timeout=timeout)
                 
                 # DEBUG: Log EVERY batch output
-                logger.info(f"🔍 DEBUG {self.cluster_name}: Batch '{key}' raw output: {output[:500] if output else 'EMPTY'}")
+                logger.info(f"DEBUG {self.cluster_name}: Batch '{key}' raw output: {output[:500] if output else 'EMPTY'}")
                 
                 if output:
                     results[key] = output
@@ -998,20 +998,20 @@ class KubernetesDataCache:
                     # On first attempt, mark as failed to trigger retry
                     if attempt == 1:
                         failed_commands[key] = cmd
-                        logger.warning(f"⚠️ {self.cluster_name}: Batch '{key}' returned no data (will retry)")
+                        logger.warning(f"{self.cluster_name}: Batch '{key}' returned no data (will retry)")
                     else:
                         # On retry, accept empty as soft failure
                         results[key] = ""  # Empty string allows analysis to continue
-                        logger.warning(f"⚠️ {self.cluster_name}: Batch '{key}' returned no data after retry (metrics-server issue - analysis will continue with reduced metrics)")
+                        logger.warning(f"{self.cluster_name}: Batch '{key}' returned no data after retry (metrics-server issue - analysis will continue with reduced metrics)")
                 else:
                     failed_commands[key] = cmd
-                    logger.warning(f"⚠️ {self.cluster_name}: Batch '{key}' returned no data")
+                    logger.warning(f"{self.cluster_name}: Batch '{key}' returned no data")
                     
             except Exception as e:
                 # Special handling for metrics on first attempt
                 if key in ["metrics_nodes", "metrics_pods"] and attempt == 1:
                     failed_commands[key] = cmd
-                    logger.warning(f"⚠️ {self.cluster_name}: Batch '{key}' failed (will retry): {e}")
+                    logger.warning(f"{self.cluster_name}: Batch '{key}' failed (will retry): {e}")
                 else:
                     failed_commands[key] = cmd
                     logger.error(f"❌ {self.cluster_name}: Batch '{key}' failed: {e}")
@@ -1032,7 +1032,7 @@ class KubernetesDataCache:
             
             # Allow empty output for optional queries (e.g., HPA might not exist)
             if not output or output.strip() == '':
-                logger.warning(f"⚠️ Batch '{key}' returned empty output - resource might not exist")
+                logger.warning(f"Batch '{key}' returned empty output - resource might not exist")
                 parsed[key] = {"items": [], "count": 0, "errors": 0}
                 continue
             
@@ -1263,16 +1263,16 @@ class KubernetesDataCache:
         commands_to_execute = {}
         for key, cmd in commands.items():
             if self._is_cache_valid(key) and key in self.data:
-                logger.info(f"📦 {self.cluster_name}: Using cached {key} (skipping query)")
+                logger.info(f"{self.cluster_name}: Using cached {key} (skipping query)")
                 results[key] = self.data[key]
             else:
                 commands_to_execute[key] = cmd
         
         if not commands_to_execute:
-            logger.info(f"✨ {self.cluster_name}: All {len(commands)} resources served from cache!")
+            logger.info(f"{self.cluster_name}: All {len(commands)} resources served from cache!")
             return results, failed_commands
         
-        logger.info(f"🔄 {self.cluster_name}: Executing {len(commands_to_execute)} queries ({len(results)} from cache)")
+        logger.info(f"{self.cluster_name}: Executing {len(commands_to_execute)} queries ({len(results)} from cache)")
         
         # Balanced workers for SDK-based execution with built-in rate limiting
         import os
@@ -1308,20 +1308,20 @@ class KubernetesDataCache:
                             except json.JSONDecodeError:
                                 # For JSON commands that return non-JSON (empty or error), use empty JSON structure
                                 results[key] = {"items": []}
-                                logger.debug(f"⚠️ {self.cluster_name}: {key} = invalid JSON, using empty structure (attempt {attempt})")
+                                logger.debug(f"{self.cluster_name}: {key} = invalid JSON, using empty structure (attempt {attempt})")
                     else:
                         # Empty result - add to failed for retry
                         if attempt == 1:
                             failed_commands[key] = commands[key]
-                            logger.debug(f"🔄 {self.cluster_name}: {key} = no data, will retry")
+                            logger.debug(f"{self.cluster_name}: {key} = no data, will retry")
                         else:
                             results[key] = {"items": []} if not self._is_text_output(key) else ""
-                            logger.debug(f"⚠️ {self.cluster_name}: {key} = no data after retry")
+                            logger.debug(f"{self.cluster_name}: {key} = no data after retry")
                         
                 except Exception as e:
                     if attempt == 1:
                         failed_commands[key] = commands[key]
-                        logger.debug(f"🔄 {self.cluster_name}: {key} failed, will retry - {e}")
+                        logger.debug(f"{self.cluster_name}: {key} failed, will retry - {e}")
                     else:
                         results[key] = {"items": []} if not self._is_text_output(key) else ""
                         logger.error(f"❌ {self.cluster_name}: {key} failed after retry - {e}")
@@ -1388,7 +1388,7 @@ class KubernetesDataCache:
                 hpa_items = hpa_data.get('items', [])
                 
                 # HPA essential now returns full JSON with currentMetrics preserved
-                logger.info(f"📊 Processing {len(hpa_items)} HPAs with full JSON structure")
+                logger.info(f"Processing {len(hpa_items)} HPAs with full JSON structure")
                 
                 # Store the full HPA JSON data directly - no conversion needed
                 final_results['hpa'] = hpa_data
@@ -1396,7 +1396,7 @@ class KubernetesDataCache:
                 
                 # Log statistics for CPU metrics
                 hpa_with_cpu = sum(1 for h in hpa_items if 'status' in h and 'currentMetrics' in h.get('status', {}))
-                logger.info(f"📊 {self.cluster_name}: {len(hpa_items)} HPAs ({hpa_with_cpu} with currentMetrics)")
+                logger.info(f"{self.cluster_name}: {len(hpa_items)} HPAs ({hpa_with_cpu} with currentMetrics)")
         
         if 'pvc_essential' in results:
             pvc_data = results['pvc_essential']
@@ -1482,6 +1482,25 @@ class KubernetesDataCache:
             final_results['kubectl_data'] = kubectl_data
             logger.info(f"✅ {self.cluster_name}: Created kubectl_data structure with {len(kubectl_data)} resource types")
         
+        # Extract DaemonSet entries from workloads_extended for pod_cost_analyzer
+        if 'workloads_extended' in results:
+            we_data = results['workloads_extended']
+            if isinstance(we_data, dict) and 'items' in we_data:
+                ds_items = []
+                for item in we_data['items']:
+                    parts = item.get('parts', [])
+                    if len(parts) >= 3 and parts[0] == 'DaemonSet':
+                        ds_items.append({
+                            'namespace': parts[1],
+                            'name': parts[2],
+                            'desired': parts[3] if len(parts) > 3 else '0',
+                            'current': parts[4] if len(parts) > 4 else '0',
+                            'ready': parts[5] if len(parts) > 5 else '0'
+                        })
+                if ds_items:
+                    final_results['daemonsets'] = {"items": ds_items}
+                    logger.info(f"✅ {self.cluster_name}: Extracted {len(ds_items)} DaemonSets from workloads_extended")
+
         # Include all other batched data
         for key, value in results.items():
             if key not in final_results:
@@ -1493,9 +1512,9 @@ class KubernetesDataCache:
         duration = time.time() - start_time
         successful_batches = sum(1 for v in results.values() if v)
         total_batches = 14  # We have 14 batched queries now
-        logger.info(f"⚡ {self.cluster_name}: Batched fetch completed in {duration:.1f}s")
-        logger.info(f"📊 {self.cluster_name}: {successful_batches}/{total_batches} batches successful")
-        logger.info(f"🎯 {self.cluster_name}: Reduced API calls from 60+ to 14 (77% reduction)")
+        logger.info(f"{self.cluster_name}: Batched fetch completed in {duration:.1f}s")
+        logger.info(f"{self.cluster_name}: {successful_batches}/{total_batches} batches successful")
+        logger.info(f"{self.cluster_name}: Reduced API calls from 60+ to 14 (77% reduction)")
         
         return final_results
     
@@ -1535,14 +1554,14 @@ class KubernetesDataCache:
             try:
                 cluster_state_changed = self._detect_cluster_state_changes()
                 if cluster_state_changed:
-                    logger.info(f"🔄 {self.cluster_name}: Cluster state changes detected via get() - invalidating cache")
+                    logger.info(f"{self.cluster_name}: Cluster state changes detected via get() - invalidating cache")
                     # Clear all cached data and timestamps to force refresh
                     self.data.clear()
                     self.cache_timestamps.clear()
                     # Fetch fresh data
                     self.fetch_all_data(force_refresh=True)
             except Exception as e:
-                logger.debug(f"⚠️ {self.cluster_name}: Cluster state change detection in get() failed: {e}")
+                logger.debug(f"{self.cluster_name}: Cluster state change detection in get() failed: {e}")
         
         return self.data.get(key)
     
@@ -1552,7 +1571,7 @@ class KubernetesDataCache:
         
         # DEBUG: Log detailed info for deployment data specifically
         if key == 'deployments':
-            logger.info(f"🔍 DEBUG {self.cluster_name}: Deployment data type: {type(raw_data)}, "
+            logger.info(f"DEBUG {self.cluster_name}: Deployment data type: {type(raw_data)}, "
                        f"length: {len(str(raw_data)) if raw_data else 0}, "
                        f"empty check: {not raw_data}")
         
@@ -1587,9 +1606,9 @@ class KubernetesDataCache:
                 # Enhanced logging for deployment parsing failures
                 if key == 'deployments':
                     logger.error(f"❌ {self.cluster_name}: Deployment JSON parse failed: {e}")
-                    logger.error(f"🔍 {self.cluster_name}: First 200 chars: {raw_data[:200]}")
+                    logger.error(f"{self.cluster_name}: First 200 chars: {raw_data[:200]}")
                 else:
-                    logger.warning(f"⚠️ {self.cluster_name}: Failed to parse {key} as JSON, returning empty structure")
+                    logger.warning(f"{self.cluster_name}: Failed to parse {key} as JSON, returning empty structure")
         
         # Fallback to empty structure
         return {"items": []}
@@ -1600,13 +1619,13 @@ class KubernetesDataCache:
         pods_raw = self.get('pods')
         pods_formatted = self._ensure_json_format('pods')
         pods_count = len(pods_formatted.get('items', []))
-        logger.debug(f"🐛 {self.cluster_name}: Pods debug - raw data type: {type(pods_raw)}, formatted items: {pods_count}")
+        logger.debug(f"{self.cluster_name}: Pods debug - raw data type: {type(pods_raw)}, formatted items: {pods_count}")
         
         # FALLBACK: If JSON pods data is empty but custom columns has data, construct JSON from custom columns
         if pods_count == 0:
             pod_resources_text = self.get('pod_resources')
             if pod_resources_text and isinstance(pod_resources_text, str) and len(pod_resources_text.strip()) > 100:
-                logger.info(f"🔄 {self.cluster_name}: JSON pods empty but custom columns has data - using fallback")
+                logger.info(f"{self.cluster_name}: JSON pods empty but custom columns has data - using fallback")
                 pods_formatted = self._construct_pods_json_from_custom_columns(pod_resources_text)
                 pods_count = len(pods_formatted.get('items', []))
                 logger.info(f"✅ {self.cluster_name}: Constructed {pods_count} pods from custom columns fallback")
@@ -1619,7 +1638,7 @@ class KubernetesDataCache:
             # Try converting from custom columns format
             deployment_info_text = self.get('deployment_info')
             if deployment_info_text and isinstance(deployment_info_text, str) and len(deployment_info_text.strip()) > 50:
-                logger.info(f"🔄 {self.cluster_name}: JSON deployments empty, converting from custom columns format")
+                logger.info(f"{self.cluster_name}: JSON deployments empty, converting from custom columns format")
                 deployments_formatted = self._construct_deployments_json_from_custom_columns(deployment_info_text)
                 deployments_count = len(deployments_formatted.get('items', []))
                 logger.info(f"✅ {self.cluster_name}: Converted {deployments_count} deployments from custom columns format")
@@ -1628,7 +1647,7 @@ class KubernetesDataCache:
             if deployments_count == 0:
                 deployments_text = self.get('deployments_text')
                 if deployments_text and isinstance(deployments_text, str) and len(deployments_text.strip()) > 50:
-                    logger.info(f"🔄 {self.cluster_name}: Custom columns empty, converting from text format")
+                    logger.info(f"{self.cluster_name}: Custom columns empty, converting from text format")
                     deployments_formatted = self._construct_deployments_json_from_text(deployments_text)
                     deployments_count = len(deployments_formatted.get('items', []))
                     logger.info(f"✅ {self.cluster_name}: Converted {deployments_count} deployments from text format")
@@ -1724,13 +1743,13 @@ class KubernetesDataCache:
         if not hpa_json_data.get('items'):
             # Try hpa_essential data first (modern format - now returns JSON directly)
             if self.get('hpa_essential'):
-                logger.info("🔄 Using hpa_essential JSON data")
+                logger.info("Using hpa_essential JSON data")
                 hpa_json_data = self.get('hpa_essential')
             elif self.get('hpa_custom'):
-                logger.info("🔄 HPA JSON empty, parsing from custom columns format")
+                logger.info("HPA JSON empty, parsing from custom columns format")
                 hpa_json_data = self._parse_hpa_custom_to_json()
             elif self.get('hpa_text'):
-                logger.info("🔄 HPA JSON empty, parsing from basic text format")
+                logger.info("HPA JSON empty, parsing from basic text format")
                 hpa_json_data = self._parse_hpa_text_to_json()
         
         # DEPLOYMENT DATA CONVERSION for HPA analyzer: Convert from available data sources
@@ -1741,7 +1760,7 @@ class KubernetesDataCache:
             # Try converting from custom columns format
             deployment_info_text = self.get('deployment_info')
             if deployment_info_text and isinstance(deployment_info_text, str) and len(deployment_info_text.strip()) > 50:
-                logger.info(f"🔄 {self.cluster_name}: HPA analyzer - Converting from custom columns format")
+                logger.info(f"{self.cluster_name}: HPA analyzer - Converting from custom columns format")
                 deployments_formatted = self._construct_deployments_json_from_custom_columns(deployment_info_text)
                 deployments_count = len(deployments_formatted.get('items', []))
                 logger.info(f"✅ {self.cluster_name}: HPA analyzer - Converted {deployments_count} deployments from custom columns")
@@ -1750,7 +1769,7 @@ class KubernetesDataCache:
             if deployments_count == 0:
                 deployments_text = self.get('deployments_text')
                 if deployments_text and isinstance(deployments_text, str) and len(deployments_text.strip()) > 50:
-                    logger.info(f"🔄 {self.cluster_name}: HPA analyzer - Converting from text format")
+                    logger.info(f"{self.cluster_name}: HPA analyzer - Converting from text format")
                     deployments_formatted = self._construct_deployments_json_from_text(deployments_text)
                     deployments_count = len(deployments_formatted.get('items', []))
                     logger.info(f"✅ {self.cluster_name}: HPA analyzer - Converted {deployments_count} deployments from text")
@@ -1826,7 +1845,7 @@ class KubernetesDataCache:
             # Debug: Log sample target strings to understand the real format
             if hpa_items:
                 sample_count = min(5, len(hpa_items))
-                logger.info(f"🔍 DEBUG: Sample HPA target formats from first {sample_count} HPAs:")
+                logger.info(f"DEBUG: Sample HPA target formats from first {sample_count} HPAs:")
                 sample_targets = []
                 for line in lines[:sample_count]:
                     if line.strip():
@@ -1840,7 +1859,7 @@ class KubernetesDataCache:
                 cpu_count = sum(1 for item in hpa_items if any(m['resource']['name'] == 'cpu' for m in item['spec']['metrics']))
                 memory_count = sum(1 for item in hpa_items if any(m['resource']['name'] == 'memory' for m in item['spec']['metrics']))
                 mixed_count = sum(1 for item in hpa_items if len(item['spec']['metrics']) > 1)
-                logger.info(f"🔍 DEBUG: Parsed metrics - CPU: {cpu_count}, Memory: {memory_count}, Mixed: {mixed_count}")
+                logger.info(f"DEBUG: Parsed metrics - CPU: {cpu_count}, Memory: {memory_count}, Mixed: {mixed_count}")
             
             logger.info(f"✅ Parsed {len(hpa_items)} HPAs from text format")
             return {'items': hpa_items}
@@ -2077,7 +2096,7 @@ class KubernetesDataCache:
             
             # Debug logging for custom columns
             if hpa_items:
-                logger.info(f"🔍 DEBUG: Custom columns sample metrics:")
+                logger.info(f"DEBUG: Custom columns sample metrics:")
                 for i, line in enumerate(lines[:3]):
                     if line.strip():
                         parts = line.split()
@@ -2103,7 +2122,7 @@ class KubernetesDataCache:
         """
         cluster_util_data = self.get('cluster_utilization')
         if not cluster_util_data:
-            logger.warning(f"⚠️ {self.cluster_name}: No cluster utilization data in cache")
+            logger.warning(f"{self.cluster_name}: No cluster utilization data in cache")
             return None, None
         
         try:
@@ -2186,7 +2205,7 @@ class KubernetesDataCache:
                     
                     pods.append(pod)
             
-            logger.info(f"🔄 {self.cluster_name}: Constructed {len(pods)} pods from custom columns")
+            logger.info(f"{self.cluster_name}: Constructed {len(pods)} pods from custom columns")
             return {"items": pods}
             
         except Exception as e:
@@ -2265,7 +2284,7 @@ class KubernetesDataCache:
                     
                     deployments.append(deployment)
             
-            logger.info(f"🔄 {self.cluster_name}: Constructed {len(deployments)} deployments from custom columns")
+            logger.info(f"{self.cluster_name}: Constructed {len(deployments)} deployments from custom columns")
             return {"items": deployments}
             
         except Exception as e:
@@ -2343,7 +2362,7 @@ class KubernetesDataCache:
                     
                     deployments.append(deployment)
             
-            logger.info(f"🔄 {self.cluster_name}: Constructed {len(deployments)} deployments from text format")
+            logger.info(f"{self.cluster_name}: Constructed {len(deployments)} deployments from text format")
             return {"items": deployments}
             
         except Exception as e:
@@ -2365,7 +2384,7 @@ class KubernetesDataCache:
                         return node.get('status', {}).get('allocatable', {}).get('memory', '')
         
         # NO FALLBACK TO COMMAND EXECUTION - CACHE ONLY DURING ANALYSIS
-        logger.warning(f"⚠️ {self.cluster_name}: Node {node_name} {query_type} not found in cached nodes data, no command execution during analysis")
+        logger.warning(f"{self.cluster_name}: Node {node_name} {query_type} not found in cached nodes data, no command execution during analysis")
         return None
     
     # =====================================
@@ -2391,7 +2410,7 @@ class KubernetesDataCache:
             try:
                 return json.loads(result)
             except json.JSONDecodeError as e:
-                logger.warning(f"⚠️ {self.cluster_name}: Failed to parse kubectl JSON output: {e}")
+                logger.warning(f"{self.cluster_name}: Failed to parse kubectl JSON output: {e}")
                 return None
         return None
     
@@ -2454,7 +2473,7 @@ def get_or_create_cache(cluster_name: str, resource_group: str, subscription_id:
         existing_cache = _active_caches[cache_key]
         # Check if cache has data, if not fetch it
         if force_fetch and not existing_cache.data:
-            logger.info(f"🔄 {cluster_name}: Cache exists but empty, fetching all data...")
+            logger.info(f"{cluster_name}: Cache exists but empty, fetching all data...")
             existing_cache.fetch_all_data()
         return existing_cache
 
@@ -2469,7 +2488,7 @@ def get_or_create_cache(cluster_name: str, resource_group: str, subscription_id:
             logger.debug(f"Cloud provider adapters not available: {e}")
 
     # Create fresh cache with pre-populated data
-    logger.info(f"🆕 Creating cache for {cluster_name} ({cloud_provider}) with pre-populated data...")
+    logger.info(f"Creating cache for {cluster_name} ({cloud_provider}) with pre-populated data...")
     _active_caches[cache_key] = KubernetesDataCache(
         cluster_name, resource_group, subscription_id,
         auto_fetch=force_fetch, command_executor=command_executor,
@@ -2493,7 +2512,7 @@ def clear_all_caches():
     """Clear all active caches"""
     global _active_caches
     _active_caches.clear()
-    logger.info("🗑️ All caches cleared")
+    logger.info("All caches cleared")
 
 def clear_cluster_cache(cluster_name: str, resource_group: str, subscription_id: str, cloud_provider: str = 'azure'):
     """Clear cache for a specific cluster after analysis completion"""
@@ -2501,15 +2520,15 @@ def clear_cluster_cache(cluster_name: str, resource_group: str, subscription_id:
 
     if cache_key in _active_caches:
         del _active_caches[cache_key]
-        logger.info(f"🗑️ Cleared cache for {cluster_name}")
+        logger.info(f"Cleared cache for {cluster_name}")
     else:
         # Try legacy key format (without cloud_provider prefix) for backward compat
         legacy_key = f"{subscription_id}:{resource_group}:{cluster_name}"
         if legacy_key in _active_caches:
             del _active_caches[legacy_key]
-            logger.info(f"🗑️ Cleared cache for {cluster_name} (legacy key)")
+            logger.info(f"Cleared cache for {cluster_name} (legacy key)")
         else:
-            logger.debug(f"🗑️ No cache found for {cluster_name} (already cleared or never created)")
+            logger.debug(f"No cache found for {cluster_name} (already cleared or never created)")
 
 def execute_cluster_command(cluster_name: str, resource_group: str, subscription_id: str, kubectl_cmd: str) -> Optional[str]:
     """

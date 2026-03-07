@@ -563,9 +563,9 @@ class DynamicCostDistributionEngine:
                 'name': pod_name
             }
         
-        # Add deployment-level aggregation
-        deployment_costs = self._aggregate_to_deployments(workload_costs, consumption_analysis)
-        workload_costs.update(deployment_costs)
+        # Add deployment and daemonset-level aggregation
+        owner_costs = self._aggregate_to_workload_owners(workload_costs, consumption_analysis)
+        workload_costs.update(owner_costs)
         
         # Generate metadata
         total_input_cost = sum(total_costs.values())
@@ -597,64 +597,77 @@ class DynamicCostDistributionEngine:
             analysis_method="dynamic_allocation"
         )
     
-    def _aggregate_to_deployments(self, pod_costs: Dict[str, Dict],
-                                 consumption_analysis: Dict) -> Dict[str, Dict]:
-        """Aggregate pod costs to deployment level"""
-        deployment_costs = {}
-        
+    def _aggregate_to_workload_owners(self, pod_costs: Dict[str, Dict],
+                                      consumption_analysis: Dict) -> Dict[str, Dict]:
+        """Aggregate pod costs to workload owner level (Deployments + DaemonSets)"""
+        owner_costs = {}
+
         try:
-            # Get deployment data from cache if available
+            # --- Deployments ---
             deployments_data = self.cache.get('deployments') if hasattr(self.cache, 'get') else None
-            
-            if not deployments_data:
-                return deployment_costs
+            if deployments_data:
+                deployments = self._parse_cache_data(deployments_data)
+                for deployment in deployments:
+                    self._aggregate_owner_pods(
+                        deployment, pod_costs, owner_costs, owner_type='Deployment'
+                    )
 
-            # Parse deployment data — handle str, list (normalized kubectl), and dict formats
-            if isinstance(deployments_data, str):
-                deployments_parsed = json.loads(deployments_data)
-            else:
-                deployments_parsed = deployments_data
+            # --- DaemonSets ---
+            daemonsets_data = self.cache.get('daemonsets') if hasattr(self.cache, 'get') else None
+            if daemonsets_data:
+                daemonsets = self._parse_cache_data(daemonsets_data)
+                for ds in daemonsets:
+                    self._aggregate_owner_pods(
+                        ds, pod_costs, owner_costs, owner_type='DaemonSet'
+                    )
 
-            if isinstance(deployments_parsed, list):
-                deployments = deployments_parsed
-            elif isinstance(deployments_parsed, dict):
-                deployments = deployments_parsed.get('items', [])
-            else:
-                return deployment_costs
-            
-            # Create deployment mappings
-            for deployment in deployments:
-                namespace = deployment.get('metadata', {}).get('namespace', '')
-                name = deployment.get('metadata', {}).get('name', '')
-                
-                if namespace and name:
-                    deployment_key = f"{namespace}/{name}"
-                    deployment_pods = []
-                    
-                    # Find pods belonging to this deployment
-                    for pod_key in pod_costs.keys():
-                        pod_namespace, pod_name = pod_key.split('/', 1)
-                        
-                        if pod_namespace == namespace and pod_name.startswith(f"{name}-"):
-                            deployment_pods.append(pod_key)
-                    
-                    # Aggregate costs
-                    if deployment_pods:
-                        total_cost = sum(pod_costs[pk]['cost'] for pk in deployment_pods)
-                        deployment_costs[deployment_key] = {
-                            'cost': total_cost,
-                            'type': 'Deployment',
-                            'namespace': namespace,
-                            'name': name,
-                            'pod_count': len(deployment_pods)
-                        }
-            
-            logger.info(f"Aggregated costs to {len(deployment_costs)} deployments")
-            
+            logger.info(f"Aggregated costs to {len(owner_costs)} workload owners")
+
         except Exception as e:
-            logger.error(f"Failed to aggregate deployment costs: {e}")
-        
-        return deployment_costs
+            logger.error(f"Failed to aggregate workload owner costs: {e}")
+
+        return owner_costs
+
+    @staticmethod
+    def _parse_cache_data(data) -> list:
+        """Parse cache data into a list of resource dicts."""
+        if isinstance(data, str):
+            data = json.loads(data)
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            return data.get('items', [])
+        return []
+
+    @staticmethod
+    def _aggregate_owner_pods(owner: Dict, pod_costs: Dict[str, Dict],
+                              owner_costs: Dict[str, Dict], owner_type: str):
+        """Match pods to an owner resource and aggregate their costs."""
+        # Handle both K8s API JSON format (metadata.namespace) and
+        # flat essential format (namespace, name) from kubernetes_data_cache
+        namespace = owner.get('metadata', {}).get('namespace', '') or owner.get('namespace', '')
+        name = owner.get('metadata', {}).get('name', '') or owner.get('name', '')
+
+        if not namespace or not name:
+            return
+
+        owner_key = f"{namespace}/{name}"
+        matched_pods = []
+
+        for pod_key in pod_costs.keys():
+            pod_namespace, pod_name = pod_key.split('/', 1)
+            if pod_namespace == namespace and pod_name.startswith(f"{name}-"):
+                matched_pods.append(pod_key)
+
+        if matched_pods:
+            total_cost = sum(pod_costs[pk]['cost'] for pk in matched_pods)
+            owner_costs[owner_key] = {
+                'cost': total_cost,
+                'type': owner_type,
+                'namespace': namespace,
+                'name': name,
+                'pod_count': len(matched_pods)
+            }
 
 
 class WorkloadCostAnalyzer:

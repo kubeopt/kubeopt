@@ -202,9 +202,9 @@ class MLEnhancedHPARecommendationEngine:
         
         # Initialize complex algorithms that need other algorithm instances
         self.usage_analysis_algorithm = UsageAnalysisAlgorithm(logger, algorithm_instances, self.aks_scorer)
-        self.optimization_calculator_algorithm = OptimizationCalculatorAlgorithm(logger, algorithm_instances, self.aks_scorer)
+        self.optimization_calculator_algorithm = OptimizationCalculatorAlgorithm(logger, algorithm_instances, self.aks_scorer, cloud_provider=cloud_provider)
         self.efficiency_evaluator_algorithm = EfficiencyEvaluatorAlgorithm(logger, algorithm_instances, self.aks_scorer)
-    
+
     def _get_ml_engine(self):
         """Get or create ML engine with caching"""
         thread_id = threading.current_thread().ident
@@ -813,9 +813,9 @@ class ConsistentCostAnalyzer:
         
         # Initialize complex algorithms that need other algorithm instances
         self.usage_analysis_algorithm = UsageAnalysisAlgorithm(logger, algorithm_instances, self.aks_scorer)
-        self.optimization_calculator_algorithm = OptimizationCalculatorAlgorithm(logger, algorithm_instances, self.aks_scorer)
+        self.optimization_calculator_algorithm = OptimizationCalculatorAlgorithm(logger, algorithm_instances, self.aks_scorer, cloud_provider=cloud_provider)
         self.efficiency_evaluator_algorithm = EfficiencyEvaluatorAlgorithm(logger, algorithm_instances, self.aks_scorer)
-        
+
         # Initialize sub-analyzers reference dictionary
         self.algorithms = {
             'current_usage_analyzer': self.usage_analysis_algorithm,
@@ -861,7 +861,7 @@ class ConsistentCostAnalyzer:
             actual_costs = self._extract_and_validate_actual_costs(cost_data)
             
             # Use ML engine for HPA recommendations
-            ml_engine = MLEnhancedHPARecommendationEngine()
+            ml_engine = MLEnhancedHPARecommendationEngine(cloud_provider=self.cloud_provider)
             return ml_engine.generate_hpa_recommendations(metrics_data, actual_costs)
             
         except Exception as e:
@@ -1079,7 +1079,7 @@ class ConsistentCostAnalyzer:
             
             if hpa_efficiency_raw is None:
                 # Recalculate if needed
-                ml_engine = MLEnhancedHPARecommendationEngine()
+                ml_engine = MLEnhancedHPARecommendationEngine(cloud_provider=self.cloud_provider)
                 ml_results = hpa_recommendations.get('workload_characteristics', {})
                 hpa_efficiency_raw = ml_engine._calculate_comprehensive_hpa_efficiency(ml_results, metrics_data)
             

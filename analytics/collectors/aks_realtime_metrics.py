@@ -597,7 +597,7 @@ class ClusterMetricsFetcher:
                 continue
         
         # Determine current HPA pattern
-        total_hpas = len(hpa_data)
+        total_hpas = len(hpas_list)
         if total_hpas == 0:
             pattern = 'no_hpa'
         elif cpu_based > memory_based and cpu_based > multi_metric:
