@@ -140,9 +140,10 @@ async def test_gcp_connection(
         from infrastructure.cloud_providers.gcp.authenticator import GCPAuthenticator
         auth = GCPAuthenticator()
         connected = auth.is_authenticated()
-        return {"connected": connected, "message": "GCP connection successful" if connected else "GCP not implemented yet"}
-    except NotImplementedError:
-        return {"connected": False, "message": "GCP support not yet implemented (Phase 7)"}
+        if connected:
+            project = auth.project_id or 'unknown'
+            return {"connected": True, "message": f"GCP connected (project: {project})"}
+        return {"connected": False, "message": "GCP authentication failed. Check GOOGLE_APPLICATION_CREDENTIALS or run: gcloud auth application-default login"}
     except Exception as e:
         return {"connected": False, "message": f"GCP connection test failed: {e}"}
 

@@ -22,6 +22,16 @@ azure-common==1.1.28
 # AWS SDK (for EKS integration)
 boto3>=1.28.0
 
+# GCP SDK (for GKE integration)
+google-auth>=2.27.0
+google-cloud-container>=2.25.0
+google-cloud-compute>=1.15.0
+google-cloud-monitoring>=2.15.0
+google-cloud-billing>=1.14.0
+google-cloud-bigquery>=3.13.0
+google-cloud-logging>=3.8.0
+google-cloud-resource-manager>=1.10.0
+
 # Data Processing (essential only)
 pandas>=2.1.0,<3.0
 numpy>=1.26.0,<2.0
