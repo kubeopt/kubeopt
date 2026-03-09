@@ -14,8 +14,8 @@ from pydantic import BaseModel, Field, validator
 
 logger = logging.getLogger(__name__)
 
-class AKSOptimizationOrchestrator:
-    """Main orchestrator for AKS optimization command generation"""
+class OptimizationOrchestrator:
+    """Main orchestrator for cloud optimization command generation"""
     
     def __init__(self, config: OptimizationConfig = None):
         self.config = config or OptimizationConfig()
@@ -169,7 +169,7 @@ class AKSOptimizationOrchestrator:
             validation_commands=categorized_commands.get('validation', []),
             rollback_commands=categorized_commands.get('rollback', []),
             variable_context=variable_context,
-            azure_context=self._create_azure_context(variable_context),
+            azure_context=self._create_cloud_context(variable_context),
             kubernetes_context=self._create_kubernetes_context(variable_context),
             success_probability=self._calculate_success_probability(all_commands),
             estimated_savings=total_savings,
@@ -248,8 +248,8 @@ class AKSOptimizationOrchestrator:
         
         return categories
     
-    def _create_azure_context(self, variable_context: Dict) -> Dict:
-        """Create Azure-specific context"""
+    def _create_cloud_context(self, variable_context: Dict) -> Dict:
+        """Create cloud-specific context"""
         return {
             'subscription_id': variable_context.get('subscription_id'),
             'resource_group': variable_context.get('resource_group'),
@@ -536,5 +536,5 @@ class AKSOptimizationOrchestrator:
         return deliverables[:3] if deliverables else ['Configuration Updates']
 
 
-# Provider-agnostic alias for the orchestrator
-OptimizationOrchestrator = AKSOptimizationOrchestrator
+# Backward-compat alias — new code should use OptimizationOrchestrator
+AKSOptimizationOrchestrator = OptimizationOrchestrator

@@ -980,10 +980,7 @@ class KubernetesDataCache:
                     logger.info(f"{self.cluster_name}: Using extended timeout {timeout}s for metrics retry")
                 
                 output = self._execute_kubectl_command(cmd, timeout=timeout)
-                
-                # DEBUG: Log EVERY batch output
-                logger.info(f"DEBUG {self.cluster_name}: Batch '{key}' raw output: {output[:500] if output else 'EMPTY'}")
-                
+
                 if output:
                     results[key] = output
                     logger.info(f"✅ {self.cluster_name}: Batch '{key}' succeeded")
@@ -1034,9 +1031,14 @@ class KubernetesDataCache:
             # Allow empty output for optional queries (e.g., HPA might not exist)
             if not output or output.strip() == '':
                 logger.warning(f"Batch '{key}' returned empty output - resource might not exist")
-                parsed[key] = {"items": [], "count": 0, "errors": 0}
+                # Keep metrics as empty string (not dict) so downstream parsers
+                # that call .strip()/.split() on them don't get a type error
+                if key in ["metrics_nodes", "metrics_pods"]:
+                    parsed[key] = ""
+                else:
+                    parsed[key] = {"items": [], "count": 0, "errors": 0}
                 continue
-            
+
             # Parse based on output type - NO SILENT FAILURES
             if key in ["metrics_nodes", "metrics_pods"]:
                 parsed[key] = output.strip()

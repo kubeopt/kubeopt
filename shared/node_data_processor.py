@@ -18,7 +18,7 @@ class NodeDataProcessor:
     """
     Unified processor for node data ensuring consistent structure across:
     - kubernetes_data_cache (raw kubectl data)
-    - aks_realtime_metrics (metrics collection)
+    - cluster_metrics_collector (metrics collection)
     - ML pipeline (feature extraction)
     - Scoring framework (resource calculations)
     """

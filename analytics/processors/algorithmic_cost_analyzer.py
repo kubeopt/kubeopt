@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-AKS Algorithmic Cost Analyzer - Enhanced Version
-Developer: Srinivas Kondepudi  
+Algorithmic Cost Analyzer - Enhanced Version
+Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: Kubernetes Cost Optimizer
 
 Provides intelligent cost analysis and optimization recommendations using ML approaches.
 Ensures consistent variable naming and data flow throughout the pipeline.
@@ -18,7 +18,7 @@ from datetime import datetime
 import numpy as np
 
 from analytics.processors.pod_cost_analyzer import KubernetesParsingUtils
-from analytics.processors.aks_scorer import AKSScorer
+from analytics.processors.cluster_scorer import ClusterScorer
 from machine_learning.models.workload_performance_analyzer import WorkloadPerformanceAnalyzer
 from shared.standards.performance_standards import SystemPerformanceStandards
 from shared.standards.cost_optimization_standards import (
@@ -179,7 +179,7 @@ class MLEnhancedHPARecommendationEngine:
         self.parser = KubernetesParsingUtils() if 'KubernetesParsingUtils' in globals() else None
 
         # Initialize scorer via StandardsLoader (cloud-provider-aware)
-        self.aks_scorer = AKSScorer.from_config(cloud_provider)
+        self.scorer = ClusterScorer.from_config(cloud_provider)
         
         # Initialize optimization algorithms with standards
         self.hpa_algorithm = HPAOptimizationAlgorithm(logger)
@@ -201,9 +201,9 @@ class MLEnhancedHPARecommendationEngine:
         }
         
         # Initialize complex algorithms that need other algorithm instances
-        self.usage_analysis_algorithm = UsageAnalysisAlgorithm(logger, algorithm_instances, self.aks_scorer)
-        self.optimization_calculator_algorithm = OptimizationCalculatorAlgorithm(logger, algorithm_instances, self.aks_scorer, cloud_provider=cloud_provider)
-        self.efficiency_evaluator_algorithm = EfficiencyEvaluatorAlgorithm(logger, algorithm_instances, self.aks_scorer)
+        self.usage_analysis_algorithm = UsageAnalysisAlgorithm(logger, algorithm_instances, self.scorer)
+        self.optimization_calculator_algorithm = OptimizationCalculatorAlgorithm(logger, algorithm_instances, self.scorer, cloud_provider=cloud_provider)
+        self.efficiency_evaluator_algorithm = EfficiencyEvaluatorAlgorithm(logger, algorithm_instances, self.scorer)
 
     def _get_ml_engine(self):
         """Get or create ML engine with caching"""
@@ -439,7 +439,7 @@ class MLEnhancedHPARecommendationEngine:
             # Extract workloads from various sources
             all_workloads = self._extract_all_workloads_from_metrics(metrics_data)
             
-            # Filter high CPU workloads (>150% as per aks_realtime_metrics)
+            # Filter high CPU workloads (>150% as per cluster_realtime_metrics)
             high_cpu_workloads = []
             for w in all_workloads:
                 cpu_util = w.get('cpu_usage_pct')
@@ -534,7 +534,7 @@ class MLEnhancedHPARecommendationEngine:
         processed_keys = set()
         
         # Get warm band target from standards
-        cpu_target_pct = float(self.aks_scorer.get_target('cpu_warm_band')[1] * 100)
+        cpu_target_pct = float(self.scorer.get_target('cpu_warm_band')[1] * 100)
         
         # Extract from HPA implementation
         hpa_impl = metrics_data.get('hpa_implementation', {})
@@ -791,7 +791,7 @@ class ConsistentCostAnalyzer:
     def __init__(self, cloud_provider: str = 'azure'):
         self.cloud_provider = cloud_provider
         # Initialize scorer via StandardsLoader (cloud-provider-aware YAML resolution)
-        self.aks_scorer = AKSScorer.from_config(cloud_provider)
+        self.scorer = ClusterScorer.from_config(cloud_provider)
         
         # Initialize optimization algorithms with standards
         self.hpa_algorithm = HPAOptimizationAlgorithm(logger)
@@ -812,9 +812,9 @@ class ConsistentCostAnalyzer:
         }
         
         # Initialize complex algorithms that need other algorithm instances
-        self.usage_analysis_algorithm = UsageAnalysisAlgorithm(logger, algorithm_instances, self.aks_scorer)
-        self.optimization_calculator_algorithm = OptimizationCalculatorAlgorithm(logger, algorithm_instances, self.aks_scorer, cloud_provider=cloud_provider)
-        self.efficiency_evaluator_algorithm = EfficiencyEvaluatorAlgorithm(logger, algorithm_instances, self.aks_scorer)
+        self.usage_analysis_algorithm = UsageAnalysisAlgorithm(logger, algorithm_instances, self.scorer)
+        self.optimization_calculator_algorithm = OptimizationCalculatorAlgorithm(logger, algorithm_instances, self.scorer, cloud_provider=cloud_provider)
+        self.efficiency_evaluator_algorithm = EfficiencyEvaluatorAlgorithm(logger, algorithm_instances, self.scorer)
 
         # Initialize sub-analyzers reference dictionary
         self.algorithms = {
@@ -829,10 +829,10 @@ class ConsistentCostAnalyzer:
         self.operation_lock = threading.Lock()
     
     def _get_standard_range(self, category: str, metric: str) -> list:
-        """Get standard range from AKS scorer - NO DEFAULTS per .clauderc"""
+        """Get standard range from scorer - NO DEFAULTS per .clauderc"""
         try:
-            result = self.aks_scorer.get_target(metric)
-            # Handle dict format from AKS scorer
+            result = self.scorer.get_target(metric)
+            # Handle dict format from scorer
             if isinstance(result, dict) and 'optimal' in result:
                 optimal_range = result['optimal']
                 if isinstance(optimal_range, (list, tuple)) and len(optimal_range) >= 2:
@@ -848,9 +848,9 @@ class ConsistentCostAnalyzer:
             raise ValueError(f"Failed to get required standard range for {metric}: {e}") from e
     
     def _get_standard_value(self, category: str, metric: str) -> any:
-        """Get standard value from AKS scorer - NO DEFAULTS per .clauderc"""
+        """Get standard value from scorer - NO DEFAULTS per .clauderc"""
         try:
-            return self.aks_scorer.get_target(metric)
+            return self.scorer.get_target(metric)
         except Exception as e:
             raise ValueError(f"Failed to get required standard value for {metric}: {e}") from e
     

@@ -1,0 +1,130 @@
+# GCP-Specific Scoring Overlay
+# Deep-merged on top of scoring.yaml by StandardsLoader
+# Contains GCP pricing, regions, and service-specific configuration
+
+cost_excellence:
+  observability:
+    # Cloud Logging pricing configuration
+    cloud_logging_pricing:
+      ingestion_per_gib: 0.50    # $0.50 per GiB ingested
+      free_tier_gib: 50          # 50 GiB/month free allotment
+      min_meaningful_savings: 50  # Minimum $50/month to suggest optimization
+      max_savings_pct: 0.80       # Cap savings at 80% of current observability spend
+      use_actual_costs: true
+
+    # Regional pricing multipliers (relative to us-central1 baseline)
+    regional_multipliers:
+      us-central1: 1.00
+      us-east1: 1.00
+      us-west1: 1.02
+      europe-west1: 1.10
+      europe-west4: 1.12
+      asia-southeast1: 1.15
+      australia-southeast1: 1.20
+
+  # Artifact Registry (replaces ACR)
+  images:
+    median_image_mb_target: {target: 250, tol_frac: 0.60}
+    mix:
+      registry_tier: 0.35    # Artifact Registry repository format (Docker/Maven/npm etc.)
+      size: 0.35             # Image size optimization
+      retention: 0.15        # Cleanup policy (>=14 days)
+      geo: 0.15              # Multi-region replication right-sizing
+
+  # Security Command Center (replaces Defender)
+  sec_tools:
+    mix:
+      scc_scope: 0.60        # SCC scoped to prod (>=70% nonprod excluded)
+      dup_agents: 0.40       # Duplicate security agent detection
+
+official_standards:
+  # GCP-specific pricing for savings calculations
+  savings_opportunities:
+    public_ip_monthly_cost: 2.88             # GCP static external IP (unused) per month
+    lb_monthly_cost_standard: 18.26          # GCP Network Load Balancer per month
+    lb_monthly_cost_basic: 18.26             # GCP does not have Basic/Standard LB distinction
+
+  # GCP Regional Storage Pricing Standards (USD per GB per month)
+  gcp_pricing:
+    storage:
+      us-central1:
+        pd_standard: 0.040
+        pd_balanced: 0.100
+        pd_ssd: 0.170
+      us-east1:
+        pd_standard: 0.040
+        pd_balanced: 0.100
+        pd_ssd: 0.170
+      us-west1:
+        pd_standard: 0.040
+        pd_balanced: 0.100
+        pd_ssd: 0.170
+      europe-west1:
+        pd_standard: 0.044
+        pd_balanced: 0.110
+        pd_ssd: 0.187
+      europe-west4:
+        pd_standard: 0.044
+        pd_balanced: 0.110
+        pd_ssd: 0.187
+      asia-southeast1:
+        pd_standard: 0.044
+        pd_balanced: 0.110
+        pd_ssd: 0.187
+      asia-east1:
+        pd_standard: 0.044
+        pd_balanced: 0.110
+        pd_ssd: 0.187
+      australia-southeast1:
+        pd_standard: 0.048
+        pd_balanced: 0.120
+        pd_ssd: 0.204
+      southamerica-east1:
+        pd_standard: 0.058
+        pd_balanced: 0.145
+        pd_ssd: 0.247
+
+observability_cost_standards:
+  cost_calculation:
+    # Regional pricing (per GiB/month for Cloud Logging ingestion)
+    regional_pricing:
+      us-central1: 0.50
+      us-east1: 0.50
+      us-east4: 0.50
+      us-west1: 0.50
+      us-west2: 0.50
+      europe-west1: 0.50
+      europe-west4: 0.50
+      europe-north1: 0.50
+      asia-southeast1: 0.50
+      asia-east1: 0.50
+      australia-southeast1: 0.50
+      southamerica-east1: 0.50
+
+    # GCP-specific naming pattern weights for cluster attribution
+    naming_attribution:
+      exact_cluster_name_match: 0.9
+      project_match: 0.6              # GCP uses projects, not resource groups
+      gke_operations_match: 0.8       # GKE Operations Suite detected
+      gke_related_match: 0.5
+      default_fallback: 0.3
+
+    # GCP-specific estimation factors
+    estimation_factors:
+      gke_system_logs_overhead: 0.10  # 10% additional cost for GKE system logs
+      prometheus_metrics_factor: 0.10
+
+# GCP regional pricing references
+regional_pricing:
+  us-central1:
+    ref_vcpu_price: 0.0335
+    ref_net_price_per_gb: 0.085
+    spot_discount_avg: 0.60  # 60% average preemptible/spot discount
+  us-east1:
+    ref_vcpu_price: 0.0335
+    ref_net_price_per_gb: 0.085
+    spot_discount_avg: 0.60
+  europe-west1:
+    ref_vcpu_price: 0.0370
+    ref_net_price_per_gb: 0.094
+    spot_discount_avg: 0.60

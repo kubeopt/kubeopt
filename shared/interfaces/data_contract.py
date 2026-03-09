@@ -346,7 +346,7 @@ class AnalysisDataContract:
     """
     Standard data contract for analysis results flowing through the pipeline
     COMPLETE MAPPING based on comprehensive scan of ALL files
-    FROM: algorithmic_cost_analyzer.py + aks_realtime_metrics.py
+    FROM: algorithmic_cost_analyzer.py + cluster_metrics_collector.py
     TO: chart_generator.py, api_routes.py
     """
     
@@ -1045,7 +1045,7 @@ class AnalysisDataContract:
 class MetricsDataContract:
     """
     Standard data contract for metrics from collectors
-    FROM: aks_realtime_metrics.py  
+    FROM: cluster_metrics_collector.py
     TO: algorithmic_cost_analyzer.py
     """
     

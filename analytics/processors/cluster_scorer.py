@@ -3,9 +3,9 @@
 from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: Kubernetes Cost Optimizer
 
-AKS Scoring Framework - Build Quality & Cost Excellence Scorer
+Cluster Scoring Framework - Build Quality & Cost Excellence Scorer
 """
 
 from __future__ import annotations
@@ -86,19 +86,20 @@ class SavingsEstimate:
     confidence: str
     implementation_effort: str
 
-class AKSScorer:
+class ClusterScorer:
     """
-    AKS Build Quality & Cost Excellence Scorer
-    
+    Cluster Build Quality & Cost Excellence Scorer
+
     Implements comprehensive scoring framework with:
     - Build Quality Score (0-100): UE + AE + CE + RS + CH
     - Cost Excellence Score (0-100): 8 cost-focused components
     - Savings estimation with dollar amounts
     """
-    
-    def __init__(self, cfg: Dict[str, Any]):
+
+    def __init__(self, cfg: Dict[str, Any], cloud_provider: str = 'azure'):
         self.cfg = cfg
-        logger.info("✅ AKS Scorer initialized with configuration")
+        self.cloud_provider = cloud_provider
+        logger.info(f"ClusterScorer initialized with configuration (cloud_provider={cloud_provider})")
     
     def get_target(self, target_name: str) -> Any:
         """Get target values from configuration
@@ -143,32 +144,32 @@ class AKSScorer:
         raise ValueError(f"Target '{target_name}' not found in configuration")
 
     @staticmethod
-    def from_yaml(path: str) -> "AKSScorer":
+    def from_yaml(path: str, cloud_provider: str = 'azure') -> "ClusterScorer":
         """Load scorer from YAML configuration file"""
         try:
             with open(path, "r") as f:
                 cfg = yaml.safe_load(f)
-            logger.info(f"✅ Loaded AKS scoring configuration from {path}")
-            return AKSScorer(cfg)
+            logger.info(f"Loaded scoring configuration from {path}")
+            return ClusterScorer(cfg, cloud_provider=cloud_provider)
         except Exception as e:
-            logger.error(f"❌ Failed to load AKS scoring config from {path}: {e}")
+            logger.error(f"Failed to load scoring config from {path}: {e}")
             raise
 
     @staticmethod
-    def from_default_config() -> "AKSScorer":
+    def from_default_config() -> "ClusterScorer":
         """Load scorer from default configuration via StandardsLoader (base + Azure overlay)"""
         from shared.standards.standards_loader import get_standards_loader
         loader = get_standards_loader('azure')
-        return AKSScorer(loader.load_scoring_standards())
+        return ClusterScorer(loader.load_scoring_standards(), cloud_provider='azure')
 
     @staticmethod
-    def from_config(cloud_provider: str = 'azure') -> "AKSScorer":
+    def from_config(cloud_provider: str = 'azure') -> "ClusterScorer":
         """Load scorer via StandardsLoader with cloud-provider-aware YAML resolution.
         Loads base scoring.yaml + provider overlay (e.g. azure_scoring.yaml) via StandardsLoader."""
         from shared.standards.standards_loader import get_standards_loader
         loader = get_standards_loader(cloud_provider)
         cfg = loader.load_scoring_standards()
-        return AKSScorer(cfg)
+        return ClusterScorer(cfg, cloud_provider=cloud_provider)
 
     def score_build_quality(self, metrics: Dict[str, Any], overrides: Dict[str, Any] = None) -> ScoreResult:
         """
@@ -497,7 +498,7 @@ class AKSScorer:
                 'build_quality_breakdown': build_quality_result.breakdown,
                 'cost_excellence_breakdown': cost_excellence_result.breakdown,
                 'yaml_based': True,
-                'calculation_method': 'unified_aks_scoring_framework'
+                'calculation_method': 'unified_cloud_scoring_framework'
             }
             
             logger.info(f"✅ Unified optimization score: {result['total_score']}/100 ({interpretation})")
@@ -775,39 +776,64 @@ class AKSScorer:
         return mix["filters"] * filters + mix["retention"] * retention + mix["cost_density"] * cost_density
 
     def _score_images_registry(self, metrics: Dict[str, Any], cfg: Dict[str, Any]) -> float:
-        """Score container images and registry efficiency"""
-        # ACR SKU appropriateness
-        acr_sku = metrics.get("acr_sku", "Standard")
-        acr_sku_score = 1.0 if acr_sku in ["Basic", "Standard"] else 0.0
-
-        # Image size optimization
+        """Score container images and registry efficiency (cloud-provider-aware)"""
+        # Image size optimization (cloud-agnostic)
         median_size = metrics.get("median_image_size_mb", 250)
         size_ok = inverse_target(median_size, **cfg["median_image_mb_target"])
 
-        # Retention policy
-        retention = 1.0 if metrics.get("acr_retention_days", 0) >= 14 else 0.0
-
-        # Geo-replication appropriateness
-        geo_ok = 1.0 if metrics.get("acr_geo_rep_matched", True) else 0.0
-
-        # Weighted combination
         mix = cfg["mix"]
-        return (mix["acr_sku"] * acr_sku_score + mix["size"] * size_ok +
+
+        if self.cloud_provider == 'gcp':
+            # Artifact Registry scoring
+            repo_type = metrics.get("ar_repository_type", "DOCKER")
+            registry_score = 1.0 if repo_type in ["DOCKER", "PYTHON", "NPM"] else 0.0
+            retention = 1.0 if metrics.get("ar_cleanup_policy_days", 0) >= 14 else 0.0
+            geo_ok = 1.0 if metrics.get("ar_multi_region_matched", True) else 0.0
+            registry_key = "registry_tier"
+        elif self.cloud_provider == 'aws':
+            # ECR scoring
+            reg_type = metrics.get("ecr_registry_type", "private")
+            registry_score = 1.0 if reg_type in ["private", "public"] else 0.0
+            retention = 1.0 if metrics.get("ecr_lifecycle_policy_days", 0) >= 14 else 0.0
+            geo_ok = 1.0 if metrics.get("ecr_cross_region_matched", True) else 0.0
+            registry_key = "registry_tier"
+        else:
+            # Azure ACR scoring (default)
+            acr_sku = metrics.get("acr_sku", "Standard")
+            registry_score = 1.0 if acr_sku in ["Basic", "Standard"] else 0.0
+            retention = 1.0 if metrics.get("acr_retention_days", 0) >= 14 else 0.0
+            geo_ok = 1.0 if metrics.get("acr_geo_rep_matched", True) else 0.0
+            registry_key = "acr_sku"
+
+        # Weighted combination — use the provider-specific or Azure key from YAML mix
+        registry_weight = mix.get(registry_key, mix.get("acr_sku", 0.35))
+        return (registry_weight * registry_score + mix["size"] * size_ok +
                 mix["retention"] * retention + mix["geo"] * geo_ok)
 
     def _score_security_tools(self, metrics: Dict[str, Any], cfg: Dict[str, Any]) -> float:
-        """Score security and platform tools cost efficiency"""
-        # Defender scoping
-        defender_scope = 1.0 if metrics.get("defender_excluded_nonprod_pct", 0) >= 0.7 else 0.0
-
-        # Duplicate agents
+        """Score security and platform tools cost efficiency (cloud-provider-aware)"""
+        # Duplicate agents (cloud-agnostic)
         dup_cost = metrics.get("dup_agents_waste_cost", 0)
         total_sec_cost = max(1e-9, metrics.get("cost_security_tools", 1))
         dup_agents = 1 - clamp(dup_cost / total_sec_cost, 0, 1)
 
-        # Weighted combination
         mix = cfg["mix"]
-        return mix["defender_scope"] * defender_scope + mix["dup_agents"] * dup_agents
+
+        if self.cloud_provider == 'gcp':
+            # Security Command Center scoping
+            scope_score = 1.0 if metrics.get("scc_excluded_nonprod_pct", 0) >= 0.7 else 0.0
+            scope_key = "scc_scope"
+        elif self.cloud_provider == 'aws':
+            # GuardDuty scoping
+            scope_score = 1.0 if metrics.get("guardduty_excluded_nonprod_pct", 0) >= 0.7 else 0.0
+            scope_key = "guardduty_scope"
+        else:
+            # Azure Defender scoping (default)
+            scope_score = 1.0 if metrics.get("defender_excluded_nonprod_pct", 0) >= 0.7 else 0.0
+            scope_key = "defender_scope"
+
+        scope_weight = mix.get(scope_key, mix.get("defender_scope", 0.60))
+        return scope_weight * scope_score + mix["dup_agents"] * dup_agents
 
     # ===== INTELLIGENT RECOMMENDATION ENGINE =====
     
@@ -1128,30 +1154,37 @@ class AKSScorer:
                 if isinstance(storage_tiers, str):
                     import json
                     storage_tiers = json.loads(storage_tiers)
-                
+
                 total_migration_savings = 0
                 migration_count = 0
-                
+                cluster_region = self._get_cluster_region_from_metrics(metrics)
+                pricing = self._get_storage_pricing_from_yaml(cluster_region)
+
+                # Cloud-aware migration description
+                migration_labels = {
+                    'azure': "Premium to Standard SSD",
+                    'aws': "io1/gp2 to gp3",
+                    'gcp': "pd-ssd to pd-balanced",
+                }
+
                 for tier_analysis in storage_tiers:
-                    if tier_analysis.get('recommended_tier') == 'Standard_LRS':
-                        # Calculate savings from Premium to Standard migration using YAML pricing
-                        cluster_region = self._get_cluster_region_from_metrics(metrics)
-                        pricing = self._get_azure_storage_pricing_from_yaml(cluster_region)
-                        
-                        # Get actual PVC size or use conservative estimate
-                        estimated_size_gb = 100  # Conservative estimate - could be enhanced with PVC size data
-                        premium_cost = estimated_size_gb * pricing['premium_lrs']
-                        standard_cost = estimated_size_gb * pricing['standard_lrs']
+                    rec = (tier_analysis.get('recommended_tier') or '').lower()
+                    # Match any "downgrade" recommendation across clouds
+                    if rec in ('standard_lrs', 'standard_ssd', 'gp3', 'pd_balanced', 'pd-balanced'):
+                        estimated_size_gb = 100
+                        premium_cost = estimated_size_gb * pricing['premium']
+                        standard_cost = estimated_size_gb * pricing['standard']
                         monthly_savings = premium_cost - standard_cost
-                        
+
                         total_migration_savings += monthly_savings
                         migration_count += 1
-                
-                if total_migration_savings > 5:  # Only if meaningful
+
+                if total_migration_savings > 5:
+                    label = migration_labels.get(self.cloud_provider, "Premium to Standard")
                     savings.append(SavingsEstimate(
-                        category="Storage - Premium to Standard",
+                        category="Storage - Tier Migration",
                         potential_monthly_savings=total_migration_savings,
-                        description=f"Migrate {migration_count} PVCs from Premium to Standard SSD",
+                        description=f"Migrate {migration_count} PVCs: {label}",
                         confidence="Medium",
                         implementation_effort="Medium"
                     ))
@@ -1179,31 +1212,33 @@ class AKSScorer:
                 if isinstance(orphaned_disks, str):
                     import json
                     orphaned_disks = json.loads(orphaned_disks)
-                
+
+                cluster_region = self._get_cluster_region_from_metrics(metrics)
+                pricing = self._get_storage_pricing_from_yaml(cluster_region)
+
+                # Premium-tier SKU patterns across clouds
+                premium_patterns = ('premium', 'io1', 'io2', 'pd-ssd', 'pd_ssd')
+
                 total_orphaned_cost = 0
                 for disk in orphaned_disks:
-                    # Calculate real cost based on disk size and SKU
                     size_gb = disk.get('size_gb', 0)
-                    sku = disk.get('sku', 'Standard_LRS').lower()
-                    
-                    # Use YAML-defined Azure pricing based on cluster region
-                    cluster_region = self._get_cluster_region_from_metrics(metrics)
-                    pricing = self._get_azure_storage_pricing_from_yaml(cluster_region)
-                    
-                    if 'premium' in sku:
-                        monthly_cost = size_gb * pricing['premium_lrs']
-                    elif 'standard' in sku:
-                        monthly_cost = size_gb * pricing['standard_lrs']
+                    sku = disk.get('sku', '').lower()
+
+                    if any(p in sku for p in premium_patterns):
+                        monthly_cost = size_gb * pricing['premium']
                     else:
-                        monthly_cost = size_gb * pricing['standard_lrs']
-                    
+                        monthly_cost = size_gb * pricing['standard']
+
                     total_orphaned_cost += monthly_cost
-                
-                if total_orphaned_cost > 5:  # Only if meaningful cost
+
+                if total_orphaned_cost > 5:
+                    disk_label = {
+                        'azure': 'disks', 'aws': 'EBS volumes', 'gcp': 'persistent disks'
+                    }.get(self.cloud_provider, 'disks')
                     savings.append(SavingsEstimate(
                         category="Storage - Cleanup Orphaned",
                         potential_monthly_savings=total_orphaned_cost,
-                        description=f"Remove {len(orphaned_disks)} unattached cluster disks",
+                        description=f"Remove {len(orphaned_disks)} unattached {disk_label}",
                         confidence="High",
                         implementation_effort="Low"
                     ))
@@ -1387,80 +1422,49 @@ class AKSScorer:
         
         return validated
 
-    def _get_log_analytics_pricing(self, metrics: Dict[str, Any]) -> float:
+    def _get_observability_pricing(self, metrics: Dict[str, Any]) -> float:
+        """Get cloud-provider-aware observability/log ingestion pricing per GB.
+
+        Azure: commitment tier logic + regional PAYG from YAML overlay
+        GCP: Cloud Logging $0.50/GiB flat (50 GiB free tier accounted upstream)
+        AWS: CloudWatch Logs $0.50/GB from YAML overlay
+        Falls back to observability_cost_standards.cost_calculation.regional_pricing from merged YAML.
         """
-        Get dynamic Log Analytics pricing based on commitment tier and region
-        """
-        # Check for commitment tier first
-        commitment_tier = metrics.get("log_analytics_commitment_tier")
-        if commitment_tier:
-            # Azure Log Analytics commitment tier pricing - effective per-GB rate
-            # (as of 2025 - verify at https://azure.microsoft.com/en-us/pricing/details/monitor/)
-            # TODO: These hardcoded prices should be fetched dynamically from the
-            # Azure Retail Prices API (https://prices.azure.com/api/retail/prices)
-            # using filters: serviceName eq 'Log Analytics' and armRegionName eq '<region>'
-            # Higher commitment tiers yield lower effective per-GB cost.
-            pricing_map = {
-                "100GB": 1.96,   # ~$196/day for 100GB/day commitment
-                "200GB": 1.84,   # ~$368/day for 200GB/day commitment
-                "300GB": 1.70,   # ~$510/day for 300GB/day commitment
-                "400GB": 1.60,   # ~$640/day for 400GB/day commitment
-                "500GB": 1.50,   # ~$750/day for 500GB/day commitment
-                "1000GB": 1.35,  # ~$1350/day for 1TB/day commitment
-                "2000GB": 1.20,  # ~$2400/day for 2TB/day commitment
-                "5000GB": 1.05   # ~$5250/day for 5TB/day commitment
-            }
-            tier_price = pricing_map.get(commitment_tier)
-            if tier_price is not None and tier_price:
-                logger.info(f"🏷️ Using commitment tier pricing: {commitment_tier} = ${tier_price}/GB")
-                return tier_price
-        
-        # Region-specific pay-as-you-go pricing (per GB ingested)
-        # (as of 2025 - verify at https://azure.microsoft.com/en-us/pricing/details/monitor/)
-        # TODO: These hardcoded prices should be fetched dynamically from the
-        # Azure Retail Prices API (https://prices.azure.com/api/retail/prices)
-        # using filters: serviceName eq 'Log Analytics' and priceType eq 'Consumption'
         region = metrics.get("region", "").lower()
-        regional_pricing = {
-            "eastus": 2.76,
-            "eastus2": 2.76,
-            "westus": 2.99,
-            "westus2": 2.99,
-            "centralus": 2.76,
-            "northcentralus": 2.76,
-            "southcentralus": 2.76,
-            "westus3": 2.99,
-            "northeurope": 3.04,
-            "westeurope": 3.04,
-            "southeastasia": 3.31,
-            "eastasia": 3.31,
-            "australiaeast": 3.31,
-            "australiasoutheast": 3.31,
-            "uksouth": 2.87,
-            "ukwest": 2.87,
-            "canadacentral": 2.87,
-            "canadaeast": 2.87,
-            "japaneast": 3.31,
-            "japanwest": 3.31,
-            "koreacentral": 3.31,
-            "brazilsouth": 4.14,
-            "francecentral": 3.04,
-            "germanywestcentral": 3.04,
-            "norwayeast": 3.04,
-            "switzerlandnorth": 3.68,
-            "uaenorth": 3.68,
-            "southafricanorth": 3.68,
-            "centralindia": 3.31,
-        }
-        
-        regional_price = regional_pricing.get(region)
+
+        # Azure-specific commitment tier check (only Azure has this model)
+        if self.cloud_provider == 'azure':
+            commitment_tier = metrics.get("log_analytics_commitment_tier")
+            if commitment_tier:
+                pricing_map = {
+                    "100GB": 1.96,
+                    "200GB": 1.84,
+                    "300GB": 1.70,
+                    "400GB": 1.60,
+                    "500GB": 1.50,
+                    "1000GB": 1.35,
+                    "2000GB": 1.20,
+                    "5000GB": 1.05,
+                }
+                tier_price = pricing_map.get(commitment_tier)
+                if tier_price is not None and tier_price:
+                    logger.info(f"Using commitment tier pricing: {commitment_tier} = ${tier_price}/GB")
+                    return tier_price
+
+        # Try YAML regional pricing (populated by provider-specific overlay)
+        yaml_regional = (self.cfg.get("observability_cost_standards", {})
+                         .get("cost_calculation", {})
+                         .get("regional_pricing", {}))
+        regional_price = yaml_regional.get(region)
         if regional_price is not None and regional_price:
-            logger.info(f"🌍 Using regional pay-as-you-go pricing for {region}: ${regional_price}/GB")
+            logger.info(f"Using {self.cloud_provider} regional pricing for {region}: ${regional_price}/GB")
             return regional_price
-        
-        # Per .clauderc: No defaults - require actual pricing data
-        logger.error("❌ Unable to determine Log Analytics pricing for region")
-        raise ValueError(f"Log Analytics pricing data not available for region: {region}")
+
+        raise ValueError(f"Observability pricing not available for {self.cloud_provider} region: {region}")
+
+    def _get_log_analytics_pricing(self, metrics: Dict[str, Any]) -> float:
+        """Backward-compat wrapper for Azure Log Analytics pricing."""
+        return self._get_observability_pricing(metrics)
 
     def _get_compute_details(self, metrics: Dict[str, Any], cfg: Dict[str, Any]) -> Dict[str, Any]:
         """Get detailed compute efficiency breakdown"""
@@ -1765,19 +1769,41 @@ class AKSScorer:
             logger.error(f"Could not determine cluster region: {e}")
             raise ValueError(f"Cluster region is required for accurate cost analysis: {e}")
     
+    def _get_storage_pricing_from_yaml(self, region: str) -> Dict[str, float]:
+        """Get cloud-provider-aware storage pricing from YAML, returning normalized keys.
+
+        Returns dict with normalized keys: 'premium', 'standard', 'economy'
+        mapped from provider-specific tier names.
+        """
+        standards = self.cfg.get("official_standards", {})
+
+        # Provider-specific pricing section and tier mapping
+        if self.cloud_provider == 'gcp':
+            pricing_data = standards.get("gcp_pricing", {}).get("storage", {})
+            tier_map = {'premium': 'pd_ssd', 'standard': 'pd_balanced', 'economy': 'pd_standard'}
+        elif self.cloud_provider == 'aws':
+            pricing_data = standards.get("aws_pricing", {}).get("storage", {})
+            tier_map = {'premium': 'io1', 'standard': 'gp3', 'economy': 'st1'}
+        else:
+            pricing_data = standards.get("azure_pricing", {}).get("storage", {})
+            tier_map = {'premium': 'premium_lrs', 'standard': 'standard_ssd', 'economy': 'standard_lrs'}
+
+        region_key = region.lower()
+        if region_key not in pricing_data:
+            available_regions = list(pricing_data.keys())
+            raise ValueError(f"Region '{region}' not found in {self.cloud_provider} YAML pricing. Available: {available_regions}")
+
+        raw = pricing_data[region_key]
+        return {norm_key: raw[provider_key] for norm_key, provider_key in tier_map.items()}
+
     def _get_azure_storage_pricing_from_yaml(self, region: str) -> Dict[str, float]:
-        """Get Azure storage pricing from YAML configuration for specified region"""
-        try:
-            azure_pricing = self.cfg.get("official_standards", {}).get("azure_pricing", {}).get("storage", {})
-            
-            if region.lower() not in azure_pricing:
-                available_regions = list(azure_pricing.keys())
-                raise ValueError(f"Region '{region}' not found in YAML pricing. Available regions: {available_regions}")
-            
-            return azure_pricing[region.lower()]
-        except Exception as e:
-            logger.error(f"Could not get Azure pricing from YAML for region {region}: {e}")
-            raise ValueError(f"Azure pricing configuration missing for region {region}: {e}")
+        """Backward-compat wrapper — returns Azure-specific keys (premium_lrs, standard_lrs, standard_ssd)."""
+        normalized = self._get_storage_pricing_from_yaml(region)
+        return {
+            'premium_lrs': normalized['premium'],
+            'standard_lrs': normalized['economy'],
+            'standard_ssd': normalized['standard'],
+        }
     
     def _estimate_cpu_optimization_impact(self, metrics: Dict[str, Any], current_cpu_util: float, cpu_optimal: List[float]) -> str:
         """Estimate the impact of CPU optimization"""
@@ -1831,5 +1857,5 @@ class AKSScorer:
             raise ValueError(f"Failed to get next HPA action: {e}")
 
 
-# Cloud-agnostic alias — new code should use ClusterScorer.from_config(cloud_provider)
-ClusterScorer = AKSScorer
+# Backward-compat alias — new code should use ClusterScorer
+AKSScorer = ClusterScorer

@@ -1,7 +1,7 @@
 """
-AKS Cost Optimizer Command Center
+Kubernetes Cost Optimizer Command Center
 
-A modular command generation system for Azure Kubernetes Service optimization.
+A modular command generation system for Kubernetes cluster optimization.
 
 Structure:
 - models/: Core data models and structures
@@ -11,21 +11,22 @@ Structure:
 - orchestrator.py: Main coordinator that brings everything together
 
 Usage:
-    from application.use_cases.orchestrator import AKSOptimizationOrchestrator
-    
-    orchestrator = AKSOptimizationOrchestrator()
+    from application.use_cases.orchestrator import OptimizationOrchestrator
+
+    orchestrator = OptimizationOrchestrator()
     plan = orchestrator.generate_priority_driven_execution_plan(
         optimization_strategy, cluster_dna, analysis_results, cluster_config
     )
 """
 
-from .orchestrator import AKSOptimizationOrchestrator
+from .orchestrator import OptimizationOrchestrator, AKSOptimizationOrchestrator
 from .models.core import OptimizationConfig, ExecutableCommand, ComprehensiveExecutionPlan
 
 __all__ = [
-    'AKSOptimizationOrchestrator',
+    'OptimizationOrchestrator',
+    'AKSOptimizationOrchestrator',  # backward compat
     'OptimizationConfig',
-    'ExecutableCommand', 
+    'ExecutableCommand',
     'ComprehensiveExecutionPlan'
 ]
 
