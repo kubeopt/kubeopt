@@ -103,17 +103,41 @@ implementation_generator = None  # Use external_api_client instead
 logger.info("✅ Plan generation via external API only")
 
 def initialize_multi_subscription_environment():
-    """Initialize the multi-subscription environment"""
+    """Initialize the multi-subscription/account environment for the active cloud provider."""
     try:
-        logger.info("🌐 Initializing multi-subscription AKS Cost Optimization environment...")
-        
-        # Initialize account manager via cloud provider registry
         from infrastructure.cloud_providers.registry import ProviderRegistry
-        account_mgr = ProviderRegistry().get_account_manager()
+        registry = ProviderRegistry()
+        provider = registry.provider.value  # 'azure', 'aws', or 'gcp'
+
+        logger.info(f"Initializing multi-account environment for provider: {provider}")
+
+        # For Azure, check that Azure creds are actually available before trying
+        # to list subscriptions.  This avoids noisy SDK warnings when the user
+        # hasn't configured Azure credentials (e.g. running with AWS or GCP).
+        if provider == 'azure':
+            has_azure_creds = bool(
+                os.getenv('AZURE_SUBSCRIPTION_ID')
+                or os.getenv('AZURE_CLIENT_ID')
+                or os.getenv('AZURE_TENANT_ID')
+            )
+            if not has_azure_creds:
+                logger.info(
+                    "Azure provider detected but no Azure credentials configured "
+                    "(AZURE_SUBSCRIPTION_ID / AZURE_CLIENT_ID / AZURE_TENANT_ID) "
+                    "— skipping subscription discovery. "
+                    "Set CLOUD_PROVIDER=aws or CLOUD_PROVIDER=gcp if using a different cloud."
+                )
+                # Still initialize background maintenance (it handles all providers)
+                from infrastructure.services.background_processor import schedule_subscription_analysis_maintenance
+                schedule_subscription_analysis_maintenance()
+                return True
+
+        # Initialize account manager via cloud provider registry
+        account_mgr = registry.get_account_manager()
 
         # Get available subscriptions/accounts and initialize tracking
         subscriptions = account_mgr.list_accounts()
-        logger.info(f"🌐 Discovered {len(subscriptions)} cloud accounts")
+        logger.info(f"Discovered {len(subscriptions)} cloud accounts for {provider}")
 
         # Initialize subscription tracking in cache
         for sub in subscriptions:
@@ -124,16 +148,16 @@ def initialize_multi_subscription_environment():
                 'is_default': sub.get('is_default', False),
                 'state': sub.get('state', 'unknown')
             }
-        
+
         # Initialize background maintenance
         from infrastructure.services.background_processor import schedule_subscription_analysis_maintenance
         schedule_subscription_analysis_maintenance()
-        
-        logger.info("✅ Multi-subscription environment initialized successfully")
+
+        logger.info(f"Multi-account environment initialized successfully ({provider})")
         return True
-        
+
     except Exception as e:
-        logger.error(f"❌ Failed to initialize multi-subscription environment: {e}")
+        logger.error(f"Failed to initialize multi-account environment: {e}")
         return False
 
 def enhance_database_schema_for_multi_subscription():
@@ -248,9 +272,21 @@ def validate_multi_subscription_configuration():
     try:
         # Validate account manager via cloud provider registry
         from infrastructure.cloud_providers.registry import ProviderRegistry
-        subscriptions = ProviderRegistry().get_account_manager().list_accounts()
-        validation_results['subscription_manager'] = len(subscriptions) > 0
-        
+        registry = ProviderRegistry()
+        provider = registry.provider.value
+
+        # Skip Azure account listing if Azure credentials aren't configured
+        if provider == 'azure' and not (
+            os.getenv('AZURE_SUBSCRIPTION_ID')
+            or os.getenv('AZURE_CLIENT_ID')
+            or os.getenv('AZURE_TENANT_ID')
+        ):
+            validation_results['subscription_manager'] = False
+            logger.debug("Skipping subscription manager validation — no Azure credentials configured")
+        else:
+            subscriptions = registry.get_account_manager().list_accounts()
+            validation_results['subscription_manager'] = len(subscriptions) > 0
+
         # Validate analysis engine
         validation_results['analysis_engine'] = setup_subscription_aware_analysis_engine()
         
@@ -299,12 +335,28 @@ def get_multi_subscription_status():
         # Subscription/account manager status
         try:
             from infrastructure.cloud_providers.registry import ProviderRegistry
-            subscriptions = ProviderRegistry().get_account_manager().list_accounts()
-            status['subscriptions'] = {
-                'total_count': len(subscriptions),
-                'enabled_count': len([s for s in subscriptions if s.get('state', '').lower() == 'enabled']),
-                'default_subscription': next((s['id'] for s in subscriptions if s.get('is_default')), None)
-            }
+            registry = ProviderRegistry()
+            provider = registry.provider.value
+
+            # Skip account listing if Azure provider has no credentials configured
+            if provider == 'azure' and not (
+                os.getenv('AZURE_SUBSCRIPTION_ID')
+                or os.getenv('AZURE_CLIENT_ID')
+                or os.getenv('AZURE_TENANT_ID')
+            ):
+                status['subscriptions'] = {
+                    'total_count': 0,
+                    'enabled_count': 0,
+                    'default_subscription': None,
+                    'note': 'Azure credentials not configured'
+                }
+            else:
+                subscriptions = registry.get_account_manager().list_accounts()
+                status['subscriptions'] = {
+                    'total_count': len(subscriptions),
+                    'enabled_count': len([s for s in subscriptions if s.get('state', '').lower() == 'enabled']),
+                    'default_subscription': next((s['id'] for s in subscriptions if s.get('is_default')), None)
+                }
         except Exception as e:
             status['subscriptions'] = {'error': str(e)}
         
@@ -360,7 +412,7 @@ alerts_manager = None
 # Enhanced startup sequence
 def initialize_application_with_multi_subscription():
     """Enhanced application initialization with multi-subscription support"""
-    logger.debug("🌐 Initializing multi-subscription AKS cost optimization system")
+    logger.debug("Initializing multi-account cloud optimization system")
     
     initialization_steps = [
         ("Database Schema", initialize_database),
@@ -393,23 +445,31 @@ def initialize_application_with_multi_subscription():
     # Log system status
     status = get_multi_subscription_status()
     if status.get('subscriptions', {}).get('total_count', 0) > 0:
-        logger.info(f"🌐 Ready to analyze across {status['subscriptions']['total_count']} Azure subscriptions")
+        logger.info(f"Ready to analyze across {status['subscriptions']['total_count']} cloud accounts")
     
     return successful_steps == len(initialization_steps)
 
 # Configuration validation on import - SDK-based
-try:
-    # Validate Azure SDK is available and working
-    from infrastructure.services.azure_sdk_manager import azure_sdk_manager, AZURE_SDK_AVAILABLE
-    
-    if AZURE_SDK_AVAILABLE and azure_sdk_manager.is_authenticated():
-        logger.info("✅ Azure SDK available and authenticated for multi-subscription operations")
-    elif AZURE_SDK_AVAILABLE:
-        logger.warning("⚠️ Azure SDK available but not authenticated - set Azure credentials")
-    else:
-        logger.warning("⚠️ Azure SDK not available - subscription operations may fail")
-except Exception as e:
-    logger.warning(f"⚠️ Could not verify Azure SDK: {e}")
+# Only validate Azure SDK when the cloud provider is Azure (or unset, which defaults to Azure).
+# For AWS/GCP providers, skip Azure SDK validation to avoid noisy warnings.
+_cloud_provider_for_sdk_check = os.getenv('CLOUD_PROVIDER', 'azure').strip().lower()
+_has_azure_creds = bool(os.getenv('AZURE_SUBSCRIPTION_ID') or os.getenv('AZURE_CLIENT_ID') or os.getenv('AZURE_TENANT_ID'))
+
+if _cloud_provider_for_sdk_check == 'azure' or _has_azure_creds:
+    try:
+        # Validate Azure SDK is available and working
+        from infrastructure.services.azure_sdk_manager import azure_sdk_manager, AZURE_SDK_AVAILABLE
+
+        if AZURE_SDK_AVAILABLE and azure_sdk_manager.is_authenticated():
+            logger.info("Azure SDK available and authenticated for multi-subscription operations")
+        elif AZURE_SDK_AVAILABLE:
+            logger.warning("Azure SDK available but not authenticated - set Azure credentials")
+        else:
+            logger.warning("Azure SDK not available - subscription operations may fail")
+    except Exception as e:
+        logger.warning(f"Could not verify Azure SDK: {e}")
+else:
+    logger.info(f"Cloud provider is '{_cloud_provider_for_sdk_check}' — skipping Azure SDK validation")
 
 # Export key components
 __all__ = [

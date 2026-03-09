@@ -1,0 +1,122 @@
+# AWS-Specific Scoring Overlay
+# Deep-merged on top of scoring.yaml by StandardsLoader
+# Contains AWS pricing, regions, and service-specific configuration
+
+cost_excellence:
+  observability:
+    # CloudWatch Logs pricing configuration
+    cloudwatch_logs_pricing:
+      ingestion_per_gb: 0.50     # $0.50 per GB ingested
+      storage_per_gb_month: 0.03 # $0.03 per GB stored/month
+      min_meaningful_savings: 50  # Minimum $50/month to suggest optimization
+      max_savings_pct: 0.80       # Cap savings at 80% of current observability spend
+      use_actual_costs: true
+
+    # Regional pricing multipliers (relative to us-east-1 baseline)
+    regional_multipliers:
+      us-east-1: 1.00
+      us-west-2: 1.00
+      eu-west-1: 1.10
+      ap-southeast-1: 1.15
+      ap-northeast-1: 1.20
+      sa-east-1: 1.25
+
+  # ECR (Elastic Container Registry - replaces ACR)
+  images:
+    median_image_mb_target: {target: 250, tol_frac: 0.60}
+    mix:
+      registry_tier: 0.35    # ECR registry type (private vs public)
+      size: 0.35             # Image size optimization
+      retention: 0.15        # Lifecycle policy (>=14 days retention)
+      geo: 0.15              # Cross-region replication right-sizing
+
+  # GuardDuty (replaces Defender)
+  sec_tools:
+    mix:
+      guardduty_scope: 0.60  # GuardDuty scoped to prod (>=70% nonprod excluded)
+      dup_agents: 0.40       # Duplicate security agent detection
+
+official_standards:
+  # AWS-specific pricing for savings calculations
+  savings_opportunities:
+    public_ip_monthly_cost: 3.65             # AWS Elastic IP (unused) per month
+    lb_monthly_cost_standard: 22.27          # AWS ALB per month (fixed cost)
+    lb_monthly_cost_basic: 22.27             # AWS Classic LB per month
+
+  # AWS Regional Storage Pricing Standards (USD per GB per month)
+  aws_pricing:
+    storage:
+      us-east-1:
+        gp3: 0.080
+        gp2: 0.100
+        io1: 0.125
+        st1: 0.045
+        sc1: 0.015
+      us-east-2:
+        gp3: 0.080
+        gp2: 0.100
+        io1: 0.125
+        st1: 0.045
+        sc1: 0.015
+      us-west-2:
+        gp3: 0.080
+        gp2: 0.100
+        io1: 0.125
+        st1: 0.045
+        sc1: 0.015
+      eu-west-1:
+        gp3: 0.088
+        gp2: 0.110
+        io1: 0.138
+        st1: 0.050
+        sc1: 0.017
+      ap-southeast-1:
+        gp3: 0.088
+        gp2: 0.110
+        io1: 0.138
+        st1: 0.050
+        sc1: 0.017
+
+observability_cost_standards:
+  cost_calculation:
+    # Regional pricing (per GB/month for CloudWatch Logs ingestion)
+    regional_pricing:
+      us-east-1: 0.50
+      us-east-2: 0.50
+      us-west-1: 0.50
+      us-west-2: 0.50
+      eu-west-1: 0.50
+      eu-west-2: 0.50
+      eu-central-1: 0.50
+      ap-southeast-1: 0.50
+      ap-northeast-1: 0.50
+      ap-south-1: 0.50
+      sa-east-1: 0.63
+
+    # AWS-specific naming pattern weights for cluster attribution
+    naming_attribution:
+      exact_cluster_name_match: 0.9
+      account_match: 0.6              # AWS uses accounts, not resource groups
+      container_insights_match: 0.8   # CloudWatch Container Insights detected
+      eks_related_match: 0.5
+      default_fallback: 0.3
+
+    # AWS-specific estimation factors
+    estimation_factors:
+      container_insights_overhead: 0.15  # 15% additional cost for Container Insights
+      prometheus_metrics_factor: 0.10
+
+# AWS regional pricing references
+regional_pricing:
+  us-east-1:
+    ref_vcpu_price: 0.048
+    ref_net_price_per_gb: 0.09
+    spot_discount_avg: 0.70  # 70% average spot discount
+  us-west-2:
+    ref_vcpu_price: 0.048
+    ref_net_price_per_gb: 0.09
+    spot_discount_avg: 0.70
+  eu-west-1:
+    ref_vcpu_price: 0.053
+    ref_net_price_per_gb: 0.09
+    spot_discount_avg: 0.65

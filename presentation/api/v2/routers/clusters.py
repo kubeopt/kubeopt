@@ -76,6 +76,23 @@ async def add_cluster(
         elif cloud_provider == 'gcp' and body.project_id:
             subscription_id = body.project_id
 
+        # Compute cluster_id to check for duplicates before inserting
+        if cloud_provider == 'aws':
+            prefix = cluster_config.get('account_id') or subscription_id or cluster_config.get('region', 'aws')
+        elif cloud_provider == 'gcp':
+            prefix = cluster_config.get('project_id') or subscription_id or 'gcp'
+        else:
+            prefix = cluster_config.get('resource_group', '')
+        cluster_id = f"{prefix}_{body.cluster_name}"
+
+        # Check for duplicate cluster
+        existing = cluster_manager.get_cluster(cluster_id)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cluster '{body.cluster_name}' already exists for this {cloud_provider} account",
+            )
+
         subscription_name = ''
 
         # Use subscription-aware add when subscription is provided
@@ -108,6 +125,14 @@ async def add_cluster(
             region=body.region or body.zone or '',
             subscription_id=body.subscription_id,
             resource_group=body.resource_group,
+        )
+    except HTTPException:
+        raise
+    except ValueError as e:
+        # Duplicate detected at the database layer (race condition fallback)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e),
         )
     except Exception as e:
         logger.error(f"Failed to add cluster: {e}")
