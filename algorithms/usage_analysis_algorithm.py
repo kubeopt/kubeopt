@@ -21,15 +21,15 @@ class UsageAnalysisAlgorithm:
     Extracted from algorithmic_cost_analyzer.py CurrentUsageAnalysisAlgorithm
     """
     
-    def __init__(self, logger: logging.Logger, algorithm_instances: Dict, aks_scorer=None):
+    def __init__(self, logger: logging.Logger, algorithm_instances: Dict, scorer=None):
         """
         Initialize usage analysis algorithm
-        
+
         Args:
             logger: Logger instance (required, no default)
             algorithm_instances: Dictionary of algorithm instances
-            aks_scorer: AKS scorer instance (optional)
-        
+            scorer: Cluster scorer instance (optional)
+
         Raises:
             ValueError: If logger or algorithm_instances is None
         """
@@ -37,9 +37,9 @@ class UsageAnalysisAlgorithm:
             raise ValueError("Logger parameter is required")
         if algorithm_instances is None:
             raise ValueError("algorithm_instances parameter is required")
-        
+
         self.logger = logger
-        self.aks_scorer = aks_scorer
+        self.scorer = scorer
         
         # Store algorithm instances for calculations
         self.hpa_algorithm = algorithm_instances.get('hpa_algorithm')

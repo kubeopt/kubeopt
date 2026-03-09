@@ -1381,9 +1381,17 @@ class MultiSubscriptionAnalysisEngine:
                     representative_node['cpu_usage_pct'] = avg_cpu
                     representative_node['memory_usage_pct'] = avg_memory
 
+                    # Look up current VM cost from pricing data so the algorithm
+                    # uses real cost instead of the $0.10 default
+                    available_vm_sizes = self._get_available_vm_sizes(region=cluster_region, cloud_provider=cluster_cloud_provider)
+                    if 'cost_per_hour' not in representative_node or representative_node['cost_per_hour'] == 0:
+                        for vm_entry in available_vm_sizes:
+                            if vm_entry.get('vm_size', '').lower() == vm_size.lower():
+                                representative_node['cost_per_hour'] = vm_entry['cost_per_hour']
+                                break
+
                     # Generate ONE set of recommendations per pool
                     utilization_analysis = node_optimizer.analyze_node_utilization(representative_node)
-                    available_vm_sizes = self._get_available_vm_sizes(region=cluster_region, cloud_provider=cluster_cloud_provider)
                     recommendations = node_optimizer.generate_vm_size_recommendations(
                         utilization_analysis, available_vm_sizes
                     )
@@ -1508,6 +1516,21 @@ class MultiSubscriptionAnalysisEngine:
                 {"vm_size": "c5.xlarge", "cost_per_hour": 0.170, "cpu_cores": 4, "memory_gb": 8},
             ]
 
+        if region and cloud_provider == 'gcp':
+            # GCP static fallback (approximate On-Demand us-central1 prices)
+            logger.warning("Using static GCE pricing fallback for GCP")
+            return [
+                {"vm_size": "e2-small", "cost_per_hour": 0.0168, "cpu_cores": 2, "memory_gb": 2},
+                {"vm_size": "e2-medium", "cost_per_hour": 0.0335, "cpu_cores": 2, "memory_gb": 4},
+                {"vm_size": "e2-standard-2", "cost_per_hour": 0.0670, "cpu_cores": 2, "memory_gb": 8},
+                {"vm_size": "e2-standard-4", "cost_per_hour": 0.1340, "cpu_cores": 4, "memory_gb": 16},
+                {"vm_size": "e2-standard-8", "cost_per_hour": 0.2680, "cpu_cores": 8, "memory_gb": 32},
+                {"vm_size": "n2-standard-2", "cost_per_hour": 0.0971, "cpu_cores": 2, "memory_gb": 8},
+                {"vm_size": "n2-standard-4", "cost_per_hour": 0.1942, "cpu_cores": 4, "memory_gb": 16},
+                {"vm_size": "n2-standard-8", "cost_per_hour": 0.3885, "cpu_cores": 8, "memory_gb": 32},
+                {"vm_size": "c2-standard-4", "cost_per_hour": 0.2088, "cpu_cores": 4, "memory_gb": 16},
+            ]
+
         if region and cloud_provider == 'azure':
             try:
                 from infrastructure.services.vm_pricing_service import VMPricingService
@@ -1518,8 +1541,8 @@ class MultiSubscriptionAnalysisEngine:
             except Exception as e:
                 logger.warning(f"Azure pricing API unavailable ({e}), using static fallback")
 
-        # Fallback: static prices (approximate West Europe Linux pay-as-you-go)
-        logger.warning("Using static VM pricing fallback (may be inaccurate for non-West-Europe regions)")
+        # Azure static fallback (approximate West Europe Linux pay-as-you-go)
+        logger.warning("Using static Azure VM pricing fallback (may be inaccurate for non-West-Europe regions)")
         return [
             {"vm_size": "Standard_B2s", "cost_per_hour": 0.041, "cpu_cores": 2, "memory_gb": 4},
             {"vm_size": "Standard_B2ms", "cost_per_hour": 0.083, "cpu_cores": 2, "memory_gb": 8},

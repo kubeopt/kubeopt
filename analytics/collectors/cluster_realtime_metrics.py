@@ -294,16 +294,16 @@ class ClusterMetricsFetcher:
         Get enhanced node metrics with all calculations.
         Preserves all original logic but with improved structure.
         """
-        logger.info("📊 Fetching enhanced node resource data...")
-        
+        logger.info("Fetching enhanced node resource data...")
+
         if not self.cache:
             raise ValueError("Cache is required for node data collection")
-        
+
         # Get raw node data
         nodes_raw = self.cache.get('nodes')
         if not nodes_raw:
             raise ValueError("No nodes data available from cache")
-        
+
         # Extract nodes from JSON structure
         if isinstance(nodes_raw, dict) and 'items' in nodes_raw:
             nodes_list = nodes_raw['items']
@@ -311,127 +311,109 @@ class ClusterMetricsFetcher:
             nodes_list = nodes_raw
         else:
             raise ValueError(f"Unexpected nodes data format: {type(nodes_raw)}")
-        
+
         if not nodes_list:
             raise ValueError("No nodes found in nodes data")
-        
-        # Get node metrics from cache (avoids kubectl authentication issues)
-        # The cache already handles Azure Monitor fallback when kubectl fails
-        metrics_nodes = self.cache.get('metrics_nodes') or ""
-        top_nodes_output = metrics_nodes
-        
-        # DEBUG: Log the actual kubectl top nodes output
-        logger.info(f"🔍 DEBUG: kubectl top nodes raw output for cluster {self.cluster_name}:")
-        logger.info(f"🔍 DEBUG: metrics_nodes type={type(metrics_nodes)}, length={len(metrics_nodes) if metrics_nodes else 0}")
-        if metrics_nodes:
-            logger.info(f"🔍 DEBUG: First 200 chars of metrics_nodes: {repr(metrics_nodes[:200])}")
-        else:
-            logger.warning(f"🔍 DEBUG: metrics_nodes is empty or None")
-        
+
+        # Get node metrics from cache — must be a string (kubectl top nodes output).
+        # When metrics-server fails, the cache parser stores a dict instead of a string.
+        metrics_nodes = self.cache.get('metrics_nodes')
+        if not isinstance(metrics_nodes, str):
+            if metrics_nodes is not None:
+                logger.warning(f"metrics_nodes is {type(metrics_nodes).__name__}, expected str — metrics-server likely unavailable")
+            metrics_nodes = ""
+        top_nodes_output = metrics_nodes.strip()
+
+        if not top_nodes_output:
+            logger.warning(f"No kubectl top nodes data available for {self.cluster_name} — metrics-server may not be running")
+
         # Process nodes with enhanced data
         processed_nodes = []
+        skipped_nodes = []
         total_cpu_cores = 0
         total_memory_gb = 0
-        
+
         for node_raw in nodes_list:
-            try:
-                # Parse using NodeDataProcessor for consistency
-                node_data = self.node_processor.parse_node_data([node_raw])
-                if not node_data:
-                    continue
-                
-                node = node_data[0]
-                node_name = node.get('name')
-                
-                # Get allocatable resources
-                cpu_cores = node.get('allocatable_cpu', 0)
-                memory_gb = node.get('allocatable_memory', 0)
-                
-                # Get usage from kubernetes_data_cache (single source of truth)
-                cpu_usage_pct = 0
-                memory_usage_pct = 0
-                
-                # Extract from cache's top nodes data
-                if top_nodes_output:
-                    usage_data = self._extract_node_usage_from_top(node_name, top_nodes_output)
-                    if usage_data and 'cpu_usage_pct' in usage_data:
-                        cpu_usage_pct = usage_data.get('cpu_usage_pct', 0)
-                        memory_usage_pct = usage_data.get('memory_usage_pct', 0)
-                        logger.info(f"✅ Node {node_name}: Found cache metrics CPU={cpu_usage_pct}%, Memory={memory_usage_pct}%")
-                    else:
-                        logger.warning(f"⚠️ Node {node_name}: No metrics found in cache top output")
-                else:
-                    logger.warning(f"⚠️ No metrics_nodes data in cache for {node_name}")
-                
-                # STRICT VALIDATION per .clauderc: cpu_usage_pct field is required
-                # If cache doesn't have it, skip this node but log the issue clearly
-                if not isinstance(cpu_usage_pct, (int, float)):
-                    logger.error(f"❌ VALIDATION: Node {node_name} excluded - cpu_usage_pct must be numeric, got {type(cpu_usage_pct)} = {cpu_usage_pct}")
-                    continue  # Skip this node but continue processing others
-                if not isinstance(memory_usage_pct, (int, float)):
-                    logger.error(f"❌ VALIDATION: Node {node_name} excluded - memory_usage_pct must be numeric, got {type(memory_usage_pct)} = {memory_usage_pct}")
-                    continue  # Skip this node but continue processing others
-                
-                # STRICT VALIDATION: Zero CPU metrics indicate cache/kubectl failure
-                if cpu_usage_pct == 0:
-                    raise ValueError(f"Node {node_name}: cpu_usage_pct cannot be 0 - indicates kubectl top failure or cache corruption")
-                
-                logger.info(f"✅ Node {node_name}: Using cache metrics CPU={cpu_usage_pct}%, Memory={memory_usage_pct}%")
-                
-                # Calculate efficiency scores
-                cpu_efficiency = self._calculate_cpu_efficiency(cpu_usage_pct)
-                memory_efficiency = self._calculate_memory_efficiency(memory_usage_pct)
-                
-                # Categorize usage severity
-                cpu_severity = self._categorize_cpu_usage_severity(cpu_usage_pct)
-                memory_severity = self._categorize_memory_usage_severity(memory_usage_pct)
-                
-                # DEBUG: Log the exact values being used to build processed_node
-                logger.info(f"🔍 DEBUG BUILD: Creating processed_node for {node_name}")
-                logger.info(f"🔍 DEBUG BUILD: cpu_usage_pct = {cpu_usage_pct} (type: {type(cpu_usage_pct)})")
-                logger.info(f"🔍 DEBUG BUILD: memory_usage_pct = {memory_usage_pct} (type: {type(memory_usage_pct)})")
-                logger.info(f"🔍 DEBUG BUILD: cpu_cores = {cpu_cores}, memory_gb = {memory_gb}")
-                
-                processed_node = {
-                    'name': node_name,
-                    'node_name': node_name,  # Add for node optimization algorithm compatibility
-                    'cpu_cores': cpu_cores,
-                    'memory_gb': memory_gb,
-                    'cpu_usage_pct': cpu_usage_pct,
-                    'memory_usage_pct': memory_usage_pct,
-                    'cpu_efficiency': cpu_efficiency,
-                    'memory_efficiency': memory_efficiency,
-                    'cpu_severity': cpu_severity,
-                    'memory_severity': memory_severity,
-                    'nodepool': node.get('nodepool', 'default'),
-                    'status': node.get('status', 'Unknown'),
-                    'vm_size': node.get('vm_size', 'unknown'),
-                    'region': node.get('region', 'unknown')
-                }
-                
-                # DEBUG: Verify what was actually stored in processed_node
-                logger.info(f"🔍 DEBUG BUILD: processed_node created with name='{processed_node.get('name')}', cpu_usage_pct={processed_node.get('cpu_usage_pct')}")
-                
-                processed_nodes.append(processed_node)
-                total_cpu_cores += cpu_cores
-                total_memory_gb += memory_gb
-                
-                # DEBUG: Log each processed node
-                logger.info(f"🔍 DEBUG: Processed node {node_name} - CPU: {cpu_usage_pct}%, Memory: {memory_usage_pct}%")
-                
-                # Cache node capacity for later use
-                self._node_capacities[node_name] = {
-                    'cpu_cores': cpu_cores,
-                    'memory_gb': memory_gb
-                }
-                
-            except Exception as e:
-                logger.error(f"Failed to process node {node_raw.get('name', 'unknown')}: {e}")
-                raise ValueError(f"Node processing failed: {e}")
-        
+            # Parse using NodeDataProcessor for consistency
+            node_data = self.node_processor.parse_node_data([node_raw])
+            if not node_data:
+                continue
+
+            node = node_data[0]
+            node_name = node.get('name')
+
+            # Get allocatable resources
+            cpu_cores = node.get('allocatable_cpu', 0)
+            memory_gb = node.get('allocatable_memory', 0)
+
+            # Extract usage from kubectl top nodes output
+            cpu_usage_pct = None
+            memory_usage_pct = None
+
+            if top_nodes_output:
+                usage_data = self._extract_node_usage_from_top(node_name, top_nodes_output)
+                if usage_data and 'cpu_usage_pct' in usage_data:
+                    cpu_usage_pct = usage_data.get('cpu_usage_pct')
+                    memory_usage_pct = usage_data.get('memory_usage_pct', 0)
+
+            # Validate: skip nodes without real metrics (don't use 0% defaults)
+            if not isinstance(cpu_usage_pct, (int, float)) or not isinstance(memory_usage_pct, (int, float)):
+                skipped_nodes.append(node_name)
+                logger.warning(f"Node {node_name}: skipped — no metrics from kubectl top (metrics-server issue or node name mismatch)")
+                continue
+
+            if cpu_usage_pct == 0 and memory_usage_pct == 0:
+                skipped_nodes.append(node_name)
+                logger.warning(f"Node {node_name}: skipped — both CPU and memory at 0% (likely metrics-server not reporting)")
+                continue
+
+            # Calculate efficiency scores
+            cpu_efficiency = self._calculate_cpu_efficiency(cpu_usage_pct)
+            memory_efficiency = self._calculate_memory_efficiency(memory_usage_pct)
+
+            # Categorize usage severity
+            cpu_severity = self._categorize_cpu_usage_severity(cpu_usage_pct)
+            memory_severity = self._categorize_memory_usage_severity(memory_usage_pct)
+
+            processed_node = {
+                'name': node_name,
+                'node_name': node_name,
+                'cpu_cores': cpu_cores,
+                'memory_gb': memory_gb,
+                'cpu_usage_pct': cpu_usage_pct,
+                'memory_usage_pct': memory_usage_pct,
+                'cpu_efficiency': cpu_efficiency,
+                'memory_efficiency': memory_efficiency,
+                'cpu_severity': cpu_severity,
+                'memory_severity': memory_severity,
+                'nodepool': node.get('nodepool', 'default'),
+                'status': node.get('status', 'Unknown'),
+                'vm_size': node.get('vm_size', 'unknown'),
+                'region': node.get('region', 'unknown')
+            }
+
+            processed_nodes.append(processed_node)
+            total_cpu_cores += cpu_cores
+            total_memory_gb += memory_gb
+            logger.info(f"Node {node_name}: CPU={cpu_usage_pct}%, Memory={memory_usage_pct}%")
+
+            # Cache node capacity for later use
+            self._node_capacities[node_name] = {
+                'cpu_cores': cpu_cores,
+                'memory_gb': memory_gb
+            }
+
+        if skipped_nodes:
+            logger.warning(f"{len(skipped_nodes)}/{len(nodes_list)} nodes skipped due to missing metrics: {skipped_nodes}")
+
         if not processed_nodes:
-            raise ValueError("No nodes could be processed")
-        
+            raise ValueError(
+                f"No nodes could be processed — kubectl top nodes returned no usable data for any of {len(nodes_list)} nodes. "
+                f"Check that metrics-server is running on the cluster."
+            )
+
+        logger.info(f"Processed {len(processed_nodes)}/{len(nodes_list)} nodes with real metrics")
+
         return {
             'nodes': processed_nodes,
             'total_cpu_cores': total_cpu_cores,
@@ -1078,57 +1060,60 @@ class ClusterMetricsFetcher:
             return 'unknown'
     
     def _extract_node_usage_from_top(self, node_name: str, top_output: str) -> Optional[Dict]:
-        """Extract node usage from kubectl top output with Azure VMSS name mapping."""
-        # DEBUG: Log the parsing attempt
-        logger.info(f"🔍 DEBUG PARSE: Trying to extract usage for node '{node_name}' from top output")
-        
-        if not top_output:
-            logger.warning(f"🔍 DEBUG PARSE: top_output is empty for node {node_name}")
+        """Extract node usage from kubectl top nodes output.
+
+        Parses the --no-headers output format: NAME CPU(cores) CPU% MEMORY(bytes) MEMORY%
+        Falls back to Azure VMSS name mapping if exact match fails.
+        """
+        if not top_output or not isinstance(top_output, str):
             return None
-        
+
         # Try exact name match first
-        logger.info(f"🔍 DEBUG PARSE: kubectl top output has {len(top_output.strip().split()) if top_output.strip() else 0} lines")
-        for i, line in enumerate(top_output.strip().split('\n')):
+        for line in top_output.strip().split('\n'):
             parts = line.split()
-            logger.info(f"🔍 DEBUG PARSE: Line {i}: '{line}' -> parts: {parts}")
             if len(parts) >= 5 and parts[0] == node_name:
                 try:
-                    result = {
+                    return {
                         'cpu_usage_pct': float(parts[2].rstrip('%')),
                         'memory_usage_pct': float(parts[4].rstrip('%'))
                     }
-                    logger.info(f"🔍 DEBUG PARSE: EXACT MATCH found for {node_name}: {result}")
-                    return result
-                except Exception as e:
-                    logger.warning(f"🔍 DEBUG PARSE: Failed to parse line for {node_name}: {e}")
+                except (ValueError, IndexError):
                     continue
-        
-        # If no exact match, try Azure VMSS name mapping (Azure-only)
-        # Convert k8s node name (vmss0000e8) to Azure name (vmss_xxx)
+
+        # Azure VMSS name mapping fallback — k8s name (aks-pool-vmss000001)
+        # may differ from kubectl top name by suffix format
         if self.cloud_provider == 'azure' and 'vmss' in node_name:
-            # Extract the hex suffix and convert to decimal for Azure naming
             try:
                 parts_node = node_name.split('vmss')
                 if len(parts_node) == 2:
                     vmss_base = parts_node[0] + 'vmss'
-                    hex_suffix = parts_node[1]
-
-                    # Try to match with any line that starts with the vmss base
                     for line in top_output.strip().split('\n'):
                         parts = line.split()
                         if len(parts) >= 5 and parts[0].startswith(vmss_base):
                             try:
-                                logger.info(f"🔗 Mapped node {node_name} to Azure metrics {parts[0]}")
+                                logger.info(f"Mapped node {node_name} to kubectl top entry {parts[0]}")
                                 return {
                                     'cpu_usage_pct': float(parts[2].rstrip('%')),
                                     'memory_usage_pct': float(parts[4].rstrip('%'))
                                 }
-                            except Exception:
+                            except (ValueError, IndexError):
                                 continue
             except Exception as e:
                 logger.warning(f"Failed to map Azure VMSS name for {node_name}: {e}")
-        
-        logger.warning(f"No usage data found for node {node_name}")
+
+        # EKS/GKE: try substring match — node name may be truncated or contain extra domain
+        for line in top_output.strip().split('\n'):
+            parts = line.split()
+            if len(parts) >= 5 and (node_name in parts[0] or parts[0] in node_name):
+                try:
+                    logger.info(f"Matched node {node_name} to kubectl top entry {parts[0]} (substring)")
+                    return {
+                        'cpu_usage_pct': float(parts[2].rstrip('%')),
+                        'memory_usage_pct': float(parts[4].rstrip('%'))
+                    }
+                except (ValueError, IndexError):
+                    continue
+
         return None
     
     def _validate_ml_metrics(self, metrics: Dict):

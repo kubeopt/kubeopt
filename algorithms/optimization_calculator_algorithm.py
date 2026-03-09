@@ -21,14 +21,14 @@ class OptimizationCalculatorAlgorithm:
     Extracted from algorithmic_cost_analyzer.py OptimizationCalculatorAlgorithm
     """
     
-    def __init__(self, logger: logging.Logger, algorithm_instances: Dict, aks_scorer=None, cloud_provider: str = 'azure'):
+    def __init__(self, logger: logging.Logger, algorithm_instances: Dict, scorer=None, cloud_provider: str = 'azure'):
         """
         Initialize optimization calculator algorithm
 
         Args:
             logger: Logger instance (required, no default)
             algorithm_instances: Dictionary of algorithm instances
-            aks_scorer: AKS scorer instance (optional)
+            scorer: Cluster scorer instance (optional)
             cloud_provider: Cloud provider for standards resolution
 
         Raises:
@@ -40,7 +40,7 @@ class OptimizationCalculatorAlgorithm:
             raise ValueError("algorithm_instances parameter is required")
 
         self.logger = logger
-        self.aks_scorer = aks_scorer
+        self.scorer = scorer
         self._cloud_provider = cloud_provider
         
         # Store algorithm instances for calculations
