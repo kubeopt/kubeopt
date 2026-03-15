@@ -196,6 +196,8 @@ class NodeOptimizationAlgorithm:
             if abs(savings_percentage) < min_impact_threshold:
                 continue
             
+            monthly_impact = cost_difference * 24 * 30  # Approximate monthly impact
+
             recommendation = {
                 "current_vm_size": current_vm_size,
                 "recommended_vm_size": vm_size,
@@ -205,7 +207,9 @@ class NodeOptimizationAlgorithm:
                 "recommended_cost_per_hour": vm_cost,
                 "cost_difference_per_hour": cost_difference,
                 "savings_percentage": savings_percentage,
-                "monthly_savings": cost_difference * 24 * 30,  # Approximate monthly savings
+                "monthly_savings": monthly_impact,
+                "is_cost_increase": cost_difference < 0,
+                "monthly_cost_increase": abs(monthly_impact) if cost_difference < 0 else 0,
                 "confidence_score": self._calculate_recommendation_confidence(utilization_analysis, vm_option),
                 "reasoning": self._generate_recommendation_reasoning(utilization_analysis, vm_option, recommendation_type)
             }

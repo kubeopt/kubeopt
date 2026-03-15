@@ -336,9 +336,9 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
     logger.info(f"🔍 CACHE SAVE: About to cache CPU gap: {cpu_gap}, Memory gap: {memory_gap}")
     # Validate breakdown data exists (per .clauderc: log but don't fail - data will be generated)
     if 'build_quality_breakdown' not in complete_analysis_data:
-        logger.warning("⚠️ CACHE SAVE: build_quality_breakdown missing from analysis data - scorer pipeline will generate")
+        logger.warning("CACHE SAVE: build_quality_breakdown missing from analysis data")
     if 'cost_excellence_breakdown' not in complete_analysis_data:
-        logger.warning("⚠️ CACHE SAVE: cost_excellence_breakdown missing from analysis data - scorer pipeline will generate")
+        logger.warning("CACHE SAVE: cost_excellence_breakdown missing from analysis data")
     
     build_breakdown = complete_analysis_data.get('build_quality_breakdown', {})
     cost_breakdown = complete_analysis_data.get('cost_excellence_breakdown', {})
@@ -509,8 +509,14 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str, cpu_gap: 
         'savings_percentage': float(complete_analysis_data.get('savings_percentage', 0)),
         'analysis_confidence': float(complete_analysis_data.get('analysis_confidence', 0)),
         'optimization_score': float(complete_analysis_data.get('optimization_score', 0)),
-        
-        
+
+        # Unified scoring breakdowns
+        'build_quality_score': complete_analysis_data.get('build_quality_score'),
+        'cost_excellence_score': complete_analysis_data.get('cost_excellence_score'),
+        'build_quality_breakdown': complete_analysis_data.get('build_quality_breakdown'),
+        'cost_excellence_breakdown': complete_analysis_data.get('cost_excellence_breakdown'),
+        'component_scores': complete_analysis_data.get('component_scores'),
+
         # Security analysis data
         'security_analysis': complete_analysis_data.get('security_analysis'),
         
@@ -540,13 +546,23 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str, cpu_gap: 
         'node_count': complete_analysis_data.get('node_count', 0),
         'total_nodes': complete_analysis_data.get('total_nodes'),
         
-        # Cost breakdown
+        # Cost breakdown — all fields consumed by analysis.py chart-data endpoint
         'node_cost': float(complete_analysis_data.get('node_cost', 0)),
         'storage_cost': float(complete_analysis_data.get('storage_cost', 0)),
         'networking_cost': float(complete_analysis_data.get('networking_cost', 0)),
         'control_plane_cost': float(complete_analysis_data.get('control_plane_cost', 0)),
         'registry_cost': float(complete_analysis_data.get('registry_cost', 0)),
         'monitoring_cost': float(complete_analysis_data.get('monitoring_cost', 0)),
+        'security_cost': float(complete_analysis_data.get('security_cost', 0)),
+        'secrets_management_cost': float(complete_analysis_data.get('secrets_management_cost', 0)),
+        'application_services_cost': float(complete_analysis_data.get('application_services_cost', 0)),
+        'data_services_cost': float(complete_analysis_data.get('data_services_cost', 0)),
+        'integration_services_cost': float(complete_analysis_data.get('integration_services_cost', 0)),
+        'devops_cost': float(complete_analysis_data.get('devops_cost', 0)),
+        'backup_recovery_cost': float(complete_analysis_data.get('backup_recovery_cost', 0)),
+        'governance_cost': float(complete_analysis_data.get('governance_cost', 0)),
+        'support_management_cost': float(complete_analysis_data.get('support_management_cost', 0)),
+        'system_cost': float(complete_analysis_data.get('system_cost', 0)),
         'other_cost': float(complete_analysis_data.get('other_cost', 0)),
         
         # Node data (clean copy)

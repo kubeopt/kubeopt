@@ -286,10 +286,17 @@ async def chart_data(
         except Exception:
             pass
 
-        # Extract anomaly detection data
+        # Extract anomaly detection data — check enhanced_analysis_input first, then top-level
         anomaly_data = {}
         try:
-            raw_anomaly = analysis_data.get('anomaly_detection', {})
+            raw_anomaly = None
+            # Primary source: enhanced_analysis_input (where analysis_engine stores it)
+            eai_for_anomaly = analysis_data.get('enhanced_analysis_input', {})
+            if isinstance(eai_for_anomaly, dict):
+                raw_anomaly = eai_for_anomaly.get('anomaly_detection', {})
+            # Fallback: top-level analysis_data
+            if not raw_anomaly or not isinstance(raw_anomaly, dict) or raw_anomaly.get('total_anomalies', 0) == 0:
+                raw_anomaly = analysis_data.get('anomaly_detection', {})
             if isinstance(raw_anomaly, dict) and raw_anomaly.get('total_anomalies', 0) > 0:
                 anomaly_data = {
                     'total_anomalies': raw_anomaly.get('total_anomalies', 0),
@@ -297,6 +304,7 @@ async def chart_data(
                     'highest_severity': raw_anomaly.get('highest_severity', 0),
                     'categories': raw_anomaly.get('anomaly_categories', {}),
                     'anomalies': (raw_anomaly.get('anomalies', []) or [])[:10],
+                    'detection_type': raw_anomaly.get('detection_type', 'unknown'),
                 }
         except Exception:
             pass
@@ -321,7 +329,7 @@ async def chart_data(
                 if val > 0:
                     cost_categories.append({'name': label, 'value': round(val, 2)})
             # Roll up remaining minor categories into "Other"
-            other_keys = ['keyvault_cost', 'application_services_cost', 'data_services_cost',
+            other_keys = ['secrets_management_cost', 'application_services_cost', 'data_services_cost',
                           'integration_services_cost', 'devops_cost', 'backup_recovery_cost',
                           'governance_cost', 'support_management_cost', 'other_cost', 'system_cost']
             other_val = sum(float(analysis_data.get(k, 0) or 0) for k in other_keys)
@@ -347,7 +355,7 @@ async def chart_data(
             'memory_gap': float(analysis_data.get('memory_gap', 0) or 0),
             'hpa_efficiency': float(analysis_data.get('hpa_efficiency_percentage', analysis_data.get('hpa_efficiency', 0)) or 0),
             'namespace_count': len(namespace_costs_result),
-            'workload_count': sum(1 for w in workload_costs_result if isinstance(w, dict) and w.get('type') == 'Deployment') or len(workload_costs_result),
+            'workload_count': len(workload_costs_result),
             'commands_by_category': _safe(chart_generator.generate_execution_commands, analysis_data) or {},
         })
     except Exception as e:

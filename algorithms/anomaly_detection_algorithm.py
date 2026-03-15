@@ -290,6 +290,176 @@ class AnomalyDetectionAlgorithm:
         
         return None
     
+    def detect_snapshot_anomalies(self, node_metrics: List[Dict], pod_data: List[Dict],
+                                   cluster_avg_cpu: float, cluster_avg_memory: float) -> Dict:
+        """
+        Detect anomalies from a single point-in-time cluster snapshot.
+
+        Unlike time-series detection, this finds structural anomalies visible
+        in current state: idle nodes, memory pressure, pod restarts, zombie
+        workloads, resource request/limit misconfigurations.
+
+        Args:
+            node_metrics: List of node dicts with cpu_usage_pct, memory_usage_pct, vm_size
+            pod_data: List of pod dicts with cpu_request, memory_request, restarts, status
+            cluster_avg_cpu: Cluster-wide average CPU utilization
+            cluster_avg_memory: Cluster-wide average memory utilization
+
+        Returns:
+            Dict with anomalies list and summary stats
+        """
+        if node_metrics is None:
+            raise ValueError("node_metrics parameter is required")
+        if pod_data is None:
+            raise ValueError("pod_data parameter is required")
+
+        anomalies = []
+
+        # 1. Idle/near-idle nodes (CPU < 5%)
+        for node in node_metrics:
+            cpu = float(node.get('cpu_usage_pct', 0))
+            mem = float(node.get('memory_usage_pct', 0))
+            name = node.get('node_name', 'unknown')
+
+            if cpu < 5 and mem < 20:
+                anomalies.append({
+                    "type": "idle_node",
+                    "severity": 0.7,
+                    "description": f"Node {name} is nearly idle: {cpu:.0f}% CPU, {mem:.0f}% memory",
+                    "node_name": name,
+                    "cpu_usage": cpu,
+                    "memory_usage": mem,
+                    "impact": "high",
+                    "action_required": "Consider removing node or consolidating workloads"
+                })
+
+        # 2. Memory pressure on nodes (> 85%)
+        for node in node_metrics:
+            mem = float(node.get('memory_usage_pct', 0))
+            name = node.get('node_name', 'unknown')
+            if mem > 85:
+                anomalies.append({
+                    "type": "memory_pressure",
+                    "severity": min(mem / 100.0, 1.0),
+                    "description": f"Node {name} under memory pressure: {mem:.0f}% used",
+                    "node_name": name,
+                    "memory_usage": mem,
+                    "impact": "high",
+                    "action_required": "Scale up node pool or redistribute workloads"
+                })
+
+        # 3. Pod restart anomalies (restarts > 3)
+        for pod in pod_data:
+            raw_restarts = pod.get('restarts', 0)
+            # Handle comma-separated per-container restarts (e.g., '0,3,0')
+            if isinstance(raw_restarts, str):
+                try:
+                    restarts = sum(int(r.strip()) for r in raw_restarts.split(',') if r.strip().isdigit())
+                except ValueError:
+                    restarts = 0
+            else:
+                restarts = int(raw_restarts)
+            name = pod.get('name', 'unknown')
+            ns = pod.get('namespace', 'unknown')
+            if restarts > 3:
+                severity = min(restarts / 20.0, 1.0)
+                anomalies.append({
+                    "type": "pod_restart",
+                    "severity": severity,
+                    "description": f"Pod {ns}/{name} has {restarts} restarts — possible crash loop",
+                    "pod_name": f"{ns}/{name}",
+                    "restart_count": restarts,
+                    "impact": "high" if restarts > 10 else "medium",
+                    "action_required": "Check pod logs for OOMKill or application errors"
+                })
+
+        # 4. Pending/failed pods
+        for pod in pod_data:
+            status = str(pod.get('status', '')).lower()
+            name = pod.get('name', 'unknown')
+            ns = pod.get('namespace', 'unknown')
+            if status in ('pending', 'failed', 'unknown', 'crashloopbackoff'):
+                anomalies.append({
+                    "type": "unhealthy_pod",
+                    "severity": 0.8 if status == 'failed' else 0.6,
+                    "description": f"Pod {ns}/{name} is in {status} state",
+                    "pod_name": f"{ns}/{name}",
+                    "pod_status": status,
+                    "impact": "high",
+                    "action_required": "Investigate pod scheduling or resource constraints"
+                })
+
+        # 5. Cluster-wide over-provisioning (avg CPU < 15%)
+        if cluster_avg_cpu < 15 and len(node_metrics) >= 2:
+            waste_pct = 100 - cluster_avg_cpu
+            anomalies.append({
+                "type": "cluster_overprovisioned",
+                "severity": min(waste_pct / 100.0, 0.9),
+                "description": f"Cluster is {waste_pct:.0f}% idle — only {cluster_avg_cpu:.1f}% CPU utilized across {len(node_metrics)} nodes",
+                "cluster_cpu": cluster_avg_cpu,
+                "cluster_memory": cluster_avg_memory,
+                "node_count": len(node_metrics),
+                "impact": "high",
+                "action_required": "Right-size node pool or consolidate to fewer nodes"
+            })
+
+        # 6. CPU-Memory imbalance (CPU very low but memory high — wrong VM family)
+        if cluster_avg_cpu > 0 and cluster_avg_memory > 0:
+            ratio = cluster_avg_memory / cluster_avg_cpu if cluster_avg_cpu > 1 else cluster_avg_memory
+            if ratio > 5 and cluster_avg_memory > 50:
+                anomalies.append({
+                    "type": "resource_imbalance",
+                    "severity": min(ratio / 15.0, 0.8),
+                    "description": f"CPU:Memory imbalance — {cluster_avg_cpu:.1f}% CPU vs {cluster_avg_memory:.1f}% memory ({ratio:.1f}x ratio). Consider memory-optimized VMs.",
+                    "cpu_util": cluster_avg_cpu,
+                    "memory_util": cluster_avg_memory,
+                    "imbalance_ratio": ratio,
+                    "impact": "medium",
+                    "action_required": "Switch to memory-optimized instance family"
+                })
+
+        # 7. No resource requests set (pods without cpu_request or memory_request)
+        no_requests = [p for p in pod_data
+                       if (not p.get('cpu_request') or p.get('cpu_request') == '0')
+                       and str(p.get('status', '')).lower() == 'running']
+        if len(no_requests) > 0 and len(pod_data) > 0:
+            pct = (len(no_requests) / len(pod_data)) * 100
+            if pct > 20:
+                anomalies.append({
+                    "type": "missing_requests",
+                    "severity": min(pct / 100.0, 0.7),
+                    "description": f"{len(no_requests)} pods ({pct:.0f}%) running without CPU requests — scheduling unreliable",
+                    "pods_without_requests": len(no_requests),
+                    "total_pods": len(pod_data),
+                    "impact": "medium",
+                    "action_required": "Set resource requests on all production workloads"
+                })
+
+        # Sort by severity
+        anomalies.sort(key=lambda x: x.get("severity", 0), reverse=True)
+
+        # Categorize
+        categories = {}
+        for a in anomalies:
+            t = a.get("type", "unknown")
+            categories[t] = categories.get(t, 0) + 1
+
+        total = len(anomalies)
+        avg_severity = (sum(a.get("severity", 0) for a in anomalies) / total) if total > 0 else 0
+        highest = max((a.get("severity", 0) for a in anomalies), default=0)
+
+        self.logger.info(f"Snapshot anomaly detection: {total} anomalies found")
+
+        return {
+            "total_anomalies": total,
+            "anomalies": anomalies[:15],
+            "anomaly_categories": categories,
+            "average_severity": avg_severity,
+            "highest_severity": highest,
+            "detection_type": "snapshot",
+            "status": "completed"
+        }
+
     def _calculate_overall_confidence(self, anomalies: List[Dict]) -> float:
         """Calculate overall confidence score for anomaly detection"""
         if not anomalies:

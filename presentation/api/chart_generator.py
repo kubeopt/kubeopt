@@ -53,15 +53,21 @@ def extract_standards_based_savings(analysis_results: Dict) -> Dict:
             'standards_compliance': analysis_results.get('standards_compliance', {})
         }
     else:
-        # Fallback to individual savings if consolidated system not used
+        # Fallback to individual savings fields — no arbitrary percentage allocations
+        hpa_savings = ensure_float(analysis_results.get('hpa_savings', 0))
+        rightsizing_savings = ensure_float(analysis_results.get('right_sizing_savings', 0))
+        storage_savings = ensure_float(analysis_results.get('storage_savings', 0))
+        total = ensure_float(analysis_results.get('total_savings', 0))
+        # Unattributed savings = total minus known categories
+        unattributed = max(0, total - hpa_savings - rightsizing_savings - storage_savings)
         return {
-            'core_optimization_savings': ensure_float(analysis_results.get('hpa_savings', 0)),
-            'compute_optimization_savings': ensure_float(analysis_results.get('right_sizing_savings', 0)),
-            'infrastructure_savings': ensure_float(analysis_results.get('storage_savings', 0)),
-            'container_data_savings': ensure_float(analysis_results.get('total_savings', 0)) * 0.15,
-            'security_monitoring_savings': ensure_float(analysis_results.get('total_savings', 0)) * 0.05,
-            'total_potential_savings': ensure_float(analysis_results.get('total_savings', 0)),
-            'current_health_score': 70.0,  # Default health score
+            'core_optimization_savings': hpa_savings,
+            'compute_optimization_savings': rightsizing_savings,
+            'infrastructure_savings': storage_savings,
+            'container_data_savings': unattributed,
+            'security_monitoring_savings': 0,
+            'total_potential_savings': total,
+            'current_health_score': ensure_float(analysis_results.get('current_health_score', 0)),
             'standards_compliance': {}
         }
 
@@ -107,20 +113,25 @@ def _extract_hpa_details_from_workload_chars(workload_chars, total_hpas_analyzed
     return hpa_details
 
 def _count_workloads(workload_costs):
-    """Count workloads correctly from workload_costs dict.
+    """Count workloads from workload_costs dict.
 
-    The dict contains Pod-level entries AND owner-level aggregates (Deployment, DaemonSet).
-    If owner entries exist, count those (they represent real workloads).
-    Otherwise fall back to Pod count.
+    The dict contains both Pod-level entries AND owner-level aggregates
+    (Deployment, DaemonSet, StatefulSet, ReplicaSet, Job, CronJob).
+    Count ALL entries — this matches what generate_workload_data() returns
+    to the frontend. Both Pods and their owners are listed because the
+    pod_cost_analyzer produces both levels of aggregation.
     """
     if not isinstance(workload_costs, dict) or not workload_costs:
         return 0
-    owners = [v for v in workload_costs.values()
-              if isinstance(v, dict) and v.get('type') in ('Deployment', 'DaemonSet')]
-    if owners:
-        return len(owners)
-    # No owner aggregation available — count pod entries as workloads
-    return len(workload_costs)
+    # Count all entries with cost > 0, matching generate_workload_data() behavior
+    count = 0
+    for v in workload_costs.values():
+        if isinstance(v, dict):
+            if float(v.get('cost', 0)) > 0:
+                count += 1
+        elif isinstance(v, (int, float)) and float(v) > 0:
+            count += 1
+    return count
 
 
 def generate_insights(analysis_results, cloud_provider='azure'):
@@ -208,16 +219,15 @@ def generate_insights(analysis_results, cloud_provider='azure'):
         from shared.standards.performance_standards import SystemPerformanceStandards
         cpu_actual = round(SystemPerformanceStandards.CPU_UTILIZATION_OPTIMAL - cpu_gap, 1)
         mem_actual = round(SystemPerformanceStandards.MEMORY_UTILIZATION_OPTIMAL - memory_gap, 1)
-        # Try multiple fields for rightsizing savings
+        # Use the same savings value that the savings breakdown uses
+        # Check all possible field names for compute/rightsizing savings
         right_sizing_savings = ensure_float(
             analysis_results.get('compute_savings', 0)
+            or analysis_results.get('compute_monthly_savings', 0)
             or analysis_results.get('right_sizing_savings', 0)
             or analysis_results.get('rightsizing_savings', 0)
+            or analysis_results.get('rightsizing_monthly_savings', 0)
         )
-        # If still $0 but significant gap exists, estimate from node cost
-        if right_sizing_savings == 0 and (cpu_gap > 40 or memory_gap > 30) and node_cost > 0:
-            avg_gap = (cpu_gap + memory_gap) / 2
-            right_sizing_savings = node_cost * (avg_gap / 100) * 0.5  # conservative 50% of gap
 
         if cpu_gap > 40 or memory_gap > 30:
             insights['resource_gap'] = f"<strong>CRITICAL OVER-PROVISIONING:</strong> Cluster using only <strong>{cpu_actual:.1f}% CPU</strong> and <strong>{mem_actual:.1f}% memory</strong> (target: 70% / 75%). Right-sizing can save <strong>${right_sizing_savings:.2f}/month</strong>!"
@@ -424,6 +434,8 @@ def _generate_basic_hpa_comparison(analysis_data):
     base_replicas = max(total_hpas, 1)
 
     target = 80.0
+    # Modeled traffic pattern — not from real metrics. Represents typical enterprise
+    # load distribution across time-of-day periods for HPA replica projection.
     load_factors = [0.3, 0.7, 1.0, 0.6]  # night, morning, afternoon, evening
     cpu_replicas = [max(1, int(np.ceil(base_replicas * (cpu_pct * lf / target)))) for lf in load_factors]
     mem_replicas = [max(1, int(np.ceil(base_replicas * (mem_pct * lf / target)))) for lf in load_factors]
@@ -447,16 +459,19 @@ def _generate_utilization_hpa_projection(analysis_data):
     # Use node_count as base replica proxy; fall back to 3
     base = max(node_count, 3)
 
-    # If we have utilization percentages, use them
+    # Use actual utilization percentages — derive from gap if direct metrics unavailable
     if avg_cpu > 0 or avg_mem > 0:
-        cpu_pct = avg_cpu if avg_cpu > 0 else 30.0
-        mem_pct = avg_mem if avg_mem > 0 else 50.0
-    else:
-        # Derive from gap: gap = requested - used; estimate utilization
+        cpu_pct = avg_cpu if avg_cpu > 0 else (max(10.0, 100.0 - cpu_gap) if cpu_gap > 0 else 0)
+        mem_pct = avg_mem if avg_mem > 0 else (max(10.0, 100.0 - memory_gap) if memory_gap > 0 else 0)
+    elif cpu_gap > 0 or memory_gap > 0:
+        # Derive from gap: gap = requested - used
         cpu_pct = max(10.0, 100.0 - cpu_gap)
         mem_pct = max(10.0, 100.0 - memory_gap)
+    else:
+        return None  # No data to project from
 
     target = 80.0
+    # Modeled traffic pattern for HPA projection (not from real metrics)
     load_factors = [0.3, 0.7, 1.0, 0.6]
     cpu_replicas = [max(1, int(np.ceil(base * (cpu_pct * lf / target)))) for lf in load_factors]
     mem_replicas = [max(1, int(np.ceil(base * (mem_pct * lf / target)))) for lf in load_factors]
@@ -869,16 +884,18 @@ def _extract_current_memory_usage(analysis_data):
                         logger.info(f"✅ Found real Memory usage from session cache: {mem_util}%")
                         return mem_util
         
-        # Estimate memory from CPU if available (reasonable enterprise approach)
+        # Derive memory estimate from CPU when no real memory metrics available
+        # This is an approximation — Kubernetes workloads typically use more memory than CPU
         try:
             cpu_util = _extract_current_cpu_usage(analysis_data)
-            # Memory typically runs 2-3x higher than CPU in enterprise workloads
-            estimated_memory = min(80.0, cpu_util * 2.5)  # Cap at 80%
-            logger.info(f"✅ Estimated Memory usage from CPU utilization: {estimated_memory}% (CPU: {cpu_util}%)")
+            # Conservative estimate: memory tends to be higher than CPU utilization
+            # Using 2x multiplier capped at 85% — labeled as estimate in logs
+            estimated_memory = min(85.0, cpu_util * 2.0)
+            logger.info(f"Memory usage estimated from CPU: {estimated_memory:.1f}% (CPU: {cpu_util:.1f}%) [ESTIMATE - no real memory metrics]")
             return estimated_memory
         except Exception as e:
-            logger.error(f"Failed to extract HPA target CPU: {e}")
-            raise ValueError(f"Cannot extract HPA target CPU: {e}")
+            logger.error(f"Failed to extract CPU for memory estimation: {e}")
+            raise ValueError(f"Cannot estimate memory from CPU: {e}")
         
         # FAIL - no static fallbacks
         raise ValueError("❌ Real Memory utilization not found in analysis data or cache - HPA analysis requires real cluster metrics")

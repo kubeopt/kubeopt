@@ -419,11 +419,11 @@ class ClusterScorer:
                                            current_usage: Dict[str, Any],
                                            analysis_results: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Calculate unified optimization score using existing AKS scoring framework and YAML standards
+        Calculate unified optimization score using cloud scoring framework and YAML standards
         Integrates with existing Build Quality and Cost Excellence scores
         """
         try:
-            logger.info("🔍 Calculating unified optimization score using existing AKS scoring framework...")
+            logger.info("🔍 Calculating unified optimization score using cloud scoring framework...")
             
             # Get optimization scoring standards from YAML
             opt_standards = self.cfg.get('optimization_scoring')

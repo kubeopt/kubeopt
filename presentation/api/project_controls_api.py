@@ -173,14 +173,9 @@ def _generate_dynamic_action_items(analysis_data, optimization_history, performa
         # Create an instance of the implementation generator
         generator = AIImplementationPlanGenerator()
         
-        # Calculate scores for each metric (matching our enterprise metrics)
+        # Scores derived from actual analysis data only
         scores = {
-            'upgrade_readiness': min(85, 60 + (cost_savings / 10)),
-            'disaster_recovery': min(90, 70 + len(performance_metrics) * 2),
-            'operational_maturity': (cpu_avg + memory_avg) / 2 if (cpu_avg + memory_avg) > 0 else 65,
-            'capacity_planning': min(95, 75 + (cost_savings / 20)),
-            'compliance_readiness': min(95, 65 + len(optimization_history) * 5),
-            'team_velocity': min(88, 60 + len(optimization_history) * 3)
+            'operational_maturity': (cpu_avg + memory_avg) / 2 if (cpu_avg + memory_avg) > 0 else None,
         }
         
         # Prepare analysis results for the existing method
@@ -192,10 +187,10 @@ def _generate_dynamic_action_items(analysis_data, optimization_history, performa
             'monthly_savings': cost_savings
         }
         
-        # Mock security results (you can integrate with actual security data if available)
+        # Security data from actual analysis only — no synthetic violations
         security_results = {
-            'alerts': [],  # Add actual security alerts if available
-            'violations': max(0, 5 - len(optimization_history))
+            'alerts': [],
+            'violations': 0
         }
         
         # Generate action items based on actual cluster analysis data
@@ -646,53 +641,53 @@ def fix_intelligence_insights_structure(component_data, analysis_data):
         executive_summary = analysis_data.get('executiveSummary', {})
         intelligence_insights = analysis_data.get('intelligenceInsights', {})
         
-        # Build proper structure
+        # Build proper structure — only use values actually present in data, no fake defaults
+        cluster_intel = executive_summary.get('cluster_intelligence', {})
+        ml_preds = intelligence_insights.get('ml_predictions', {})
+        recs = intelligence_insights.get('recommendations', {})
+
         fixed_structure = {
             'enabled': component_data.get('enabled', True),
-            'ml_derived': component_data.get('ml_derived', True),
-            'ml_confidence': component_data.get('ml_confidence', 0.8),
-            'cluster_config_enhanced': component_data.get('cluster_config_enhanced', True),
-            
-            # Cluster Profile
+            'ml_derived': component_data.get('ml_derived', False),
+            'ml_confidence': component_data.get('ml_confidence'),
+            'cluster_config_enhanced': component_data.get('cluster_config_enhanced', False),
+
+            # Cluster Profile — use actual data or None
             'clusterProfile': {
-                'mlClusterType': executive_summary.get('cluster_intelligence', {}).get('cluster_type', 'optimized'),
-                'complexityScore': executive_summary.get('cluster_intelligence', {}).get('complexity_factor', 0),
-                'readinessScore': executive_summary.get('cluster_intelligence', {}).get('readiness_score', 0.985)
+                'mlClusterType': cluster_intel.get('cluster_type'),
+                'complexityScore': cluster_intel.get('complexity_factor', 0),
+                'readinessScore': cluster_intel.get('readiness_score'),
             },
-            
-            # ML Predictions
+
+            # ML Predictions — only what actually exists
             'ml_predictions': {
-                'confidence': intelligence_insights.get('analysisConfidence', 0.8),
-                'model_performance': intelligence_insights.get('ml_predictions', {}).get('model_performance', 'high'),
-                'learning_enabled': intelligence_insights.get('ml_predictions', {}).get('learning_enabled', True),
-                'azure_integration': intelligence_insights.get('azure_enhanced', True),
-                'cache_status': intelligence_insights.get('ml_predictions', {}).get('cache_status', 'active')
+                'confidence': intelligence_insights.get('analysisConfidence'),
+                'model_performance': ml_preds.get('model_performance'),
+                'learning_enabled': ml_preds.get('learning_enabled', False),
+                'cache_status': ml_preds.get('cache_status'),
             },
-            
+
             # Recommendations
             'recommendations': {
-                'priority': intelligence_insights.get('recommendations', {}).get('priority', 'medium'),
-                'implementation_readiness': intelligence_insights.get('recommendations', {}).get('implementation_readiness', 'review_needed'),
-                'azure_optimizations_available': intelligence_insights.get('recommendations', {}).get('azure_optimizations_available', True)
+                'priority': recs.get('priority'),
+                'implementation_readiness': recs.get('implementation_readiness'),
             },
-            
-            # Metrics
-            'analysisConfidence': intelligence_insights.get('analysisConfidence', 0.8),
-            'actual_cv_score': intelligence_insights.get('actual_cv_score', 0.966),
-            'cv_score_target': intelligence_insights.get('cv_score_target', '80-92%'),
-            'dataAvailable': intelligence_insights.get('dataAvailable', True),
-            'azure_enhanced': intelligence_insights.get('azure_enhanced', True),
-            'intelligence_quality': 'high',
+
+            # Metrics — no fabricated confidence or CV scores
+            'analysisConfidence': intelligence_insights.get('analysisConfidence'),
+            'actual_cv_score': intelligence_insights.get('actual_cv_score'),
+            'cv_score_target': intelligence_insights.get('cv_score_target'),
+            'dataAvailable': intelligence_insights.get('dataAvailable', False),
+            'intelligence_quality': intelligence_insights.get('intelligence_quality'),
             'learning_events_count': 0,
             'optimization_opportunities': (
-                # Try multiple data sources for accurate workload count
                 executive_summary.get('metrics_data', {}).get('total_workloads') or
-                analysis_data.get('metrics_data', {}).get('total_workloads') or 
+                analysis_data.get('metrics_data', {}).get('total_workloads') or
                 analysis_data.get('total_workloads') or
                 component_data.get('total_workloads') or
-                22  # Last resort fallback
+                0
             ),
-            'improved_ml_generated': intelligence_insights.get('improved_ml_generated', True),
+            'improved_ml_generated': intelligence_insights.get('improved_ml_generated', False),
             'lastUpdated': intelligence_insights.get('lastUpdated', datetime.now().isoformat())
         }
         

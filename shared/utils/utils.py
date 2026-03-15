@@ -82,7 +82,7 @@ def validate_cost_data(cost_components):
             # Enhanced add-on services
             cost_components.get('monitoring_cost', 0) +
             cost_components.get('security_cost', 0) +
-            cost_components.get('keyvault_cost', 0)
+            cost_components.get('secrets_management_cost', 0)
         )
         
         total_cost = cost_components.get('total_cost', 0)
@@ -109,7 +109,7 @@ def validate_cost_data(cost_components):
                 ('support_management_cost', cost_components.get('support_management_cost', 0)),
                 ('monitoring_cost', cost_components.get('monitoring_cost', 0)),
                 ('security_cost', cost_components.get('security_cost', 0)),
-                ('keyvault_cost', cost_components.get('keyvault_cost', 0)),
+                ('secrets_management_cost', cost_components.get('secrets_management_cost', 0)),
                 ('other_cost', cost_components.get('other_cost', 0))
             ]:
                 if cost > 0:

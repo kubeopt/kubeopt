@@ -363,7 +363,7 @@ class AnalysisDataContract:
     DATA_TRANSFER_COST = 'data_transfer_cost'
     OTHER_NETWORKING_COST = 'other_networking_cost'
     MONITORING_COST = 'monitoring_cost'
-    KEYVAULT_COST = 'keyvault_cost'
+    SECRETS_MANAGEMENT_COST = 'secrets_management_cost'
     BACKUP_RECOVERY_COST = 'backup_recovery_cost'
     SECURITY_COST = 'security_cost'
     GOVERNANCE_COST = 'governance_cost'
