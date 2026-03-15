@@ -376,6 +376,25 @@ class MultiSubscriptionAnalysisEngine:
                 session_id, config, self.session_metadata[config.analysis_type], cost_df
             )
             
+            # Step 5.5: Calculate unified scoring with breakdowns
+            try:
+                from analytics.processors.cluster_scorer import ClusterScorer
+                scorer = ClusterScorer.from_config(config.cloud_provider)
+                current_usage = {
+                    'avg_cpu_utilization': final_results.get('current_cpu_utilization', 0),
+                    'avg_memory_utilization': final_results.get('current_memory_utilization', 0),
+                }
+                scoring_result = scorer.calculate_unified_optimization_score(
+                    cost_data=cost_components,
+                    metrics_data=metrics_data or {},
+                    current_usage=current_usage,
+                    analysis_results=final_results
+                )
+                final_results.update(scoring_result)
+                logger.info(f"✅ Session {session_id}: Unified scoring complete - {scoring_result.get('total_score', 'N/A')}/100")
+            except Exception as scoring_error:
+                logger.warning(f"Session {session_id}: Unified scoring failed (non-fatal): {scoring_error}")
+
             # CRITICAL: Add metrics_data to final_results for implementation_generator
             if metrics_data is not None and metrics_data:
                 final_results['metrics_data'] = metrics_data
@@ -1583,9 +1602,28 @@ class MultiSubscriptionAnalysisEngine:
             workload_anomaly_count = 0
             cost_anomaly_count = 0
             total_severity_score = 0.0
-            
-            # Analyze workload anomalies
+
+            # Try snapshot-based detection first (works with single kubectl capture)
             workload_data = basic_analysis.get('workload_analysis', {})
+            if not workload_data:
+                node_metrics = basic_analysis.get('node_metrics', [])
+                kubectl_data = basic_analysis.get('kubectl_data', {})
+                pod_data = kubectl_data.get('pods', []) if isinstance(kubectl_data, dict) else []
+                cluster_avg_cpu = float(basic_analysis.get('avg_cpu_utilization', 0))
+                cluster_avg_memory = float(basic_analysis.get('avg_memory_utilization', 0))
+
+                if node_metrics or pod_data:
+                    snapshot_result = anomaly_detector.detect_snapshot_anomalies(
+                        node_metrics=node_metrics or [],
+                        pod_data=pod_data if isinstance(pod_data, list) else [],
+                        cluster_avg_cpu=cluster_avg_cpu,
+                        cluster_avg_memory=cluster_avg_memory,
+                    )
+                    if snapshot_result.get('total_anomalies', 0) > 0:
+                        logger.info(f"Snapshot anomaly detection found {snapshot_result['total_anomalies']} anomalies")
+                        return snapshot_result
+
+            # Fall through to time-series detection if workload_analysis exists
             if isinstance(workload_data, dict) and workload_data:
                 for workload_name, workload_metrics in workload_data.items():
                     try:

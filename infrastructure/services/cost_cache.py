@@ -207,14 +207,14 @@ def check_database_cost_freshness(cluster_name: str, max_age_hours: int = None) 
                     logger.error(f"Unexpected error: {e}")
                     raise  # If analysis data can't be decoded, continue with basic data
             
-            # If no detailed cost data stored, return None to force fresh Azure API call
+            # If no detailed cost data stored, return None to force fresh API call
             if not cost_df_data:
-                print(f"❌ No stored cost DataFrame found, forcing fresh Azure API call")
+                print(f"❌ No stored cost DataFrame found, forcing fresh API call")
                 return None
             
-            # Create DataFrame from stored Azure cost data
+            # Create DataFrame from stored cost data
             cost_df = pd.DataFrame(cost_df_data)
-            print(f"✅ Restored original Azure cost DataFrame: {cost_df.shape[0]} rows, {cost_df.shape[1]} columns")
+            print(f"✅ Restored original cost DataFrame: {cost_df.shape[0]} rows, {cost_df.shape[1]} columns")
             
             # Add cache metadata attributes to DataFrame
             cost_df._from_cache = True
@@ -246,15 +246,15 @@ def check_database_cost_freshness(cluster_name: str, max_age_hours: int = None) 
 def cached_cost_fetch(cluster_id: str, subscription_id: str, fetch_func: Callable, 
                      date_range: str = None, max_age_hours: int = None, **kwargs) -> Dict[str, Any]:
     """
-    Direct Azure API wrapper - database cache disabled to ensure fresh data
-    
+    Direct cloud API wrapper - database cache disabled to ensure fresh data
+
     Strategy:
-    1. Always make fresh Azure API call
+    1. Always make fresh cloud API call
     2. Database cache disabled due to stale data issues
-    
+
     Args:
         cluster_id: Cluster identifier
-        subscription_id: Azure subscription ID
+        subscription_id: Subscription/account/project ID
         fetch_func: Function to call if cache miss
         date_range: Date range for caching key
         max_age_hours: Maximum age to consider database data fresh (from settings)
@@ -262,8 +262,8 @@ def cached_cost_fetch(cluster_id: str, subscription_id: str, fetch_func: Callabl
     # DISABLED: Database cache check - always fetch fresh data
     # The database was returning stale $27.22 data instead of correct $15 data
     
-    # Always fetch fresh from Azure API
-    print(f"🔄 Fetching fresh cost data from Azure API for {cluster_id}")
+    # Always fetch fresh from cloud API
+    print(f"🔄 Fetching fresh cost data for {cluster_id}")
     try:
         data = fetch_func(cluster_id, subscription_id, date_range, **kwargs)
         
@@ -277,5 +277,5 @@ def cached_cost_fetch(cluster_id: str, subscription_id: str, fetch_func: Callabl
         return data
         
     except Exception as e:
-        print(f"❌ Azure API call failed for {cluster_id}: {e}")
+        print(f"❌ Cost API call failed for {cluster_id}: {e}")
         raise

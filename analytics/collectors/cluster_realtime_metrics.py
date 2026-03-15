@@ -1099,7 +1099,7 @@ class ClusterMetricsFetcher:
                             except (ValueError, IndexError):
                                 continue
             except Exception as e:
-                logger.warning(f"Failed to map Azure VMSS name for {node_name}: {e}")
+                logger.warning(f"Failed to map cloud VM name for {node_name}: {e}")
 
         # EKS/GKE: try substring match — node name may be truncated or contain extra domain
         for line in top_output.strip().split('\n'):
