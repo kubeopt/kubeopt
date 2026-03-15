@@ -17,6 +17,8 @@ interface NodeRecommendation {
   memory_gb?: number
   recommended_cpu_cores?: number
   recommended_memory_gb?: number
+  is_cost_increase?: boolean
+  recommendation_type?: string
 }
 
 function UtilizationBar({ value, label }: { value: number; label: string }) {
@@ -48,7 +50,7 @@ export default function NodeRecommendationsTable({ data }: { data: NodeRecommend
             <th className="px-3 py-2">Current</th>
             <th className="px-3 py-2">Recommended</th>
             <th className="px-3 py-2">Utilization</th>
-            <th className="px-3 py-2">Savings</th>
+            <th className="px-3 py-2">Impact</th>
             <th className="px-3 py-2">Priority</th>
           </tr>
         </thead>
@@ -74,7 +76,11 @@ export default function NodeRecommendationsTable({ data }: { data: NodeRecommend
                     <UtilizationBar value={node.avg_cpu_pct} label="CPU" />
                     <UtilizationBar value={node.avg_memory_pct} label="Mem" />
                   </td>
-                  <td className="px-3 py-2 font-medium text-green-600">${node.monthly_savings.toFixed(0)}/mo</td>
+                  <td className={`px-3 py-2 font-medium ${node.monthly_savings >= 0 ? 'text-green-600' : 'text-amber-600'}`}>
+                    {node.monthly_savings >= 0
+                      ? `$${node.monthly_savings.toFixed(0)}/mo`
+                      : `+$${Math.abs(node.monthly_savings).toFixed(0)}/mo`}
+                  </td>
                   <td className="px-3 py-2">
                     <Badge variant={node.priority === 'high' ? 'red' : node.priority === 'medium' ? 'yellow' : 'green'}>
                       {node.priority}
@@ -142,12 +148,20 @@ export default function NodeRecommendationsTable({ data }: { data: NodeRecommend
                               {node.recommended_cost != null && (
                                 <div className="flex justify-between text-sm">
                                   <span style={{ color: 'var(--text-secondary)' }}>Recommended Cost</span>
-                                  <span className="text-green-600">${node.recommended_cost.toFixed(2)}/mo</span>
+                                  <span className={node.monthly_savings >= 0 ? 'text-green-600' : 'text-amber-600'}>
+                                    ${node.recommended_cost.toFixed(2)}/mo
+                                  </span>
                                 </div>
                               )}
                               <div className="flex justify-between text-sm">
-                                <span style={{ color: 'var(--text-secondary)' }}>Monthly Savings</span>
-                                <span className="font-semibold text-green-600">${node.monthly_savings.toFixed(2)}/mo</span>
+                                <span style={{ color: 'var(--text-secondary)' }}>
+                                  {node.monthly_savings >= 0 ? 'Monthly Savings' : 'Monthly Cost Increase'}
+                                </span>
+                                <span className={`font-semibold ${node.monthly_savings >= 0 ? 'text-green-600' : 'text-amber-600'}`}>
+                                  {node.monthly_savings >= 0
+                                    ? `$${node.monthly_savings.toFixed(2)}/mo`
+                                    : `+$${Math.abs(node.monthly_savings).toFixed(2)}/mo`}
+                                </span>
                               </div>
                             </div>
                           </div>

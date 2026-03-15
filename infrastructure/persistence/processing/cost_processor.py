@@ -1047,7 +1047,7 @@ class EnhancedAKSCostProcessor:
         registry_cost = float(cost_df[cost_df['Category'] == 'Container Registry']['Cost'].sum()) * multiplier
         monitoring_cost = float(cost_df[cost_df['Category'] == 'Monitoring']['Cost'].sum()) * multiplier
         security_cost = float(cost_df[cost_df['Category'] == 'Security']['Cost'].sum()) * multiplier
-        keyvault_cost = float(cost_df[cost_df['Category'] == 'Key Vault']['Cost'].sum()) * multiplier
+        secrets_management_cost = float(cost_df[cost_df['Category'] == 'Key Vault']['Cost'].sum()) * multiplier
         
         # New service categories
         application_services_cost = float(cost_df[cost_df['Category'] == 'Application Services']['Cost'].sum()) * multiplier
@@ -1079,7 +1079,7 @@ class EnhancedAKSCostProcessor:
         
         # Validation and reconciliation
         component_sum = (node_cost + storage_cost + total_networking_cost + control_plane_cost + 
-                        registry_cost + monitoring_cost + security_cost + keyvault_cost + 
+                        registry_cost + monitoring_cost + security_cost + secrets_management_cost +
                         application_services_cost + data_services_cost + integration_services_cost +
                         devops_cost + backup_recovery_cost + governance_cost + support_management_cost + other_cost)
         
@@ -1117,7 +1117,7 @@ class EnhancedAKSCostProcessor:
             registry_cost *= adjustment_factor
             monitoring_cost *= adjustment_factor
             security_cost *= adjustment_factor
-            keyvault_cost *= adjustment_factor
+            secrets_management_cost *= adjustment_factor
             application_services_cost *= adjustment_factor
             data_services_cost *= adjustment_factor
             integration_services_cost *= adjustment_factor
@@ -1145,7 +1145,7 @@ class EnhancedAKSCostProcessor:
             # Traditional add-on services
             'monitoring_cost': monitoring_cost,
             'security_cost': security_cost,
-            'keyvault_cost': keyvault_cost,
+            'secrets_management_cost': secrets_management_cost,
             
             # New service categories with optimization insights
             'application_services_cost': application_services_cost,

@@ -53,7 +53,9 @@ class AzureAccountAdapter(CloudAccountManager):
                 resource_group=cluster.resource_group,
                 cluster_name=cluster.cluster_name,
             )
-            return result.get('accessible', False) if isinstance(result, dict) else bool(result)
+            if isinstance(result, dict):
+                return result.get('valid', result.get('accessible', False))
+            return bool(result)
         except Exception as e:
             logger.error(f"Failed to validate cluster access for {cluster.cluster_name}: {e}")
             return False

@@ -153,12 +153,12 @@ class KubernetesDataCache:
                     resource_group=resource_group,
                     cluster_name=cluster_name
                 )
-                logger.info(f"✅ {self.cluster_name}: Azure Metric Collector initialized (40-45% load reduction enabled)")
+                logger.info(f"✅ {self.cluster_name}: Cloud Metric Collector initialized (40-45% load reduction enabled)")
             except Exception as e:
-                logger.warning(f"{self.cluster_name}: Azure Metric Collector initialization failed: {e}")
+                logger.warning(f"{self.cluster_name}: Cloud Metric Collector initialization failed: {e}")
                 logger.info(f"{self.cluster_name}: Will use kubectl for all queries")
         elif self.cloud_provider != 'azure':
-            logger.info(f"{self.cluster_name}: Skipping Azure Metric Collector ({self.cloud_provider} cluster)")
+            logger.info(f"{self.cluster_name}: Skipping cloud metric collector ({self.cloud_provider} cluster)")
         
         # NO FALLBACK COLLECTORS - violates .clauderc production standards
         # Fallbacks hide issues and provide incomplete data
@@ -652,7 +652,7 @@ class KubernetesDataCache:
             try:
                 # Replace kubectl top nodes (35-40% load reduction) - TEMPORARILY DISABLED
                 if False and 'kubectl top nodes' in cmd:
-                    logger.info(f"{self.cluster_name}: Using Azure Monitor instead of kubectl top nodes")
+                    logger.info(f"{self.cluster_name}: Using cloud metrics API instead of kubectl top nodes")
                     result = self.azure_collector.get_node_metrics()
                     # Convert to kubectl top nodes format
                     if result and 'nodes' in result:
@@ -671,7 +671,7 @@ class KubernetesDataCache:
                 # NOTE: Disabled Azure SDK replacement for nodes - kubectl provides more complete data
                 # The ML pipeline requires full kubectl node structure with all status fields
                 elif False and cmd == 'kubectl get nodes -o json':  # DISABLED - kubectl needed for ML
-                    logger.info(f"{self.cluster_name}: Using Azure ARM instead of kubectl get nodes")
+                    logger.info(f"{self.cluster_name}: Using cloud API instead of kubectl get nodes")
                     result = self.azure_collector.get_node_info()
                     # Convert Azure format to kubectl format with ACTUAL resource values
                     if result and 'nodes' in result:
@@ -710,7 +710,7 @@ class KubernetesDataCache:
                 
                 # Replace kubectl cluster-info (~1% load reduction)
                 elif cmd == 'kubectl cluster-info':
-                    logger.info(f"{self.cluster_name}: Using Azure ARM instead of kubectl cluster-info")
+                    logger.info(f"{self.cluster_name}: Using cloud API instead of kubectl cluster-info")
                     result = self.azure_collector.get_cluster_info()
                     if result and 'cluster_info' in result:
                         info = result['cluster_info']
@@ -721,7 +721,7 @@ class KubernetesDataCache:
                         return f"Kubernetes control plane is running at {api_server}"
                 
             except Exception as e:
-                logger.warning(f"{self.cluster_name}: Azure replacement failed for '{cmd[:50]}...', falling back to kubectl: {e}")
+                logger.warning(f"{self.cluster_name}: Cloud API replacement failed for '{cmd[:50]}...', falling back to kubectl: {e}")
         
         # Always use server-side execution via begin_run_command() (ARM API)
         # Works for ALL AKS clusters: AAD, local RBAC, public, private
@@ -849,14 +849,14 @@ class KubernetesDataCache:
             kubectl_output = '\n'.join(kubectl_lines).strip()
             
             if kubectl_output:
-                logger.debug(f"✅ {self.cluster_name}: Extracted kubectl output ({len(kubectl_output)} chars) from Azure CLI response")
+                logger.debug(f"✅ {self.cluster_name}: Extracted kubectl output ({len(kubectl_output)} chars) from cloud CLI response")
                 return kubectl_output
             else:
-                logger.warning(f"{self.cluster_name}: No kubectl output found in Azure CLI response for: {cmd[:50]}...")
+                logger.warning(f"{self.cluster_name}: No kubectl output found in cloud CLI response for: {cmd[:50]}...")
                 return None
                 
         except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: Failed to extract kubectl output from Azure CLI response: {e}")
+            logger.error(f"❌ {self.cluster_name}: Failed to extract kubectl output from cloud CLI response: {e}")
             return None
     
 
@@ -2424,7 +2424,7 @@ class KubernetesDataCache:
         """
         try:
             subscription_info = f" in subscription {self.subscription_id[:8]}" if self.subscription_id else ""
-            logger.info(f"Verifying connection to AKS cluster {self.cluster_name}{subscription_info}")
+            logger.info(f"Verifying connection to {self.cloud_provider.upper()} cluster {self.cluster_name}{subscription_info}")
             
             result = self.execute_kubectl_command("kubectl cluster-info")
             
