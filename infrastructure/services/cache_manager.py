@@ -587,7 +587,16 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str, cpu_gap: 
         'namespace_costs': complete_analysis_data.get('namespace_costs'),
         'has_pod_costs': bool(complete_analysis_data.get('has_pod_costs', False)),
         'node_metrics': complete_analysis_data.get('node_metrics'),
-        'real_node_data': complete_analysis_data.get('real_node_data')
+        'real_node_data': complete_analysis_data.get('real_node_data'),
+
+        # Anomaly detection — promote from enhanced_analysis_input to top level for cache persistence
+        'anomaly_detection': (
+            complete_analysis_data.get('anomaly_detection')
+            or (complete_analysis_data.get('enhanced_analysis_input', {}) or {}).get('anomaly_detection')
+        ),
+
+        # Enhanced analysis input (contains node_optimization, anomaly_detection, workloads, etc.)
+        'enhanced_analysis_input': complete_analysis_data.get('enhanced_analysis_input'),
     }
     
     # Log what HPA efficiency data we're caching
