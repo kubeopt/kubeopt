@@ -38,6 +38,14 @@ FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    && curl -fsSL https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl -o /usr/local/bin/kubectl \
+    && chmod +x /usr/local/bin/kubectl \
+    && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/sources.list.d/google-cloud-sdk.list \
+    && curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \
+    && apt-get update && apt-get install -y --no-install-recommends google-cloud-cli google-cloud-cli-gke-gcloud-auth-plugin \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -70,7 +78,8 @@ RUN mkdir -p \
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     FLASK_ENV=production \
-    AZURE_CONFIG_DIR=/root/.azure
+    AZURE_CONFIG_DIR=/root/.azure \
+    USE_GKE_GCLOUD_AUTH_PLUGIN=True
 
 EXPOSE 5010
 

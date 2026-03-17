@@ -27,17 +27,39 @@ for _p in _GCLOUD_SDK_PATHS:
 class GCPKubernetesExecutor(KubernetesCommandExecutor):
     """Executes kubectl commands against GKE clusters.
 
-    Assumes user has run: gcloud container clusters get-credentials <cluster> --zone <zone> --project <project>
+    Auto-configures kubeconfig via gcloud if not already set up.
     Intercepts GKE-specific commands and routes them to the Container API.
     """
 
     _auth_instance = None  # Class-level singleton (same pattern as AWS)
+    _kubeconfig_setup = set()  # Track which clusters have been configured
 
     def _get_auth(self):
         from infrastructure.cloud_providers.gcp.authenticator import GCPAuthenticator
         if GCPKubernetesExecutor._auth_instance is None or not GCPKubernetesExecutor._auth_instance.is_authenticated():
             GCPKubernetesExecutor._auth_instance = GCPAuthenticator()
         return GCPKubernetesExecutor._auth_instance
+
+    def _ensure_kubeconfig(self, cluster: ClusterIdentifier) -> None:
+        """Auto-configure kubeconfig for the GKE cluster if not already done."""
+        cache_key = f"{cluster.project_id}_{cluster.cluster_name}_{cluster.zone or cluster.region}"
+        if cache_key in GCPKubernetesExecutor._kubeconfig_setup:
+            return
+        try:
+            auth = self._get_auth()
+            project = cluster.project_id or auth.project_id
+            location = cluster.zone or cluster.region
+            if not project or not location:
+                return
+            cmd = f"gcloud container clusters get-credentials {cluster.cluster_name} --zone {location} --project {project} --quiet"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+            if result.returncode == 0:
+                GCPKubernetesExecutor._kubeconfig_setup.add(cache_key)
+                logger.info(f"GKE kubeconfig configured for {cluster.cluster_name} in {location}")
+            else:
+                logger.warning(f"gcloud get-credentials failed: {result.stderr[:200]}")
+        except Exception as e:
+            logger.warning(f"Failed to auto-configure kubeconfig: {e}")
 
     def _get_container_client(self):
         from google.cloud import container_v1
@@ -53,6 +75,7 @@ class GCPKubernetesExecutor(KubernetesCommandExecutor):
 
     def execute_kubectl(self, cluster: ClusterIdentifier, command: str, timeout: int = 180) -> Optional[str]:
         try:
+            self._ensure_kubeconfig(cluster)
             # Commands from the cache already include 'kubectl' prefix
             full_command = command if command.startswith(('kubectl ', 'echo ', '/')) else f"kubectl {command}"
             logger.debug(f"GKE kubectl: {full_command[:100]}...")
