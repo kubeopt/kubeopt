@@ -29,6 +29,28 @@ kubeopt "fix the over-provisioned deployments and open a PR"
 
 ## Architecture
 
+### Hosting Topology
+
+```
+Hosted (default — zero config for users):
+  CLI (user's machine)
+    → https://demo.kubeopt.com/api/ai/chat   (Railway — has ANTHROPIC_API_KEY)
+        → Claude API
+  Users never see or need the API key.
+
+Self-hosted (enterprise):
+  CLI (user's machine)
+    → https://customer-kubeopt.internal/api/ai/chat  (customer provides own ANTHROPIC_API_KEY)
+        → Claude API (or future: customer's own model)
+
+Local dev:
+  CLI or curl
+    → localhost:5001/api/ai/chat  (ANTHROPIC_API_KEY in .env)
+        → Claude API
+```
+
+### Request Flow
+
 ```
 User: kubeopt "why is my cluster expensive?"
   │
@@ -58,11 +80,24 @@ Tools (infrastructure/services/ai_tools.py)
   │  Executed by backend, results sent back to Claude
   │
   ▼
+Model Provider (infrastructure/services/ai_model_provider.py)
+  │  Abstraction over Claude API — swappable for future own model
+  │  v1: Claude API (Anthropic SDK)
+  │  Future: fine-tuned KubeOpt model, local model, etc.
+  │
+  ▼
 Claude API (Anthropic)
      Decides which tools to call
      Interprets results
      Generates response
 ```
+
+### Model Strategy (A → D)
+
+Phase A (v1, now): Ship with Claude API. Our value is the tools, data, and UX — not the base model.
+Phase D (future): Every user interaction becomes training data. Once we have enough conversations,
+fine-tune a K8s-specific model on real optimization decisions. The model provider abstraction
+makes swapping seamless — no CLI or API changes needed.
 
 ## CLI Behavior
 
@@ -117,7 +152,7 @@ Priority order:
 | `query_cluster_data` | `cluster_id` | Cost summary, utilization, scores, anomalies | Analysis cache/DB |
 | `get_pod_costs` | `cluster_id`, `namespace?` | Per-workload cost breakdown | Analysis cache |
 | `get_recommendations` | `cluster_id`, `category?` | Node recs, HPA recs, savings | Analysis cache |
-| `run_kubectl` | `cluster_id`, `command` | kubectl output (read-only) | Cloud provider executor |
+| `suggest_kubectl` | `command`, `explanation` | kubectl command + explanation (user runs locally) | N/A — suggestion only |
 | `compare_clusters` | `cluster_ids[]` | Side-by-side comparison | Analysis cache per cluster |
 | `get_pricing` | `cloud_provider`, `region`, `instance_types[]` | VM pricing data | Pricing APIs / static fallback |
 | `generate_manifest` | `cluster_id`, `fix_type`, `target` | YAML/Terraform content | Analysis data + templates |
@@ -125,7 +160,7 @@ Priority order:
 
 ### Tool Safety
 
-- `run_kubectl`: **read-only only** — get, describe, top, logs. Rejects apply, delete, patch, edit.
+- `suggest_kubectl`: **suggestion only** — returns command text for user to run locally. AI service cannot execute kubectl.
 - `create_pr`: requires user confirmation in CLI before executing
 - `generate_manifest`: outputs content, never applies directly
 
@@ -208,13 +243,24 @@ actionable. Skip explanations they already know.
 
 ## New Files
 
-### Backend (kubeopt/)
+### AI Service (ai-service/ — hosted on Railway at ai.kubeopt.com, port 5004)
 
 | File | Purpose |
 |------|---------|
-| `presentation/api/v2/routers/ai.py` | FastAPI router: `/api/ai/chat` endpoint, SSE streaming |
-| `infrastructure/services/ai_agent.py` | Agent loop: Claude API calls, tool_use handling, model selection |
-| `infrastructure/services/ai_tools.py` | 8 tool implementations wrapping existing functionality |
+| `app/main.py` | FastAPI entry point, CORS, health check |
+| `app/api_routes.py` | POST `/v1/chat` SSE endpoint, JWT auth, rate limiting, sessions |
+| `app/services/ai_agent.py` | Agent loop: tool_use handling, model selection, SSE events |
+| `app/services/ai_tools.py` | 7 context-based tools + manifest generation + PR creation |
+| `app/services/ai_model_provider.py` | Model provider abstraction — Claude API today, swappable later |
+| `app/services/conversation_logger.py` | Logs conversations for Phase D training data |
+| `Dockerfile` | Production container (uvicorn, Python 3.11) |
+| `railway.toml` | Railway deployment config |
+
+### Backend Proxy (kubeopt/)
+
+| File | Purpose |
+|------|---------|
+| `presentation/api/v2/routers/ai.py` | Proxy: gathers cluster context, forwards to ai-service, streams SSE back |
 
 ### CLI (kubeopt-distribution/npm-cli/)
 
@@ -244,7 +290,8 @@ actionable. Skip explanations they already know.
 
 - Direct cluster mutations (`kubectl apply` with confirmation gates)
 - Cluster builder ("provision me a production cluster on AWS")
-- Custom AI model (replace Claude with own model)
+- **Own KubeOpt AI model** — fine-tune on collected user interactions via model provider swap (Phase D)
 - Dashboard chat widget
 - Slack/Teams bot integration
 - CI/CD integration (GitHub Action with AI analysis)
+- Conversation logging for training data collection (opt-in, anonymized)
