@@ -39,6 +39,15 @@ class GCPAuthenticator(CloudAuthenticator):
             self._authenticated = False
             return False
 
+        # Fast-fail: if no key file and no GOOGLE_APPLICATION_CREDENTIALS, skip ADC
+        # (ADC fallback to metadata server takes 10+ seconds and blocks startup)
+        has_key_file = os.path.exists(_SA_KEY_PATH)
+        has_env_creds = bool(os.getenv('GOOGLE_APPLICATION_CREDENTIALS'))
+        if not has_key_file and not has_env_creds:
+            logger.debug("GCP credentials not configured — skipping authentication")
+            self._authenticated = False
+            return False
+
         try:
             scopes = ['https://www.googleapis.com/auth/cloud-platform']
 
