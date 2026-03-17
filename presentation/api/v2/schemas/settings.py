@@ -33,3 +33,5 @@ class GCPSettings(BaseModel):
     service_account_json: Optional[str] = None
     zone: Optional[str] = None
     enable_billing_api: bool = True
+    billing_dataset: Optional[str] = None
+    billing_account_id: Optional[str] = None
