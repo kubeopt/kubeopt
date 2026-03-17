@@ -56,6 +56,7 @@ COPY shared/ ./shared/
 COPY config/ ./config/
 COPY algorithms/ ./algorithms/
 COPY requirements/ ./requirements/
+COPY frontend/dist/ ./frontend/dist/
 
 # Create necessary directories
 RUN mkdir -p \
