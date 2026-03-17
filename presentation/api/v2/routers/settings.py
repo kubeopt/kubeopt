@@ -69,12 +69,13 @@ async def save_setting(
             except Exception:
                 pass
 
-        # If GCP credentials changed, write service account key to file and invalidate cached auth
+        # If GCP credentials changed, write service account key to volume and invalidate cached auth
         if body.key == 'gcp_service_account_key' and body.value:
             import os
             try:
-                key_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', '.gcp_service_account.json')
-                key_path = os.path.normpath(key_path)
+                # Save to volume so it survives container restarts
+                volume_dir = os.getenv('RAILWAY_VOLUME_MOUNT_PATH', '/app')
+                key_path = os.path.join(volume_dir, '.gcp_service_account.json')
                 with open(key_path, 'w') as f:
                     f.write(body.value if isinstance(body.value, str) else str(body.value))
                 os.chmod(key_path, 0o600)
@@ -177,8 +178,8 @@ async def test_gcp_connection(
         if not sa_json:
             try:
                 import os
-                key_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', '.gcp_service_account.json')
-                key_path = os.path.normpath(key_path)
+                volume_dir = os.getenv('RAILWAY_VOLUME_MOUNT_PATH', '/app')
+                key_path = os.path.join(volume_dir, '.gcp_service_account.json')
                 if os.path.exists(key_path):
                     with open(key_path, 'r') as f:
                         sa_json = f.read()

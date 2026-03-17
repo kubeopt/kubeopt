@@ -130,22 +130,23 @@ class SettingsManager:
             self.config_cache = config
             logger.info(f"✅ Hybrid settings loaded ({self.deployment_type}): {env_count} env + {customer_count} custom = {len(config)} total")
 
-            # Restore GCP service account key file from settings (survives container restarts)
-            gcp_key = config.get('gcp_service_account_key', '')
-            if gcp_key and gcp_key.startswith('{'):
-                try:
-                    key_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '.gcp_service_account.json')
-                    key_path = os.path.normpath(key_path)
-                    if not os.path.exists(key_path):
-                        with open(key_path, 'w') as f:
+            # Restore GCP service account key — check volume first, then recreate from settings
+            volume_dir = os.getenv('RAILWAY_VOLUME_MOUNT_PATH', '/app')
+            gcp_key_path = os.path.join(volume_dir, '.gcp_service_account.json')
+            if os.path.exists(gcp_key_path):
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = gcp_key_path
+                logger.info(f"GCP key file found on volume: {gcp_key_path}")
+            else:
+                gcp_key = config.get('gcp_service_account_key', '')
+                if gcp_key and gcp_key.startswith('{'):
+                    try:
+                        with open(gcp_key_path, 'w') as f:
                             f.write(gcp_key)
-                        os.chmod(key_path, 0o600)
-                        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = key_path
-                        logger.info(f"Restored GCP service account key to {key_path}")
-                    else:
-                        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = key_path
-                except Exception as e:
-                    logger.warning(f"Failed to restore GCP key file: {e}")
+                        os.chmod(gcp_key_path, 0o600)
+                        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = gcp_key_path
+                        logger.info(f"Restored GCP service account key to {gcp_key_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to restore GCP key file: {e}")
 
             gcp_project = config.get('gcp_project_id', '') or config.get('GOOGLE_CLOUD_PROJECT', '')
             if gcp_project:
