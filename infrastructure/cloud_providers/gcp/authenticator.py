@@ -9,8 +9,9 @@ from infrastructure.cloud_providers.base import CloudAuthenticator
 
 logger = logging.getLogger(__name__)
 
-# Path where the UI-uploaded service account key is persisted
-_SA_KEY_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '.gcp_service_account.json'))
+# Path where the UI-uploaded service account key is persisted (volume or app dir)
+_VOLUME_DIR = os.getenv('RAILWAY_VOLUME_MOUNT_PATH', os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+_SA_KEY_PATH = os.path.join(_VOLUME_DIR, '.gcp_service_account.json')
 
 
 class GCPAuthenticator(CloudAuthenticator):
