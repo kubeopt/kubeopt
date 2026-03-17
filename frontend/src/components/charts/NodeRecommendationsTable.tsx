@@ -22,13 +22,14 @@ interface NodeRecommendation {
 }
 
 function UtilizationBar({ value, label }: { value: number; label: string }) {
-  const color = value < 30 ? 'bg-red-400' : value < 60 ? 'bg-yellow-400' : 'bg-green-400'
+  const v = value ?? 0
+  const color = v < 30 ? 'bg-red-400' : v < 60 ? 'bg-yellow-400' : 'bg-green-400'
   return (
     <div className="flex items-center gap-2">
       <div className="h-2 w-20 rounded-full" style={{ backgroundColor: 'var(--border-subtle)' }}>
-        <div className={`h-2 rounded-full ${color}`} style={{ width: `${Math.min(value, 100)}%` }} />
+        <div className={`h-2 rounded-full ${color}`} style={{ width: `${Math.min(v, 100)}%` }} />
       </div>
-      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{value.toFixed(0)}% {label}</span>
+      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{v.toFixed(0)}% {label}</span>
     </div>
   )
 }
