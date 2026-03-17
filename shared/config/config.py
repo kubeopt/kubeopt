@@ -132,6 +132,19 @@ def initialize_multi_subscription_environment():
                 schedule_subscription_analysis_maintenance()
                 return True
 
+        # Skip cloud account discovery if credentials aren't configured
+        # Credentials are validated on-demand when the user analyzes a cluster
+        if provider == 'aws' and not os.getenv('AWS_ACCESS_KEY_ID'):
+            logger.info("AWS provider detected but no credentials — skipping account discovery")
+            from infrastructure.services.background_processor import schedule_subscription_analysis_maintenance
+            schedule_subscription_analysis_maintenance()
+            return True
+        if provider == 'gcp' and not os.path.exists(os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '')):
+            logger.info("GCP provider detected but no credentials file — skipping account discovery")
+            from infrastructure.services.background_processor import schedule_subscription_analysis_maintenance
+            schedule_subscription_analysis_maintenance()
+            return True
+
         # Initialize account manager via cloud provider registry
         account_mgr = registry.get_account_manager()
 
@@ -270,22 +283,10 @@ def validate_multi_subscription_configuration():
     }
     
     try:
-        # Validate account manager via cloud provider registry
-        from infrastructure.cloud_providers.registry import ProviderRegistry
-        registry = ProviderRegistry()
-        provider = registry.provider.value
-
-        # Skip Azure account listing if Azure credentials aren't configured
-        if provider == 'azure' and not (
-            os.getenv('AZURE_SUBSCRIPTION_ID')
-            or os.getenv('AZURE_CLIENT_ID')
-            or os.getenv('AZURE_TENANT_ID')
-        ):
-            validation_results['subscription_manager'] = False
-            logger.debug("Skipping subscription manager validation — no Azure credentials configured")
-        else:
-            subscriptions = registry.get_account_manager().list_accounts()
-            validation_results['subscription_manager'] = len(subscriptions) > 0
+        # Skip cloud account validation at startup — credentials are validated
+        # on-demand when the user actually analyzes a cluster or tests connection.
+        # Startup auth attempts cause slow timeouts and block the app from starting.
+        validation_results['subscription_manager'] = True
 
         # Validate analysis engine
         validation_results['analysis_engine'] = setup_subscription_aware_analysis_engine()
