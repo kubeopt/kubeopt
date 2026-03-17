@@ -56,6 +56,16 @@ def create_service_jwt_token(license_key: str = "") -> str:
     """Create a JWT token for inter-service calls (plan-generation, license-manager)."""
     import secrets as _secrets
     from jose import jwt
+    # Derive role from license key prefix
+    role = 'free'
+    if license_key:
+        prefix = license_key.split('-')[0].upper()
+        if prefix == 'ENTERPRISE':
+            role = 'enterprise'
+        elif prefix == 'PRO':
+            role = 'pro'
+        elif prefix == 'ADMIN':
+            role = 'admin'
     payload = {
         'iss': 'kubeopt',
         'sub': 'api_client',
@@ -64,6 +74,7 @@ def create_service_jwt_token(license_key: str = "") -> str:
         'iat': datetime.utcnow(),
         'jti': _secrets.token_urlsafe(16),
         'license_key': license_key,
+        'role': role,
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
