@@ -51,6 +51,16 @@ class GCPKubernetesExecutor(KubernetesCommandExecutor):
             location = cluster.zone or cluster.region
             if not project or not location:
                 return
+            # Activate service account if key file exists (required before get-credentials)
+            sa_key = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '')
+            if sa_key and os.path.exists(sa_key):
+                activate = subprocess.run(
+                    f"gcloud auth activate-service-account --key-file={sa_key} --quiet",
+                    shell=True, capture_output=True, text=True, timeout=15
+                )
+                if activate.returncode != 0:
+                    logger.warning(f"gcloud activate-service-account failed: {activate.stderr[:200]}")
+
             cmd = f"gcloud container clusters get-credentials {cluster.cluster_name} --zone {location} --project {project} --quiet"
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
             if result.returncode == 0:
