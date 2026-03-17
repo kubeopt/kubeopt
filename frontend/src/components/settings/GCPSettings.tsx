@@ -9,6 +9,8 @@ export default function GCPSettings() {
   const [zone, setZone] = useState('us-central1-a')
   const [serviceAccountKey, setServiceAccountKey] = useState('')
   const [billingApi, setBillingApi] = useState(true)
+  const [billingDataset, setBillingDataset] = useState('')
+  const [billingAccountId, setBillingAccountId] = useState('')
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ connected: boolean; message: string } | null>(null)
@@ -20,6 +22,8 @@ export default function GCPSettings() {
       setProjectId((s.gcp_project_id as string) || '')
       setZone((s.gcp_zone as string) || 'us-central1-a')
       setBillingApi(s.gcp_billing_api !== false)
+      setBillingDataset((s.gcp_billing_dataset as string) || '')
+      setBillingAccountId((s.gcp_billing_account_id as string) || '')
     }).catch(() => {})
   }, [])
 
@@ -31,6 +35,8 @@ export default function GCPSettings() {
         saveSetting('gcp_project_id', projectId),
         saveSetting('gcp_zone', zone),
         saveSetting('gcp_billing_api', billingApi),
+        ...(billingDataset ? [saveSetting('gcp_billing_dataset', billingDataset)] : []),
+        ...(billingAccountId ? [saveSetting('gcp_billing_account_id', billingAccountId)] : []),
         ...(serviceAccountKey ? [saveSetting('gcp_service_account_key', serviceAccountKey)] : []),
       ])
       setMessage('Settings saved')
@@ -102,6 +108,24 @@ export default function GCPSettings() {
             className="rounded border-gray-300 text-primary-600 dark:border-dark-600" />
           <label htmlFor="billing-api" className="text-sm text-dark-700 dark:text-dark-300">Enable Billing API integration</label>
         </div>
+        {billingApi && (
+          <>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-dark-700 dark:text-dark-300">BigQuery Billing Dataset</label>
+              <input type="text" value={billingDataset} onChange={(e) => setBillingDataset(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-800 dark:text-white"
+                placeholder="billing_export" />
+              <p className="mt-1 text-xs text-dark-500 dark:text-dark-400">Dataset name from BigQuery billing export</p>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-dark-700 dark:text-dark-300">Billing Account ID</label>
+              <input type="text" value={billingAccountId} onChange={(e) => setBillingAccountId(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-800 dark:text-white"
+                placeholder="01F983-976921-D42BB2" />
+              <p className="mt-1 text-xs text-dark-500 dark:text-dark-400">From GCP Console &gt; Billing &gt; Account ID</p>
+            </div>
+          </>
+        )}
 
         {testResult && (
           <div className={`rounded-lg px-3 py-2 text-sm ${testResult.connected ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'}`}>
