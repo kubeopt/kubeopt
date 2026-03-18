@@ -1329,11 +1329,33 @@ def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, 
                                     region=region, project_id=subscription_id, zone=region)
             bq_result = cost_mgr.get_cluster_costs(_ci, _start, _end)
             if bq_result is not None:
-                # Convert BigQuery result to DataFrame
+                # Convert BigQuery result to DataFrame with proper category mapping
                 import pandas as pd
-                rows = [{'ResourceType': svc, 'Cost': cost, 'Category': 'GKE', 'Subcategory': svc}
-                        for svc, cost in bq_result.get('breakdown', {}).items()]
+                # Map GCP service names to analysis engine categories
+                _GCP_CATEGORY_MAP = {
+                    'Kubernetes Engine': 'Control Plane',
+                    'Compute Engine': 'Node Pools',
+                    'Cloud Storage': 'Storage',
+                    'Persistent Disk': 'Storage',
+                    'Networking': 'Networking',
+                    'Cloud NAT': 'Networking',
+                    'Cloud Load Balancing': 'Networking',
+                    'Cloud Logging': 'Monitoring',
+                    'Cloud Monitoring': 'Monitoring',
+                    'Cloud Trace': 'Monitoring',
+                    'Container Registry': 'Container Registry',
+                    'Artifact Registry': 'Container Registry',
+                }
+                rows = []
+                for svc, cost in bq_result.get('breakdown', {}).items():
+                    category = _GCP_CATEGORY_MAP.get(svc, 'Other')
+                    rows.append({
+                        'ResourceType': svc, 'Cost': cost,
+                        'Category': category, 'Subcategory': svc,
+                        'CostType': 'actual', 'IdleCost': 0,
+                    })
                 if rows:
+                    logger.info(f"GCP BigQuery: real billing data — ${bq_result.get('total_cost', 0):.2f}/period")
                     return pd.DataFrame(rows)
         except Exception as e:
             logger.warning(f"GCP BigQuery cost query failed: {e}")

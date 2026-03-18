@@ -55,7 +55,7 @@ class GCPCostManager(CloudCostManager):
             project = cluster.project_id or auth.project_id
 
             dataset = os.getenv('GCP_BILLING_DATASET')
-            billing_account_id = os.getenv('GCP_BILLING_ACCOUNT_ID', '').replace('-', '')
+            billing_account_id = os.getenv('GCP_BILLING_ACCOUNT_ID', '').replace('-', '_')
 
             if not dataset:
                 logger.warning("GCP_BILLING_DATASET not set. Cannot query costs.")
@@ -69,7 +69,7 @@ class GCPCostManager(CloudCostManager):
             # GKE auto-labels clusters with goog-k8s-cluster-name
             query = f"""
                 SELECT
-                    service.description AS service,
+                    service.description AS service_name,
                     SUM(cost) AS total_cost,
                     currency
                 FROM {table}
@@ -80,7 +80,7 @@ class GCPCostManager(CloudCostManager):
                         WHERE l.key = 'goog-k8s-cluster-name'
                         AND l.value = @cluster_name
                     )
-                GROUP BY service.description, currency
+                GROUP BY service_name, currency
                 ORDER BY total_cost DESC
             """
 
@@ -99,7 +99,7 @@ class GCPCostManager(CloudCostManager):
             total = 0.0
             currency = 'USD'
             for row in results:
-                service_name = row.service
+                service_name = row.service_name
                 cost = float(row.total_cost)
                 breakdown[service_name] = round(cost, 2)
                 total += cost

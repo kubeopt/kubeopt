@@ -103,7 +103,7 @@ class SettingsManager:
             # LAYER 1: Environment Variables (Railway defaults, system settings)
             env_count = 0
             for key, value in os.environ.items():
-                if key.startswith(('AZURE_', 'AWS_', 'GOOGLE_', 'CLOUD_', 'SLACK_', 'EMAIL_', 'SMTP_', 'LOG_', 'PRODUCTION_', 'COST_', 'ANALYSIS_', 'AUTO_', 'DATABASE_', 'USER_', 'KUBEOPT_')):
+                if key.startswith(('AZURE_', 'AWS_', 'GOOGLE_', 'GCP_', 'CLOUD_', 'SLACK_', 'EMAIL_', 'SMTP_', 'LOG_', 'PRODUCTION_', 'COST_', 'ANALYSIS_', 'AUTO_', 'DATABASE_', 'USER_', 'KUBEOPT_')):
                     config[key] = value
                     env_count += 1
             logger.info(f"📋 Loaded {env_count} environment variables")
@@ -151,6 +151,16 @@ class SettingsManager:
             gcp_project = config.get('gcp_project_id', '') or config.get('GOOGLE_CLOUD_PROJECT', '')
             if gcp_project:
                 os.environ['GOOGLE_CLOUD_PROJECT'] = gcp_project
+
+            # GCP billing settings — map lowercase .env keys to uppercase env vars
+            gcp_billing_dataset = config.get('gcp_billing_dataset', '') or config.get('GCP_BILLING_DATASET', '')
+            if gcp_billing_dataset:
+                os.environ['GCP_BILLING_DATASET'] = gcp_billing_dataset
+                logger.info(f"GCP billing dataset configured: {gcp_billing_dataset}")
+            gcp_billing_account = config.get('gcp_billing_account_id', '') or config.get('GCP_BILLING_ACCOUNT_ID', '')
+            if gcp_billing_account:
+                os.environ['GCP_BILLING_ACCOUNT_ID'] = gcp_billing_account
+                logger.info("GCP billing account ID configured")
 
             return config
             

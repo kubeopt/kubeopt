@@ -295,7 +295,7 @@ class GCPInfrastructureInspector(CloudInfrastructureInspector):
             auth = self._get_auth()
             project = self._get_project(cluster)
             dataset = os.getenv('GCP_BILLING_DATASET')
-            billing_account_id = os.getenv('GCP_BILLING_ACCOUNT_ID', '').replace('-', '')
+            billing_account_id = os.getenv('GCP_BILLING_ACCOUNT_ID', '').replace('-', '_')
 
             if not dataset:
                 return json.dumps([])
@@ -356,7 +356,7 @@ class GCPInfrastructureInspector(CloudInfrastructureInspector):
             auth = self._get_auth()
             project = self._get_project(cluster)
             dataset = os.getenv('GCP_BILLING_DATASET')
-            billing_account_id = os.getenv('GCP_BILLING_ACCOUNT_ID', '').replace('-', '')
+            billing_account_id = os.getenv('GCP_BILLING_ACCOUNT_ID', '').replace('-', '_')
 
             if not dataset:
                 return json.dumps([])
