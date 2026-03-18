@@ -10,35 +10,6 @@ from infrastructure.cloud_providers.types import ClusterIdentifier
 
 logger = logging.getLogger(__name__)
 
-_bigquery_module = None
-
-def _get_bigquery_client_module():
-    """Import google.cloud.bigquery with OpenTelemetry workaround.
-
-    Some environments have an opentelemetry-api version conflict that causes
-    StopIteration during bigquery module import. This patches the context
-    runtime before importing.
-    """
-    global _bigquery_module
-    if _bigquery_module is not None:
-        return _bigquery_module
-    try:
-        from google.cloud import bigquery
-        _bigquery_module = bigquery
-        return bigquery
-    except StopIteration:
-        logger.warning("OpenTelemetry context conflict — patching before BigQuery import")
-        try:
-            from opentelemetry.context.contextvars_context import ContextVarsRuntimeContext
-            import opentelemetry.context as otel_ctx
-            otel_ctx._RUNTIME_CONTEXT = ContextVarsRuntimeContext()
-        except Exception:
-            pass
-        from google.cloud import bigquery
-        _bigquery_module = bigquery
-        return bigquery
-
-
 # GKE machine type families and their typical hourly costs (us-central1, on-demand)
 # Used as fallback when Billing Catalog API is unavailable
 _DEFAULT_PRICING = {
@@ -78,7 +49,7 @@ class GCPCostManager(CloudCostManager):
                           end_date: datetime) -> Optional[Dict[str, Any]]:
         """Query BigQuery billing export for GKE cluster costs, filtered by cluster label."""
         try:
-            bigquery = _get_bigquery_client_module()
+            from google.cloud import bigquery
 
             auth = self._get_auth()
             project = cluster.project_id or auth.project_id

@@ -79,7 +79,8 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     FLASK_ENV=production \
     AZURE_CONFIG_DIR=/root/.azure \
-    USE_GKE_GCLOUD_AUTH_PLUGIN=True
+    USE_GKE_GCLOUD_AUTH_PLUGIN=True \
+    OTEL_PYTHON_CONTEXT=contextvars_context
 
 EXPOSE 5010
 
