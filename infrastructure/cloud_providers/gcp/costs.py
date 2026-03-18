@@ -123,7 +123,7 @@ class GCPCostManager(CloudCostManager):
             }
 
         except Exception as e:
-            logger.error(f"GKE cost query error: {e}")
+            logger.error(f"GKE cost query error: {type(e).__name__}: {e}", exc_info=True)
             return None
 
     def get_vm_pricing(self, region: str, vm_sizes: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
