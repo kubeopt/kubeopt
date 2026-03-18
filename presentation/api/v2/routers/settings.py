@@ -84,6 +84,16 @@ async def save_setting(
             except Exception as e:
                 logger.error(f"Failed to save GCP service account key: {e}")
 
+        # GCP billing settings — propagate to env vars so GCPCostManager can read them
+        if body.key == 'gcp_billing_dataset' and body.value:
+            import os
+            os.environ['GCP_BILLING_DATASET'] = str(body.value)
+            logger.info(f"Set GCP_BILLING_DATASET={body.value}")
+        if body.key == 'gcp_billing_account_id' and body.value:
+            import os
+            os.environ['GCP_BILLING_ACCOUNT_ID'] = str(body.value)
+            logger.info(f"Set GCP_BILLING_ACCOUNT_ID={body.value}")
+
         if body.key in ('gcp_service_account_key', 'gcp_project_id'):
             import os
             if body.key == 'gcp_project_id' and body.value:
