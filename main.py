@@ -11,6 +11,9 @@ Organization: Nivaya Technologies & kubeopt
 import os
 import sys
 
+# Fix OpenTelemetry StopIteration crash — must be set before google.cloud.bigquery is imported
+os.environ.setdefault('OTEL_PYTHON_CONTEXT', 'contextvars_context')
+
 # Add current directory to Python path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
