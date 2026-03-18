@@ -30,6 +30,7 @@ class ChatRequest(BaseModel):
     cluster_id: Optional[str] = None
     session_id: Optional[str] = None
     comparison_cluster_id: Optional[str] = None
+    github_token: Optional[str] = None
 
 
 class ConfirmProxyRequest(BaseModel):
@@ -216,6 +217,7 @@ async def ai_chat(
         "license_key": license_key,
         "cloud_provider": cloud_provider,
         "context": context,
+        "github_token": req.github_token,
     }
 
     async def proxy_stream():
