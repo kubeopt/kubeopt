@@ -152,12 +152,13 @@ class SettingsManager:
             if gcp_project:
                 os.environ['GOOGLE_CLOUD_PROJECT'] = gcp_project
 
-            # GCP billing settings — map lowercase .env keys to uppercase env vars
-            gcp_billing_dataset = config.get('gcp_billing_dataset', '') or config.get('GCP_BILLING_DATASET', '')
+            # GCP billing settings — normalize to uppercase env vars regardless of stored case
+            config_lower = {k.lower(): v for k, v in config.items()}
+            gcp_billing_dataset = config_lower.get('gcp_billing_dataset', '')
             if gcp_billing_dataset:
                 os.environ['GCP_BILLING_DATASET'] = gcp_billing_dataset
                 logger.info(f"GCP billing dataset configured: {gcp_billing_dataset}")
-            gcp_billing_account = config.get('gcp_billing_account_id', '') or config.get('GCP_BILLING_ACCOUNT_ID', '')
+            gcp_billing_account = config_lower.get('gcp_billing_account_id', '')
             if gcp_billing_account:
                 os.environ['GCP_BILLING_ACCOUNT_ID'] = gcp_billing_account
                 logger.info("GCP billing account ID configured")

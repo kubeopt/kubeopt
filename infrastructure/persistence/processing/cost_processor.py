@@ -1358,7 +1358,7 @@ def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, 
                     logger.info(f"GCP BigQuery: real billing data — ${bq_result.get('total_cost', 0):.2f}/period")
                     return pd.DataFrame(rows)
         except Exception as e:
-            logger.warning(f"GCP BigQuery cost query failed: {e}")
+            logger.error(f"GCP BigQuery cost query failed (falling back to estimates): {e}", exc_info=True)
 
         # Fallback: estimate costs from GKE node pools via Container API
         try:
