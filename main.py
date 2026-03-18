@@ -11,8 +11,24 @@ Organization: Nivaya Technologies & kubeopt
 import os
 import sys
 
-# Fix OpenTelemetry StopIteration crash — must be set before google.cloud.bigquery is imported
-os.environ.setdefault('OTEL_PYTHON_CONTEXT', 'contextvars_context')
+# Fix OpenTelemetry StopIteration crash that prevents google.cloud.bigquery from importing.
+# The Dockerfile strips .dist-info dirs for image size, which removes the entry_points metadata
+# that opentelemetry uses to find its context implementation. Patching sys.modules before any
+# google-cloud library is imported bypasses the broken module-level code entirely.
+import types as _types
+_fake_otel_ctx = _types.ModuleType('opentelemetry.context')
+class _FakeRuntimeContext:
+    def attach(self, token): return token
+    def detach(self, token): pass
+    def get_current(self): return {}
+_fake_otel_ctx._RUNTIME_CONTEXT = _FakeRuntimeContext()
+_fake_otel_ctx.attach = lambda t: t
+_fake_otel_ctx.detach = lambda t: None
+_fake_otel_ctx.get_current = lambda: {}
+_fake_otel_ctx.create_key = lambda name: name
+_fake_otel_ctx.get_value = lambda key, context=None: None
+_fake_otel_ctx.set_value = lambda key, value, context=None: {}
+sys.modules['opentelemetry.context'] = _fake_otel_ctx
 
 # Add current directory to Python path
 current_dir = os.path.dirname(os.path.abspath(__file__))
