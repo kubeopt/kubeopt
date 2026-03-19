@@ -1382,8 +1382,8 @@ def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, 
 
             logger.info(f"📅 Thread {thread_id}: Using date range: {start_date_str} to {end_date_str}")
 
-            # Get the node resource group via cloud provider abstraction
-            from infrastructure.cloud_providers.registry import ProviderRegistry
+            # Get the node resource group via provider-specific inspector (not ProviderRegistry
+            # which auto-detects from env vars and returns the wrong provider)
             _cluster_id = ClusterIdentifier(
                 provider=_provider,
                 cluster_name=cluster_name,
@@ -1391,7 +1391,15 @@ def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, 
                 resource_group=resource_group,
                 subscription_id=subscription_id,
             )
-            _inspector = ProviderRegistry().get_infrastructure_inspector()
+            if _provider == CloudProvider.AWS:
+                from infrastructure.cloud_providers.aws.inspector import AWSInfrastructureInspector
+                _inspector = AWSInfrastructureInspector()
+            elif _provider == CloudProvider.GCP:
+                from infrastructure.cloud_providers.gcp.inspector import GCPInfrastructureInspector
+                _inspector = GCPInfrastructureInspector()
+            else:
+                from infrastructure.cloud_providers.azure.inspector import AzureInfrastructureInspector
+                _inspector = AzureInfrastructureInspector()
             node_resource_group = _inspector.get_node_resource_scope(_cluster_id)
             if not node_resource_group:
                 raise Exception(f"Cannot determine node resource group for {cluster_name}")
