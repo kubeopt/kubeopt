@@ -1,7 +1,7 @@
 """
 License checking dependency for FastAPI.
 
-Replaces Flask's license_middleware before_request hook.
+Validates that user has an active PRO or ENTERPRISE license.
 """
 
 import logging
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 async def check_license(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     """
     Verify the user has a valid license. Returns license info dict.
+    Raises 403 if no valid license found.
 
     Usage:
         @router.post("/generate-plan")
@@ -24,22 +25,25 @@ async def check_license(user: Dict[str, Any] = Depends(get_current_user)) -> Dic
             ...
     """
     try:
-        from presentation.api.v2.services import get_container
-        validator = get_container().license_validator
-        if hasattr(validator, 'get_license_status'):
-            status_info = validator.get_license_status()
-            if status_info and status_info.get('valid'):
-                return {
-                    'tier': status_info.get('tier', 'FREE'),
-                    'valid': True,
-                    'features': status_info.get('features', []),
-                }
+        from infrastructure.services.license_validator import get_license_validator, LicenseTier
+        validator = get_license_validator()
+        tier = validator.get_tier()
+
+        if tier == LicenseTier.NONE:
+            raise HTTPException(
+                status_code=403,
+                detail="Valid PRO or ENTERPRISE license required"
+            )
+
+        return {
+            'tier': tier.value.upper(),
+            'valid': True,
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.warning(f"License validation error: {e}")
-
-    # Allow free tier by default (same as Flask behavior)
-    return {
-        'tier': 'FREE',
-        'valid': True,
-        'features': [],
-    }
+        raise HTTPException(
+            status_code=503,
+            detail="License validation service unavailable"
+        )

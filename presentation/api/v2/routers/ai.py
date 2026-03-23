@@ -178,7 +178,20 @@ async def ai_chat(
     user: Dict[str, Any] = Depends(get_current_user),
     cluster_manager=Depends(get_cluster_manager),
 ):
-    """Proxy AI chat to the hosted AI service."""
+    """Proxy AI chat to the hosted AI service. Requires PRO or ENTERPRISE license."""
+    # License gate: AI chat costs money (Claude API calls)
+    from infrastructure.services.license_validator import get_license_validator, Feature
+    validator = get_license_validator()
+    if not validator.has_feature(Feature.AI_CHAT):
+        raise HTTPException(
+            status_code=403,
+            detail="AI chat requires a PRO or ENTERPRISE license"
+        )
+
+    allowed, limit_msg = validator.check_usage_limit('chat_per_day')
+    if not allowed:
+        raise HTTPException(status_code=429, detail=limit_msg)
+
     # Resolve cluster
     cluster_id = req.cluster_id
     if not cluster_id:
