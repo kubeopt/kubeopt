@@ -34,8 +34,9 @@ class Feature(Enum):
     BASIC_RECOMMENDATIONS = "basic_recommendations"
     EXPORT_REPORTS = "export_reports"
     
-    # ENTERPRISE Features (Advanced)
+    # PRO+ Features (Cost money — Claude API calls)
     AI_PLAN_GENERATION = "ai_plan_generation"
+    AI_CHAT = "ai_chat"
     UNLIMITED_CLUSTERS = "unlimited_clusters"
     ADVANCED_ANALYTICS = "advanced_analytics"
     CUSTOM_INTEGRATIONS = "custom_integrations"
@@ -61,6 +62,7 @@ class LicenseValidator:
             Feature.BASIC_RECOMMENDATIONS,
             Feature.EXPORT_REPORTS,
             Feature.AI_PLAN_GENERATION,
+            Feature.AI_CHAT,
         ],
         LicenseTier.ENTERPRISE: [
             # All PRO features
@@ -73,6 +75,7 @@ class LicenseValidator:
             Feature.EXPORT_REPORTS,
             # Plus ENTERPRISE features
             Feature.AI_PLAN_GENERATION,
+            Feature.AI_CHAT,
             Feature.UNLIMITED_CLUSTERS,
             Feature.ADVANCED_ANALYTICS,
             Feature.CUSTOM_INTEGRATIONS,
@@ -88,18 +91,21 @@ class LicenseValidator:
             'clusters': 0,
             'analyses_per_day': 0,
             'plans_per_day': 0,
+            'chat_per_day': 0,
             'api_calls_per_hour': 0
         },
         LicenseTier.PRO: {
             'clusters': 5,
             'analyses_per_day': 50,
             'plans_per_day': 1,  # 1 AI plan per day for PRO
+            'chat_per_day': 20,  # 20 AI chat queries per day for PRO
             'api_calls_per_hour': 100
         },
         LicenseTier.ENTERPRISE: {
             'clusters': -1,  # Unlimited
             'analyses_per_day': -1,  # Unlimited
             'plans_per_day': 3,  # 3 AI plans per day for ENTERPRISE
+            'chat_per_day': -1,  # Unlimited AI chat for ENTERPRISE
             'api_calls_per_hour': -1  # Unlimited
         }
     }
