@@ -1031,6 +1031,7 @@ class MultiSubscriptionAnalysisEngine:
             subscription_id = basic_analysis.get('subscription_id', 'unknown')
             
             enhanced_input = {
+                "cloud_provider": basic_analysis.get('cloud_provider', 'azure'),
                 "cost_analysis": self._extract_cost_analysis(basic_analysis),
                 "cluster_info": self._get_cluster_info(cluster_id, basic_analysis),
                 "node_pools": self._get_node_pool_details(cluster_id, basic_analysis),
@@ -3320,6 +3321,7 @@ class MultiSubscriptionAnalysisEngine:
         
         return {
             "cluster_name": validated_info.cluster_name,
+            "cloud_provider": basic_analysis.get('cloud_provider', 'azure'),
             "resource_group": validated_info.resource_group,
             "subscription_id": validated_info.subscription_id,
             "kubernetes_version": validated_info.kubernetes_version,
