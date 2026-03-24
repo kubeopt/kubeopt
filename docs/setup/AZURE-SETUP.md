@@ -4,7 +4,7 @@
 
 ### Method 1: Using the Web Interface (Recommended)
 
-1. **Access your AKS Cost Optimizer**:
+1. **Access your KubeOpt**:
    ```bash
    http://localhost:5000
    ```
