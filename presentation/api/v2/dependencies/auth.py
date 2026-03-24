@@ -19,9 +19,15 @@ security = HTTPBearer(auto_error=False)
 
 _local_dev = os.getenv('LOCAL_DEV', 'false').lower() == 'true'
 _jwt_env = os.getenv('JWT_SECRET_KEY', os.getenv('FLASK_SECRET_KEY', ''))
-if not _jwt_env and not _local_dev:
-    raise RuntimeError("JWT_SECRET_KEY environment variable is required in production")
-JWT_SECRET = _jwt_env or 'kubeopt-local-dev-only'
+if not _jwt_env:
+    if _local_dev:
+        # Generate a random secret per process in dev mode (not a fixed string)
+        import secrets as _secrets
+        _jwt_env = _secrets.token_urlsafe(32)
+        logger.warning("No JWT_SECRET_KEY set. Generated random secret for this session (dev mode).")
+    else:
+        raise RuntimeError("JWT_SECRET_KEY environment variable is required")
+JWT_SECRET = _jwt_env
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24
 

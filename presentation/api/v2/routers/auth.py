@@ -1,5 +1,6 @@
 """Authentication endpoints."""
 
+import os
 import logging
 from typing import Dict, Any
 
@@ -109,30 +110,43 @@ legacy_router = APIRouter(tags=["license"])
 
 
 @legacy_router.get("/api/v1/license/info")
-async def get_license_info(validator=Depends(get_license_validator_dep)):
-    """Get current license information (public)."""
+async def get_license_info(
+    user: Dict[str, Any] = Depends(get_current_user),
+    validator=Depends(get_license_validator_dep),
+):
+    """Get current license information. Requires authentication."""
     try:
         if hasattr(validator, 'get_license_info'):
             return validator.get_license_info()
     except Exception as e:
         logger.error(f"License info failed: {e}")
-    return {"valid": False, "tier": "FREE"}
+    return {"valid": False, "tier": "NONE"}
 
 
 @legacy_router.post("/api/v1/license/validate")
 async def validate_license(
     body: LicenseValidateRequest,
-    validator=Depends(get_license_validator_dep),
+    user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """Validate a license key (public)."""
-    import os
-    old_key = os.environ.get('KUBEOPT_LICENSE_KEY', '')
-    try:
-        os.environ['KUBEOPT_LICENSE_KEY'] = body.license_key
-        validator.license_key = body.license_key
-        valid, info = validator.validate_license()
+    """Validate and activate a license key. Requires authentication.
 
-        if valid:
+    Sets the license key for this instance. Does NOT modify the global
+    validator cache for other requests (uses a temporary validator).
+    """
+    import requests as _requests
+    license_api_url = os.getenv('LICENSE_API_URL', 'http://localhost:5002')
+    try:
+        response = _requests.post(
+            f"{license_api_url}/api/v1/validate",
+            json={'license_key': body.license_key},
+            timeout=5
+        )
+        if response.status_code == 200:
+            info = response.json()
+            # Only set the key on the running instance if validation succeeds
+            from infrastructure.services.license_validator import get_license_validator
+            validator = get_license_validator()
+            validator.set_license_key(body.license_key)
             return {
                 "valid": True,
                 "tier": info.get("tier"),
@@ -140,12 +154,9 @@ async def validate_license(
                 "expires_at": info.get("expires_at"),
             }
         else:
-            return {"valid": False, "error": info.get("error", "Invalid license")}
+            return {"valid": False, "error": "Invalid license key"}
+    except _requests.exceptions.RequestException:
+        return {"valid": False, "error": "License service unavailable"}
     except Exception as e:
         logger.error(f"License validation failed: {e}")
-        return {"valid": False, "error": str(e)}
-    finally:
-        if old_key:
-            os.environ['KUBEOPT_LICENSE_KEY'] = old_key
-        elif 'KUBEOPT_LICENSE_KEY' in os.environ:
-            del os.environ['KUBEOPT_LICENSE_KEY']
+        return {"valid": False, "error": "Validation failed"}
