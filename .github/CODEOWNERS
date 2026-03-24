@@ -1,0 +1,29 @@
+# KubeOpt Code Owners
+# These users are automatically requested for review on PRs touching their areas.
+
+# Default: all PRs require review from core team
+* @mkondepudi
+
+# Algorithms and ML: core optimization logic
+/algorithms/ @mkondepudi
+/machine_learning/ @mkondepudi
+
+# Cloud provider adapters
+/infrastructure/cloud_providers/ @mkondepudi
+
+# Security-sensitive files
+/infrastructure/services/auth_manager.py @mkondepudi
+/infrastructure/services/license_validator.py @mkondepudi
+/presentation/api/v2/dependencies/auth.py @mkondepudi
+/presentation/api/v2/dependencies/license.py @mkondepudi
+
+# API routes
+/presentation/api/ @mkondepudi
+
+# Frontend
+/frontend/ @mkondepudi
+
+# Infrastructure and deployment
+/Dockerfile @mkondepudi
+/docker-compose.yml @mkondepudi
+/.github/ @mkondepudi
