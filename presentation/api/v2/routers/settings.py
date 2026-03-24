@@ -49,6 +49,10 @@ async def save_setting(
     settings_mgr=Depends(get_settings_manager),
 ):
     """Save a single setting."""
+    # Block writes to internal security settings via the API
+    blocked_keys = {'jwt_secret_key', 'flask_secret_key', 'user_password_hash', 'user_username', 'user_role'}
+    if body.key.lower() in blocked_keys:
+        raise HTTPException(status_code=403, detail=f"Setting '{body.key}' cannot be modified via API")
     try:
         settings_mgr.save_settings({body.key: body.value})
 
