@@ -184,7 +184,7 @@ class WorkloadPerformanceAnalyzer:
         return recommendations
 
     def get_learning_insights(self) -> Dict[str, Any]:
-        """Get learning insights from actual ML classifier state - strict .clauderc compliance"""
+        """Get learning insights from actual ML classifier state - strict strict validation"""
         if not hasattr(self, 'classifier'):
             raise ValueError("Classifier not initialized")
         
@@ -255,7 +255,7 @@ class WorkloadPerformanceAnalyzer:
     def analyze_and_recommend_with_comprehensive_insights(self, metrics_data: Dict, current_hpa_config: Dict = None, cluster_id: str = None) -> Dict[str, Any]:
         """
         Comprehensive analysis method required by ML HPA recommendation engine.
-        Strict .clauderc compliance - no fallback values, explicit validation.
+        Strict strict validation - no fallback values, explicit validation.
         """
         # Strict validation - no fallbacks
         if not metrics_data:
@@ -309,7 +309,7 @@ class WorkloadPerformanceAnalyzer:
         return result
     
     def _extract_workload_characteristics_from_nodes(self, nodes: List[Dict]) -> Dict[str, Any]:
-        """Extract workload characteristics from nodes - strict .clauderc compliance"""
+        """Extract workload characteristics from nodes - strict strict validation"""
         if not isinstance(nodes, list):
             raise ValueError("nodes must be a list")
         if len(nodes) == 0:
@@ -353,7 +353,7 @@ class WorkloadPerformanceAnalyzer:
         }
     
     def _create_optimization_analysis(self, workload_classification: Dict, workload_characteristics: Dict) -> Dict[str, Any]:
-        """Create optimization analysis - strict .clauderc compliance"""
+        """Create optimization analysis - strict strict validation"""
         workload_type = workload_classification['workload_type']
         confidence = workload_classification['confidence']
         cpu_usage = workload_characteristics['cpu_usage_pct']
@@ -377,7 +377,7 @@ class WorkloadPerformanceAnalyzer:
         }
     
     def _create_hpa_recommendation(self, workload_classification: Dict, workload_characteristics: Dict) -> Dict[str, Any]:
-        """Create HPA recommendation - strict .clauderc compliance"""
+        """Create HPA recommendation - strict strict validation"""
         workload_type = workload_classification['workload_type']
         cpu_usage = workload_characteristics['cpu_usage_pct']
         memory_usage = workload_characteristics['memory_usage_pct']
@@ -421,7 +421,7 @@ class WorkloadPerformanceAnalyzer:
         return min(100.0, (cpu_usage + memory_usage) / 2 * 1.25)
     
     def _create_simple_workload_classification(self, workload_characteristics: Dict) -> Dict[str, Any]:
-        """Create simplified workload classification when full ML analysis fails - strict .clauderc compliance"""
+        """Create simplified workload classification when full ML analysis fails - strict strict validation"""
         cpu_usage = workload_characteristics['cpu_usage_pct']
         memory_usage = workload_characteristics['memory_usage_pct']
         cpu_std = workload_characteristics['cpu_std']

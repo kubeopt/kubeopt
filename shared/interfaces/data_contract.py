@@ -1088,7 +1088,7 @@ class MetricsDataContract:
     @staticmethod
     def validate_metrics_data(metrics_data: dict) -> bool:
         """
-        Validate that metrics data contains required fields per .clauderc
+        Validate that metrics data contains required fields by design
         """
         required_fields = [
             MetricsDataContract.NODES,

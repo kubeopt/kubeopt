@@ -863,7 +863,7 @@ class MultiSubscriptionAnalysisEngine:
             
             logger.warning(f"⚠️ Enhanced ML metrics failed: {ml_metrics_error}")
             
-            # NO FALLBACK per .clauderc - fail fast
+            # NO FALLBACK by design - fail fast
             logger.error(f"❌ ML metrics collection failed: {ml_metrics_error}")
             raise ValueError(f"ML-ready metrics collection failed - cannot proceed without complete data: {ml_metrics_error}")
         
@@ -1867,7 +1867,7 @@ class MultiSubscriptionAnalysisEngine:
                 if not isinstance(workload, dict):
                     continue
                     
-                # Skip workloads without required fields per .clauderc
+                # Skip workloads without required fields by design
                 workload_name = workload.get('name')
                 namespace = workload.get('namespace')
                 

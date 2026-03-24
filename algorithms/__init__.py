@@ -5,7 +5,7 @@ AKS Cost Optimizer - Algorithms Package
 This package contains specialized cost optimization algorithms following 
 industry standards and best practices. All algorithms must:
 
-1. Follow .clauderc rules strictly (fail fast, no defaults, no fallbacks)
+1. Fail fast, no defaults, no fallbacks.
 2. Use standards from shared/standards/ directory
 3. Implement proper error handling with meaningful messages
 4. Validate all inputs explicitly

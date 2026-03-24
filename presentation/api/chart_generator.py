@@ -566,7 +566,7 @@ def _extract_cpu_workload_data(analysis_data):
     return result
 
 def _extract_hpa_efficiency(analysis_data, hpa_recommendations):
-    """Extract HPA efficiency from REAL sources ONLY - per .clauderc standards"""
+    """Extract HPA efficiency from REAL sources ONLY - by design standards"""
     hpa_efficiency = None
     
     efficiency_sources = [
@@ -578,7 +578,7 @@ def _extract_hpa_efficiency(analysis_data, hpa_recommendations):
     ]
     
     for eff_val in efficiency_sources:
-        if eff_val is not None:  # Accept any numeric value including 0 (per .clauderc - real data)
+        if eff_val is not None:  # Accept any numeric value including 0 (by design - real data)
             hpa_efficiency = ensure_float(eff_val)
             logger.info(f"✅ Found HPA efficiency: {hpa_efficiency:.1f}%")
             break

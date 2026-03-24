@@ -3,7 +3,7 @@ Performance Optimization Algorithm
 ===================================
 
 Extracted and refactored performance optimization logic from algorithmic_cost_analyzer.py
-Following .clauderc rules and using industry standards instead of hardcoded values.
+Uses industry standards instead of hardcoded values.
 
 FAIL FAST - NO SILENT FAILURES - NO DEFAULTS - NO FALLBACKS
 """
@@ -107,7 +107,7 @@ class PerformanceOptimizationAlgorithm:
             
         except Exception as e:
             self.logger.error(f"❌ Performance waste savings calculation failed: {e}")
-            # Following .clauderc - fail fast, no defaults
+            # Fail fast, no defaults
             raise ValueError(f"Performance waste savings calculation failed: {e}") from e
     
     def calculate_system_efficiency(self, avg_cpu: float, avg_memory: float) -> float:

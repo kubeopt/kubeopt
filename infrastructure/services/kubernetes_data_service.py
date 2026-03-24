@@ -3,7 +3,7 @@
 Kubernetes Data Service
 =======================
 Base service module for accessing Kubernetes data from the database.
-Follows .clauderc principles: fail fast, no silent failures, explicit parameters.
+Follows coding standards principles: fail fast, no silent failures, explicit parameters.
 
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt

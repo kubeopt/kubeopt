@@ -3,7 +3,7 @@ Workload Classification Algorithm
 =================================
 
 Extracted and refactored workload classification logic from algorithmic_cost_analyzer.py
-Following .clauderc rules and using industry standards instead of hardcoded values.
+Uses industry standards instead of hardcoded values.
 
 FAIL FAST - NO SILENT FAILURES - NO DEFAULTS - NO FALLBACKS
 """
@@ -84,7 +84,7 @@ class WorkloadClassificationAlgorithm:
             
         except Exception as e:
             self.logger.error(f"❌ Severity determination failed: {e}")
-            # Following .clauderc - fail fast, no defaults
+            # Fail fast, no defaults
             raise ValueError(f"Severity determination failed: {e}") from e
     
     def classify_workload_resource_pattern(self, cpu_usage_pct: float, memory_usage_pct: float) -> Dict:
@@ -163,5 +163,5 @@ class WorkloadClassificationAlgorithm:
             
         except Exception as e:
             self.logger.error(f"❌ Workload classification failed: {e}")
-            # Following .clauderc - fail fast, no defaults
+            # Fail fast, no defaults
             raise ValueError(f"Workload classification failed: {e}") from e

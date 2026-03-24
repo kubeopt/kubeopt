@@ -3,7 +3,7 @@ HPA Optimization Algorithm
 ==========================
 
 Extracted and refactored HPA optimization logic from algorithmic_cost_analyzer.py
-Following .clauderc rules and using industry standards instead of hardcoded values.
+Uses industry standards instead of hardcoded values.
 
 FAIL FAST - NO SILENT FAILURES - NO DEFAULTS - NO FALLBACKS
 """
@@ -165,7 +165,7 @@ class HPAOptimizationAlgorithm:
         
         except Exception as e:
             self.logger.error(f"❌ HPA efficiency calculation failed: {e}")
-            # Following .clauderc - fail fast, no defaults
+            # Fail fast, no defaults
             raise ValueError(f"HPA efficiency calculation failed: {e}") from e
     
     def _calculate_hpa_performance_score(self, cpu_usage_pct: float, memory_usage_pct: float, workload_type: str) -> float:
@@ -489,5 +489,5 @@ class HPAOptimizationAlgorithm:
             
         except Exception as e:
             self.logger.error(f"❌ HPA chart data generation failed: {e}")
-            # Following .clauderc - fail fast, no defaults
+            # Fail fast, no defaults
             raise ValueError(f"HPA chart data generation failed: {e}") from e

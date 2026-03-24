@@ -3,7 +3,7 @@
 Kubernetes Dashboard API Modules
 =================================
 Modular API handlers for Kubernetes dashboard components.
-Follows .clauderc principles: fail fast, no silent failures, explicit parameters.
+Follows coding standards principles: fail fast, no silent failures, explicit parameters.
 
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt

@@ -2,7 +2,7 @@
 Safe Parsing Utilities
 ======================
 Centralized parsing logic to handle real-world data formats safely.
-Follows .clauderc principles: fail fast, no silent failures, no defaults.
+Follows coding standards principles: fail fast, no silent failures, no defaults.
 """
 
 import re
@@ -27,7 +27,7 @@ class SafeParser:
             Integer percentage value or None if invalid
             
         Raises:
-            ValueError: If value format is invalid (per .clauderc - fail fast)
+            ValueError: If value format is invalid (by design - fail fast)
         """
         if not value or value in ['<none>', 'N/A', '-']:
             return None
@@ -57,7 +57,7 @@ class SafeParser:
             Float CPU value in cores
             
         Raises:
-            ValueError: If format is invalid (per .clauderc - fail fast)
+            ValueError: If format is invalid (by design - fail fast)
         """
         if not cpu_str or cpu_str in ['<none>', 'N/A', '-']:
             raise ValueError(f"Missing or invalid CPU value: {cpu_str}")
@@ -96,7 +96,7 @@ class SafeParser:
             Float memory value in bytes
             
         Raises:
-            ValueError: If format is invalid (per .clauderc - fail fast)
+            ValueError: If format is invalid (by design - fail fast)
         """
         if not mem_str or mem_str in ['<none>', 'N/A', '-']:
             raise ValueError(f"Missing or invalid memory value: {mem_str}")
@@ -144,7 +144,7 @@ class SafeParser:
             Value at index or None if out of bounds
             
         Raises:
-            ValueError: If array access is invalid (per .clauderc - fail fast)
+            ValueError: If array access is invalid (by design - fail fast)
         """
         if not isinstance(array, list):
             raise ValueError(f"Expected list for {field_name}, got {type(array)}")

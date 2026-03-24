@@ -3,7 +3,7 @@ Infrastructure Optimization Algorithm
 ======================================
 
 Extracted and refactored infrastructure optimization logic from algorithmic_cost_analyzer.py
-Following .clauderc rules and using industry standards instead of hardcoded values.
+Uses industry standards instead of hardcoded values.
 
 FAIL FAST - NO SILENT FAILURES - NO DEFAULTS - NO FALLBACKS
 """
@@ -105,5 +105,5 @@ class InfrastructureOptimizationAlgorithm:
             
         except Exception as e:
             self.logger.error(f"❌ Infrastructure savings calculation failed: {e}")
-            # Following .clauderc - fail fast, no defaults
+            # Fail fast, no defaults
             raise ValueError(f"Infrastructure savings calculation failed: {e}") from e

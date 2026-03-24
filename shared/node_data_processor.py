@@ -112,7 +112,7 @@ class NodeDataProcessor:
             nodepool = labels.get('agentpool', labels.get('kubernetes.azure.com/agentpool', 'default'))
             vm_size = labels.get('node.kubernetes.io/instance-type', labels.get('beta.kubernetes.io/instance-type', 'unknown'))
         
-        # Extract allocatable resources - NO DEFAULTS per .clauderc
+        # Extract allocatable resources - NO DEFAULTS by design
         if 'status' not in node or 'allocatable' not in node['status']:
             raise ValueError(f"Node {name} missing status.allocatable - required for any AKS cluster")
         

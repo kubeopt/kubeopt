@@ -3,7 +3,7 @@ Efficiency Evaluator Algorithm
 ==============================
 
 Extracted and refactored efficiency evaluator logic from algorithmic_cost_analyzer.py
-Following .clauderc rules and using industry standards instead of hardcoded values.
+Uses industry standards instead of hardcoded values.
 
 FAIL FAST - NO SILENT FAILURES - NO DEFAULTS - NO FALLBACKS
 """
@@ -133,5 +133,5 @@ class EfficiencyEvaluatorAlgorithm:
             
         except Exception as e:
             self.logger.error(f"❌ Efficiency evaluation failed: {e}")
-            # Following .clauderc - fail fast, no defaults
+            # Fail fast, no defaults
             raise ValueError(f"Efficiency evaluation failed: {e}") from e
