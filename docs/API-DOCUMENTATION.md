@@ -1,8 +1,8 @@
-# AKS Cost Optimizer - API Documentation
+# KubeOpt - API Documentation
 
-**Version:** 1.0  
-**Base URL:** `http://localhost:5000` (development) | `https://your-domain.com` (production)  
-**Authentication:** Bearer Token / Session-based  
+**Version:** 2.0
+**Base URL:** `http://localhost:5001` (development) | `https://your-domain.com` (production)
+**Authentication:** JWT Bearer Token
 
 ---
 
