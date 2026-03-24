@@ -2,6 +2,8 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11+-green.svg)](https://python.org)
+[![GitHub stars](https://img.shields.io/github/stars/kubeopt/kubeopt)](https://github.com/kubeopt/kubeopt/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/kubeopt/kubeopt)](https://github.com/kubeopt/kubeopt/network)
 
 **The Cost Engineer for Kubernetes**
 
