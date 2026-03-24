@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 
 class MetricsValidator:
-    """Validates metrics according to .clauderc standards - NO FALLBACKS"""
+    """Validates metrics according to coding standards standards - NO FALLBACKS"""
     
     @staticmethod
     def validate_utilization_metrics(cpu_usage_pct: float, memory_usage_pct: float) -> None:
@@ -325,7 +325,7 @@ class MLEnhancedHPARecommendationEngine:
     
     def _prepare_comprehensive_ml_data(self, metrics_data: Dict) -> Dict:
         """Prepare data for ML analysis with validation"""
-        # Validate required data exists - NO FALLBACKS per .clauderc
+        # Validate required data exists - NO FALLBACKS by design
         if 'nodes' not in metrics_data:
             raise ValueError("metrics_data missing required 'nodes' field")
         
@@ -342,7 +342,7 @@ class MLEnhancedHPARecommendationEngine:
             if 'memory_usage_pct' not in node:
                 raise ValueError(f"Node {i} missing 'memory_usage_pct'")
         
-        # Per .clauderc: ML engine gets transformed nodes (with cpu_usage_pct)
+        # Strict validation:
         # Original nodes only passed separately for feature extraction that needs status.allocatable
         original_nodes = metrics_data.get('original_nodes', [])
         
@@ -356,7 +356,7 @@ class MLEnhancedHPARecommendationEngine:
         return prepared_data
     
     def _validate_hpa_implementation(self, metrics_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate HPA implementation data - no fallbacks per .clauderc"""
+        """Validate HPA implementation data - no fallbacks by design"""
         if 'hpa_implementation' not in metrics_data:
             raise ValueError("hpa_implementation missing from metrics_data")
         
@@ -547,7 +547,7 @@ class MLEnhancedHPARecommendationEngine:
             key = f"{namespace}/{name}"
             
             if key not in processed_keys:
-                # Validate required fields per .clauderc standards
+                # Validate required fields by design standards
                 cpu_usage_value = hpa.get('cpu_usage_pct')
                 if cpu_usage_value is None:
                     logger.error(f"High CPU HPA {name} missing required cpu_usage_pct")
@@ -631,7 +631,7 @@ class MLEnhancedHPARecommendationEngine:
                         all_workloads.append(workload)
                         processed_keys.add(key)
         
-        # Require top_cpu_summary per .clauderc - no fallbacks
+        # Require top_cpu_summary by design - no fallbacks
         if 'top_cpu_summary' not in metrics_data:
             raise ValueError("top_cpu_summary missing from metrics_data - required field")
         
@@ -652,7 +652,7 @@ class MLEnhancedHPARecommendationEngine:
         hpa_impl = metrics_data.get('hpa_implementation', {})
         validation = hpa_impl.get('validation', {})
         
-        # Get high CPU summary for suspicious value check - per .clauderc no fallbacks
+        # Get high CPU summary for suspicious value check - by design no fallbacks
         if 'top_cpu_summary' not in metrics_data:
             raise ValueError("top_cpu_summary missing from metrics_data - required for data quality assessment")
         
@@ -829,7 +829,7 @@ class ConsistentCostAnalyzer:
         self.operation_lock = threading.Lock()
     
     def _get_standard_range(self, category: str, metric: str) -> list:
-        """Get standard range from scorer - NO DEFAULTS per .clauderc"""
+        """Get standard range from scorer - NO DEFAULTS by design"""
         try:
             result = self.scorer.get_target(metric)
             # Handle dict format from scorer
@@ -848,7 +848,7 @@ class ConsistentCostAnalyzer:
             raise ValueError(f"Failed to get required standard range for {metric}: {e}") from e
     
     def _get_standard_value(self, category: str, metric: str) -> any:
-        """Get standard value from scorer - NO DEFAULTS per .clauderc"""
+        """Get standard value from scorer - NO DEFAULTS by design"""
         try:
             return self.scorer.get_target(metric)
         except Exception as e:
@@ -1058,7 +1058,7 @@ class ConsistentCostAnalyzer:
                 total_hpas = hpa_implementation.get('total_hpas', 0)
                 logger.info(f"Preserved HPA implementation data with {total_hpas} HPAs")
             
-            # Preserve top_cpu_summary data (standardized field name) - per .clauderc
+            # Preserve top_cpu_summary data (standardized field name) - by design
             if 'top_cpu_summary' not in metrics_data:
                 raise ValueError("top_cpu_summary missing from metrics_data - required for analysis results")
             

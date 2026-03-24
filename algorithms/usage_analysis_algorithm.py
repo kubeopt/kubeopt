@@ -3,7 +3,7 @@ Usage Analysis Algorithm
 ========================
 
 Extracted and refactored current usage analysis logic from algorithmic_cost_analyzer.py
-Following .clauderc rules and using industry standards instead of hardcoded values.
+Uses industry standards instead of hardcoded values.
 
 FAIL FAST - NO SILENT FAILURES - NO DEFAULTS - NO FALLBACKS
 """
@@ -164,7 +164,7 @@ class UsageAnalysisAlgorithm:
                 avg_cpu, avg_memory
             )
             
-            # Extract high CPU workloads - REQUIRED per .clauderc
+            # Extract high CPU workloads - REQUIRED by design
             if 'top_cpu_summary' not in metrics_data:
                 raise ValueError("top_cpu_summary missing from metrics_data - required for usage analysis")
             
@@ -190,7 +190,7 @@ class UsageAnalysisAlgorithm:
             
         except Exception as e:
             self.logger.error(f"❌ Current usage analysis failed: {e}")
-            # Following .clauderc - fail fast, no defaults
+            # Fail fast, no defaults
             raise ValueError(f"Current usage analysis failed: {e}") from e
     
     def _calculate_cpu_optimization_potential(self, avg_cpu: float, cpu_std: float) -> float:

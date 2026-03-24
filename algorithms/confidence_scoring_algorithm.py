@@ -3,7 +3,7 @@ Confidence Scoring Algorithm
 ============================
 
 Extracted and refactored confidence scoring logic from algorithmic_cost_analyzer.py
-Following .clauderc rules and using industry standards instead of hardcoded values.
+Uses industry standards instead of hardcoded values.
 
 FAIL FAST - NO SILENT FAILURES - NO DEFAULTS - NO FALLBACKS
 """
@@ -95,7 +95,7 @@ class ConfidenceScoringAlgorithm:
             
         except Exception as e:
             self.logger.error(f"❌ Confidence scoring failed: {e}")
-            # Following .clauderc - fail fast, no defaults
+            # Fail fast, no defaults
             raise ValueError(f"Confidence scoring failed: {e}") from e
     
     def _calculate_data_quality_score(self, costs: Dict, usage: Dict) -> float:

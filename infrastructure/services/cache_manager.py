@@ -334,7 +334,7 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
         logger.info(f"🔍 CACHE SAVE FALLBACK: Calculated memory gap: {memory_utilization}% util -> {memory_gap}% gap from {memory_optimal}% optimal")
 
     logger.info(f"🔍 CACHE SAVE: About to cache CPU gap: {cpu_gap}, Memory gap: {memory_gap}")
-    # Validate breakdown data exists (per .clauderc: log but don't fail - data will be generated)
+    # Validate breakdown data exists (by design: log but don't fail - data will be generated)
     if 'build_quality_breakdown' not in complete_analysis_data:
         logger.warning("CACHE SAVE: build_quality_breakdown missing from analysis data")
     if 'cost_excellence_breakdown' not in complete_analysis_data:
@@ -578,7 +578,7 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str, cpu_gap: 
         'cluster_name': str(complete_analysis_data.get('cluster_name', '')),
         'analysis_timestamp': complete_analysis_data.get('analysis_timestamp', datetime.now().isoformat()),
         
-        # CRITICAL: Preserve top_cpu_summary for UI compatibility - NO DEFAULTS per .clauderc
+        # CRITICAL: Preserve top_cpu_summary for UI compatibility - NO DEFAULTS by design
         'top_cpu_summary': complete_analysis_data['top_cpu_summary'],  # Will fail if missing - that's correct
         
         # Optional components (preserve everything)

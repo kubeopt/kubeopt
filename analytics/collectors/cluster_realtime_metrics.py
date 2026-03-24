@@ -10,7 +10,7 @@ Project: KubeOpt - Kubernetes Cost Optimizer
 
 Key Improvements:
 - Consistent variable naming throughout
-- No fallback/default values per .clauderc
+- No fallback/default values by design
 - All original calculations preserved
 - Enhanced error handling and validation
 - Uses standards from configuration
@@ -72,7 +72,7 @@ class KubernetesParsingUtils:
         """Parse a single CPU value to cores."""
         cpu_str = cpu_str.strip()
         
-        # Per .clauderc: NO FALLBACKS - validate real metrics data exists
+        # No fallbacks
         if cpu_str in ['<none>', '<unknown>', '', 'null']:
             raise ValueError(f"Invalid CPU metrics data '{cpu_str}' - kubectl metrics collection failed")
         
@@ -110,7 +110,7 @@ class KubernetesParsingUtils:
         """Parse a single memory value to GB."""
         memory_str = memory_str.strip()
         
-        # Per .clauderc: NO FALLBACKS
+        # No fallbacks
         if memory_str in ['<none>', '<unknown>', '', 'null']:
             raise ValueError(f"Invalid memory metrics data '{memory_str}' - kubectl metrics collection failed")
         
@@ -173,7 +173,7 @@ class ClusterMetricsFetcher:
         self.memory_threshold_critical = SystemPerformanceStandards.MEMORY_UTILIZATION_CRITICAL
         
         # HPA thresholds (using 150% as the high CPU threshold for HPAs)
-        # Load HPA threshold from standards file - no static values per .clauderc
+        # Load HPA threshold from standards file - no static values by design
         try:
             from shared.standards.standards_loader import get_standards_loader
             loader = get_standards_loader(cloud_provider)
@@ -237,7 +237,7 @@ class ClusterMetricsFetcher:
             'cluster_name': self.cluster_name,
             'subscription_id': self.subscription_id,
             
-            # Node metrics - strict .clauderc compliance
+            # Node metrics - strict strict validation
             'nodes': node_metrics['nodes'] if 'nodes' in node_metrics else [],
             'original_nodes': original_nodes,  # For ML pipeline that needs status.allocatable
             'node_count': len(node_metrics['nodes']) if 'nodes' in node_metrics else 0,
@@ -250,7 +250,7 @@ class ClusterMetricsFetcher:
             'max_cpu_utilization': node_metrics.get('max_cpu_utilization', 0),
             'max_memory_utilization': node_metrics.get('max_memory_utilization', 0),
             
-            # Workload metrics - strict .clauderc compliance  
+            # Workload metrics - strict strict validation  
             'all_workloads': workload_metrics['all_workloads'] if 'all_workloads' in workload_metrics else [],
             'total_workloads': workload_metrics['total_workloads'] if 'total_workloads' in workload_metrics else 0,
             'high_cpu_count': workload_metrics.get('high_cpu_count', 0),
@@ -452,7 +452,7 @@ class ClusterMetricsFetcher:
             
         except Exception as e:
             logger.error(f"Failed to get HPA metrics: {e}")
-            # Return empty structure per .clauderc (no fallbacks)
+            # Return empty structure by design (no fallbacks)
             raise ValueError(f"HPA metrics collection failed: {e}")
     
     def get_hpa_implementation_status(self) -> Dict[str, Any]:
@@ -499,7 +499,7 @@ class ClusterMetricsFetcher:
                     'confidence': 'high'
                 }
         
-        # Extract HPAs from JSON structure - strict .clauderc compliance
+        # Extract HPAs from JSON structure - strict strict validation
         if isinstance(hpa_data, dict) and 'items' in hpa_data:
             hpas_list = hpa_data['items']
         elif isinstance(hpa_data, list):
@@ -638,7 +638,7 @@ class ClusterMetricsFetcher:
                     'cpu_statistics': {'avg_cpu': 0, 'max_cpu': 0, 'min_cpu': 0}
                 }
         
-        # Extract HPAs from JSON structure - strict .clauderc compliance
+        # Extract HPAs from JSON structure - strict strict validation
         if isinstance(hpa_status_raw, dict) and 'items' in hpa_status_raw:
             hpa_status = hpa_status_raw['items']
             logger.info(f"🔍 Using items structure with {len(hpa_status)} HPAs")
@@ -685,7 +685,7 @@ class ClusterMetricsFetcher:
                             logger.info(f"✅ HPA {hpa_name}: CPU utilization = {util_pct}%")
                         else:
                             logger.warning(f"⚠️ HPA {hpa_name}: No utilization value found in {current_util}")
-                            # Per .clauderc - no defaults, continue to next metric
+                            # Per coding standards - no defaults, continue to next metric
                             continue
                         
                         hpa_name = hpa.get('metadata', {}).get('name', 'unknown')
@@ -741,7 +741,7 @@ class ClusterMetricsFetcher:
         all_workloads = []
         high_cpu_workloads = []
         
-        # Get deployments - strict .clauderc compliance
+        # Get deployments - strict strict validation
         deployments_raw = self.cache.get('deployments')
         if not deployments_raw:
             raise ValueError("No deployments data available from cache")
@@ -754,7 +754,7 @@ class ClusterMetricsFetcher:
         else:
             raise ValueError(f"Unexpected deployments data format: {type(deployments_raw)}")
         
-        # Get pods for resource usage - strict .clauderc compliance
+        # Get pods for resource usage - strict strict validation
         pods_raw = self.cache.get('pods')
         if not pods_raw:
             raise ValueError("No pods data available from cache")
@@ -862,7 +862,7 @@ class ClusterMetricsFetcher:
                     total_memory_request += memory_request
                     
                     # Estimate usage (would come from metrics-server in production)
-                    # Use standards file values per .clauderc - no static values
+                    # Use standards file values by design - no static values
                     total_cpu_usage += cpu_request * CostOptimizationStandards.CPU_USAGE_ESTIMATION_FACTOR
                     total_memory_usage += memory_request * CostOptimizationStandards.MEMORY_USAGE_ESTIMATION_FACTOR
                 
@@ -1117,7 +1117,7 @@ class ClusterMetricsFetcher:
         return None
     
     def _validate_ml_metrics(self, metrics: Dict):
-        """Validate ML metrics structure per .clauderc."""
+        """Validate ML metrics structure by design."""
         required_fields = ['nodes', 'all_workloads', 'top_cpu_summary', 'hpa_implementation']
         
         for field in required_fields:

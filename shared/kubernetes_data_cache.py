@@ -160,10 +160,10 @@ class KubernetesDataCache:
         elif self.cloud_provider != 'azure':
             logger.info(f"{self.cluster_name}: Skipping cloud metric collector ({self.cloud_provider} cluster)")
         
-        # NO FALLBACK COLLECTORS - violates .clauderc production standards
+        # NO FALLBACK COLLECTORS - violates coding standards production standards
         # Fallbacks hide issues and provide incomplete data
         # Must fix root cause: proper pagination/batching for large outputs
-        self.limited_collector = None  # Explicitly disabled per .clauderc
+        self.limited_collector = None  # Explicitly disabled by design
         
         # CONDITIONAL: Only fetch data if explicitly requested (e.g., during analysis)
         if auto_fetch:
@@ -678,7 +678,7 @@ class KubernetesDataCache:
                         # Convert Azure node entries to kubectl-like structure
                         kubectl_nodes = []
                         for node in result['nodes']:
-                            # Validate required fields per .clauderc
+                            # Validate required fields by design
                             if 'cpu' not in node or 'memory_gb' not in node:
                                 raise ValueError(f"Node {node.get('name')} missing CPU or memory information")
                             
@@ -926,7 +926,7 @@ class KubernetesDataCache:
                     
                     if critical_failures:
                         logger.error(f"❌ {self.cluster_name}: {len(critical_failures)} critical batches failed after retry: {list(critical_failures.keys())}")
-                        # Fail explicitly per .clauderc for critical data only
+                        # Fail explicitly by design for critical data only
                         raise RuntimeError(f"Failed to fetch critical Kubernetes data: {list(critical_failures.keys())}")
                     else:
                         logger.warning(f"{self.cluster_name}: {len(still_failed)} non-critical batches failed (metrics-server issues) - analysis will continue")
@@ -1682,7 +1682,7 @@ class KubernetesDataCache:
             'pod_usage': self.get('pod_usage') or "",  # Text - kubectl top pods 
             'metrics_pods': self.get('metrics_pods') or "",  # Text - kubectl top pods --all-namespaces
             'metrics_nodes': self.get('metrics_nodes') or "",  # Text - kubectl top nodes
-            'nodes': self.get('nodes'),  # JSON - nodes data (no fallback per .clauderc)
+            'nodes': self.get('nodes'),  # JSON - nodes data (no fallback by design)
             'nodes_text': self.get('nodes_text') or "",  # Text fallback
             'pod_resources': self.get('pod_resources') or "",  # Text - custom columns
             'pods_basic': self.get('pods_basic') or "",  # Text - basic pod list

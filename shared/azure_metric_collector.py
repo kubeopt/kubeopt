@@ -168,7 +168,7 @@ class AzureMetricCollector:
                             if node_metrics["memory_available_bytes"]:
                                 node_metrics["memory_percent"] = ((estimated_total - node_metrics["memory_available_bytes"]) / estimated_total) * 100
                         except ValueError:
-                            # Per .clauderc: No fallback values - require real data
+                            # Strict validation:
                             logger.error(f"Cannot determine memory capacity for VM size {vm_size}")
                             raise ValueError(f"Unknown VM size {vm_size} - cannot determine memory capacity")
                     
@@ -267,7 +267,7 @@ class AzureMetricCollector:
                 memory_gb = cpu_count * 4
             return {"cpu": cpu_count, "memory_gb": memory_gb}
         
-        # No fallback allowed per .clauderc
+        # No fallback allowed by design
         raise ValueError(f"Unknown VM size: {vm_size}. Please add it to the vm_sizes mapping or ensure VM size name follows Azure naming convention (e.g., Standard_D4s_v5)")
     
     def get_node_info(self) -> Dict[str, Any]:
@@ -390,7 +390,7 @@ class AzureMetricCollector:
             elif hasattr(cluster, 'private_fqdn') and cluster.private_fqdn:
                 api_server_address = f"https://{cluster.private_fqdn}:443"
             else:
-                # Per .clauderc - explicit error instead of None
+                # Per coding standards - explicit error instead of None
                 logger.warning(f"Cluster {self.cluster_name} has no public or private FQDN")
                 api_server_address = f"https://{self.cluster_name}.{cluster.location}.azmk8s.io:443"  # Standard format
             
@@ -402,7 +402,7 @@ class AzureMetricCollector:
             k8s_version = cluster.current_kubernetes_version or cluster.kubernetes_version
             
             if not k8s_version:
-                # NO DEFAULTS per .clauderc - raise error
+                # NO DEFAULTS by design - raise error
                 raise ValueError(f"No Kubernetes version found for cluster {self.cluster_name}")
             
             logger.info(f"✅ Retrieved Kubernetes version for {self.cluster_name}: {k8s_version}")

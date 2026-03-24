@@ -3,7 +3,7 @@ Right-sizing Optimization Algorithm
 ===================================
 
 Extracted and refactored right-sizing optimization logic from algorithmic_cost_analyzer.py
-Following .clauderc rules and using industry standards instead of hardcoded values.
+Uses industry standards instead of hardcoded values.
 
 FAIL FAST - NO SILENT FAILURES - NO DEFAULTS - NO FALLBACKS
 """
@@ -117,7 +117,7 @@ class RightSizingOptimizationAlgorithm:
             
         except Exception as e:
             self.logger.error(f"❌ Right-sizing savings calculation failed: {e}")
-            # Following .clauderc - fail fast, no defaults
+            # Fail fast, no defaults
             raise ValueError(f"Right-sizing savings calculation failed: {e}") from e
     
     def calculate_cpu_efficiency(self, usage: Dict) -> float:

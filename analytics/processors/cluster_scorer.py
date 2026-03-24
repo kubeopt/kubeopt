@@ -140,7 +140,7 @@ class ClusterScorer:
         if 'targets' in self.cfg and target_name in self.cfg['targets']:
             return self.cfg['targets'][target_name]
         
-        # If not found, raise error per .clauderc
+        # If not found, raise error by design
         raise ValueError(f"Target '{target_name}' not found in configuration")
 
     @staticmethod
@@ -191,7 +191,7 @@ class ClusterScorer:
             Mix = cfg["mix"]
 
             # === UTILIZATION EFFICIENCY (35%) ===
-            # Per .clauderc: No defaults - require all metrics
+            # Strict validation:
             if 'cpu_alloc' not in metrics or 'mem_alloc' not in metrics:
                 raise ValueError("Required metrics cpu_alloc and mem_alloc missing")
             if 'cpu_p95' not in metrics or 'mem_p95' not in metrics:
@@ -206,7 +206,7 @@ class ClusterScorer:
             mem_eff = band_score(mem_p95 / mem_alloc, *Tg["mem_warm_band"])
             
             # Request discipline
-            # Per .clauderc: Validate required fields exist
+            # Strict validation:
             if 'sum_req' not in metrics:
                 raise ValueError("Required metric sum_req missing")
             sum_req = metrics['sum_req']
@@ -229,7 +229,7 @@ class ClusterScorer:
                   Mix["UE"]["request_discipline"] * request_discipline + Mix["UE"]["binpack"] * binpack)
 
             # === AUTOSCALING EFFICACY (15%) ===
-            # Per .clauderc: Validate HPA metrics
+            # Strict validation:
             if 'hpa_count' not in metrics:
                 raise ValueError("Required metric hpa_count missing")
             hpa_count = metrics['hpa_count']
@@ -250,7 +250,7 @@ class ClusterScorer:
 
             # === COST EFFICIENCY (30%) ===
             ref_vcpu_price = metrics.get("ref_vcpu_price", Tg["ref_vcpu_price"])
-            # Per .clauderc: Validate cost metrics
+            # Strict validation:
             if 'cost_nodes' not in metrics:
                 raise ValueError("Required metric cost_nodes missing")
             if 'used_vcpu_hours' not in metrics:
@@ -260,13 +260,13 @@ class ClusterScorer:
             compute_unit_cost = safe_divide(cost_nodes, used_vcpu_hours, 0.0)
             cpu_cost_score = safe_divide(ref_vcpu_price, compute_unit_cost, 0.0) if ref_vcpu_price > 0 and compute_unit_cost > 0 else 0.0
             
-            # Per .clauderc: Validate required metric
+            # Strict validation:
             if 'idle_compute_cost_pct' not in metrics:
                 raise ValueError("Required metric idle_compute_cost_pct missing")
             idle_compute_cost_pct = metrics['idle_compute_cost_pct']
             idle_score = 1 - clamp(idle_compute_cost_pct / Tg["idle_cost_pct_ok"], 0, 1)
             
-            # Per .clauderc: Validate storage metrics
+            # Strict validation:
             if 'cost_storage' not in metrics:
                 raise ValueError("Required metric cost_storage missing")
             cost_storage = max(1e-9, metrics['cost_storage'])
@@ -518,7 +518,7 @@ class ClusterScorer:
         
         unified_metrics = {
             # CPU and memory metrics
-            # Per .clauderc: No defaults, require data
+            # Strict validation:
             'cpu_p95': current_usage.get('avg_cpu_utilization'),  # Will be None if missing
             'mem_p95': current_usage.get('avg_memory_utilization'),  # Will be None if missing
             'cpu_alloc': 100,  # Normalized
@@ -1820,7 +1820,7 @@ class ClusterScorer:
             
             return "Improved performance and efficiency"
         except Exception as e:
-            # Per .clauderc: No silent failures
+            # Strict validation:
             raise ValueError(f"Failed to get next CPU optimization action: {e}")
     
     def _estimate_memory_optimization_impact(self, metrics: Dict[str, Any], current_mem_util: float, mem_optimal: List[float]) -> str:
@@ -1838,7 +1838,7 @@ class ClusterScorer:
             
             return "Better resource utilization"
         except Exception as e:
-            # Per .clauderc: No silent failures
+            # Strict validation:
             raise ValueError(f"Failed to get next memory optimization action: {e}")
     
     def _estimate_hpa_savings_impact(self, metrics: Dict[str, Any], missing_hpas: int, total_workloads: int) -> str:
@@ -1853,7 +1853,7 @@ class ClusterScorer:
             
             return f"Auto-scaling for {missing_hpas} workloads"
         except Exception as e:
-            # Per .clauderc: No silent failures
+            # Strict validation:
             raise ValueError(f"Failed to get next HPA action: {e}")
 
 
