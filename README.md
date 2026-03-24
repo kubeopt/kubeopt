@@ -1,5 +1,8 @@
 # KubeOpt
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11+-green.svg)](https://python.org)
+
 **The Cost Engineer for Kubernetes**
 
 KubeOpt analyzes your Kubernetes clusters, identifies cost optimization opportunities, and generates actionable implementation plans with copy-paste kubectl commands.
@@ -169,9 +172,9 @@ kubeopt/
 
 ## License
 
-PRO and ENTERPRISE licenses are available at [kubeopt.com](https://kubeopt.com).
+Apache License 2.0. See [LICENSE](LICENSE).
 
-The core analysis engine is open source. Plan generation and AI chat features require a paid license.
+The core analysis engine is open source and free to use. Plan generation and AI chat are hosted services that require a [PRO or ENTERPRISE license](https://kubeopt.com/pricing).
 
 ## Contributing
 
