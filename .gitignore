@@ -134,3 +134,4 @@ Thumbs.db
 infrastructure/persistence/database/clusters.db-shm
 infrastructure/persistence/database/clusters.db-wal
 .venv/*
+cookies.txt
