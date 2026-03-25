@@ -4,7 +4,7 @@
 
 If you discover a security vulnerability, please report it privately:
 
-**Email**: security@kubeopt.com
+**Email**: support@kubeopt.com
 
 Do not open public GitHub issues for security vulnerabilities.
 

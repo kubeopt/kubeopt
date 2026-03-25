@@ -184,7 +184,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Security
 
-To report security vulnerabilities, email security@kubeopt.com. See [SECURITY.md](SECURITY.md).
+To report security vulnerabilities, email support@kubeopt.com. See [SECURITY.md](SECURITY.md).
 
 ---
 

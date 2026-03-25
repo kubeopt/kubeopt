@@ -83,7 +83,7 @@ Do not include `Co-Authored-By` lines or AI tool attributions.
 
 ## Security Vulnerabilities
 
-Report security issues privately to security@kubeopt.com. Do not open public issues for security bugs. See [SECURITY.md](SECURITY.md).
+Report security issues privately to support@kubeopt.com. Do not open public issues for security bugs. See [SECURITY.md](SECURITY.md).
 
 ## License
 
