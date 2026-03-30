@@ -159,13 +159,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
+    _is_prod = os.getenv("ENV", "development") == "production"
+
     app = FastAPI(
         title="KubeOpt",
         description="Multi-Cloud Kubernetes Cost Optimizer",
         version="3.0.0",
         lifespan=lifespan,
-        docs_url="/docs",
-        redoc_url="/redoc",
+        docs_url=None if _is_prod else "/docs",
+        redoc_url=None if _is_prod else "/redoc",
+        openapi_url=None if _is_prod else "/openapi.json",
     )
 
     # Security middleware (outermost — runs first on response)

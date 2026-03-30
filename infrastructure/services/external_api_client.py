@@ -81,7 +81,7 @@ class ExternalAPIClient:
             payload = {
                 'iss': 'kubeopt',
                 'sub': 'api_client',
-                'aud': ['license-manager', 'plan-generation'],
+                'aud': ['license-manager', 'plan-generation', 'kubeopt-ai-service'],
                 'exp': datetime.utcnow() + timedelta(minutes=self.jwt_expiry_minutes),
                 'iat': datetime.utcnow(),
                 'jti': secrets.token_urlsafe(16),

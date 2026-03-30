@@ -75,7 +75,7 @@ def create_service_jwt_token(license_key: str = "") -> str:
     payload = {
         'iss': 'kubeopt',
         'sub': 'api_client',
-        'aud': ['plan-generation', 'license-manager'],
+        'aud': ['plan-generation', 'license-manager', 'kubeopt-ai-service'],
         'exp': datetime.utcnow() + timedelta(minutes=60),
         'iat': datetime.utcnow(),
         'jti': _secrets.token_urlsafe(16),

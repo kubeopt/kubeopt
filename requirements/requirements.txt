@@ -1,7 +1,7 @@
 # Core Web Framework
 Flask==2.3.3
 Flask-CORS==4.0.0
-Werkzeug==2.3.7
+Werkzeug==3.1.3
 
 # Essential Azure SDKs (only what you actually use)
 azure-identity==1.25.0
@@ -41,14 +41,14 @@ scikit-learn>=1.3.2,<2.0
 joblib>=1.3.2
 
 # HTTP & Utilities
-requests==2.31.0
-urllib3==2.0.4
+requests==2.32.3
+urllib3==2.2.3
 python-dotenv==1.0.0
 pyyaml==6.0.1
 
 # Security
-cryptography==41.0.3
-PyJWT==2.8.0
+cryptography==43.0.3
+PyJWT==2.10.1
 bcrypt>=4.0.0
 
 # Database
@@ -57,13 +57,13 @@ sqlalchemy==2.0.19
 # Basic utilities
 python-dateutil==2.8.2
 pytz==2023.3
-pydantic==2.0.3
+pydantic==2.10.4
 
 # Template engine (for web UI)
-jinja2==3.1.2
+jinja2==3.1.5
 
 # Production WSGI Server (for Railway deployment)
-gunicorn==21.2.0
+gunicorn==23.0.0
 
 # FastAPI (v3 — runs alongside Flask during migration)
 fastapi>=0.115.0

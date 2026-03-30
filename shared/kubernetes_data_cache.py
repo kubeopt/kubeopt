@@ -473,7 +473,7 @@ class KubernetesDataCache:
             "api_resources": "kubectl api-resources --output=wide",  # For config fetcher
             "api_versions": "kubectl api-versions",  # For config fetcher
             "cluster_info": "kubectl cluster-info",  # For ML framework health check
-            "config_view": "kubectl config view --output=json",  # For config fetcher
+            "config_current_context": "kubectl config current-context",  # Safe: only returns context name
             
             # === HPA & AUTOSCALING ===
             # Optimized: Get HPA current metrics only (70% reduction)

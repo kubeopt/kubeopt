@@ -6,6 +6,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends
 
 from presentation.api.v2.dependencies.services import get_provider_registry, get_cloud_provider
+from presentation.api.v2.dependencies.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ async def health_check():
 
 @router.get("/api/system_status")
 async def system_status(
+    user=Depends(get_current_user),
     registry=Depends(get_provider_registry),
     cloud_provider: str = Depends(get_cloud_provider),
 ):

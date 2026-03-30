@@ -20,7 +20,7 @@ _CONFIG_DIR = Path(__file__).resolve().parents[4] / "config"
 
 
 @router.get("/environments")
-async def get_environments():
+async def get_environments(user: Dict[str, Any] = Depends(get_current_user)):
     """Get customer-configurable environments."""
     config_path = _CONFIG_DIR / "environments.json"
     if not config_path.exists():
@@ -84,6 +84,7 @@ async def update_environments(
 async def project_controls(
     cluster_id: str = Query(None),
     request: Request = None,
+    user: Dict[str, Any] = Depends(get_current_user),
     cluster_mgr=Depends(get_cluster_manager),
     analysis_results: Dict[str, Any] = Depends(get_analysis_results),
 ):

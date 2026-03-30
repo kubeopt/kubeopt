@@ -4,12 +4,21 @@ import json
 import logging
 import os
 import subprocess
+import shlex
+import re
 from typing import Optional
 
 from infrastructure.cloud_providers.base import KubernetesCommandExecutor
 from infrastructure.cloud_providers.types import ClusterIdentifier
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_shell_input(value: str, field_name: str) -> str:
+    """Reject values containing shell metacharacters."""
+    if re.search(r'[;|&$`><\n]', value):
+        raise ValueError(f"Invalid characters in {field_name}")
+    return value
 
 # Ensure gke-gcloud-auth-plugin is on PATH for kubectl
 _GCLOUD_SDK_PATHS = [
@@ -55,14 +64,20 @@ class GCPKubernetesExecutor(KubernetesCommandExecutor):
             sa_key = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '')
             if sa_key and os.path.exists(sa_key):
                 activate = subprocess.run(
-                    f"gcloud auth activate-service-account --key-file={sa_key} --quiet",
-                    shell=True, capture_output=True, text=True, timeout=15
+                    ["gcloud", "auth", "activate-service-account",
+                     f"--key-file={sa_key}", "--quiet"],
+                    capture_output=True, text=True, timeout=15
                 )
                 if activate.returncode != 0:
                     logger.warning(f"gcloud activate-service-account failed: {activate.stderr[:200]}")
 
-            cmd = f"gcloud container clusters get-credentials {cluster.cluster_name} --zone {location} --project {project} --quiet"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+            _validate_shell_input(cluster.cluster_name, "cluster_name")
+            _validate_shell_input(location, "location")
+            _validate_shell_input(project, "project")
+            cmd = ["gcloud", "container", "clusters", "get-credentials",
+                   cluster.cluster_name, "--zone", location,
+                   "--project", project, "--quiet"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             if result.returncode == 0:
                 GCPKubernetesExecutor._kubeconfig_setup.add(cache_key)
                 logger.info(f"GKE kubeconfig configured for {cluster.cluster_name} in {location}")
@@ -91,7 +106,7 @@ class GCPKubernetesExecutor(KubernetesCommandExecutor):
             logger.debug(f"GKE kubectl: {full_command[:100]}...")
 
             result = subprocess.run(
-                full_command, shell=True, capture_output=True, text=True, timeout=timeout
+                shlex.split(full_command), capture_output=True, text=True, timeout=timeout
             )
 
             if result.returncode == 0:

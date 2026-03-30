@@ -41,23 +41,21 @@ class AuthManager:
         self._ensure_default_credentials()
     
     def _hash_password(self, password: str) -> str:
-        """Hash password using bcrypt (falls back to SHA-256 if bcrypt unavailable)."""
-        if BCRYPT_AVAILABLE:
-            return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-        # Legacy fallback
-        salt = b'kubeopt_aks_optimizer_2024'
-        return hashlib.sha256(salt + password.encode()).hexdigest()
+        """Hash password using bcrypt."""
+        if not BCRYPT_AVAILABLE:
+            raise RuntimeError("bcrypt package is required. Install with: pip install bcrypt")
+        return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     def _verify_password(self, password: str, stored_hash: str) -> bool:
-        """Verify password against stored hash (supports both bcrypt and legacy SHA-256)."""
+        """Verify password against stored hash."""
         if stored_hash.startswith('$2b$') or stored_hash.startswith('$2a$'):
             if not BCRYPT_AVAILABLE:
                 logger.error("Stored hash is bcrypt but bcrypt package not installed")
                 return False
             return bcrypt.checkpw(password.encode(), stored_hash.encode())
-        # Legacy SHA-256 check
-        salt = b'kubeopt_aks_optimizer_2024'
-        return hashlib.sha256(salt + password.encode()).hexdigest() == stored_hash
+        # TODO: migrate legacy SHA-256 hashes -- re-hash on next login
+        logger.warning("Legacy SHA-256 hash detected. User must reset password.")
+        return False
 
     def _upgrade_password_hash(self, username: str, password: str):
         """Auto-upgrade a legacy SHA-256 hash to bcrypt on successful login."""

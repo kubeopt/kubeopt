@@ -8,6 +8,8 @@ Executes EKS SDK commands (describe-cluster, list-nodegroups) via boto3.
 
 import json
 import logging
+import re
+import shlex
 import subprocess
 from typing import Optional
 
@@ -42,8 +44,7 @@ class AWSKubernetesExecutor(KubernetesCommandExecutor):
     ) -> Optional[str]:
         try:
             result = subprocess.run(
-                command,
-                shell=True,
+                shlex.split(command),
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -104,9 +105,15 @@ class AWSKubernetesExecutor(KubernetesCommandExecutor):
         try:
             result = self.execute_kubectl(
                 cluster,
-                "kubectl version --client=false --short 2>/dev/null || kubectl version",
+                "kubectl version --client=false --short",
                 timeout=30,
             )
+            if result is None or 'Server Version' not in (result or ''):
+                result = self.execute_kubectl(
+                    cluster,
+                    "kubectl version",
+                    timeout=30,
+                )
             return result is not None and 'Server Version' in (result or '')
         except Exception as e:
             logger.warning(f"Connectivity test failed for {cluster.cluster_name}: {e}")
