@@ -58,9 +58,7 @@ jobs:
       uses: trufflesecurity/trufflehog@main
       with:
         path: ./
-        base: main
-        head: HEAD
-        extra_args: --debug --only-verified
+        extra_args: --only-verified
     
     # Python security analysis
     - name: Run Bandit Security Analysis
