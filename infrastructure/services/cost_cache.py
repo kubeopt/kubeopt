@@ -32,7 +32,7 @@ class CostCache:
     def _make_key(self, cluster_id: str, subscription_id: str, date_range: str = None) -> str:
         """Make cache key from cluster info"""
         key_data = f"{cluster_id}|{subscription_id}|{date_range or 'current'}"
-        return hashlib.md5(key_data.encode()).hexdigest()[:12]
+        return hashlib.md5(key_data.encode(), usedforsecurity=False).hexdigest()[:12]
     
     def get(self, cluster_id: str, subscription_id: str, date_range: str = None) -> Optional[Dict[str, Any]]:
         """Get from cache if not expired"""
