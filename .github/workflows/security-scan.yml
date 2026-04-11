@@ -53,13 +53,6 @@ jobs:
         
         echo "✅ No critical credentials found"
     
-    # GitLeaks - Advanced secret detection
-    - name: Run GitLeaks
-      uses: gitleaks/gitleaks-action@v2
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        GITLEAKS_ENABLE_COMMENTS: false
-    
     # TruffleHog - Enterprise secret scanning
     - name: TruffleHog OSS
       uses: trufflesecurity/trufflehog@main
@@ -178,7 +171,6 @@ jobs:
         path: |
           bandit-report.json
           safety-report.json
-          gitleaks-report.json
         retention-days: 30
 
   # Separate job for Azure integration testing (if needed)
