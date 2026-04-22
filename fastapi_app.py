@@ -133,7 +133,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        if not path.startswith("/api/") or path == "/api/health":
+        if (not path.startswith("/api/") and not path.startswith("/badge/")) or path == "/api/health":
             return await call_next(request)
 
         client_ip = request.client.host if request.client else "unknown"
@@ -201,7 +201,7 @@ def create_app() -> FastAPI:
     from presentation.api.v2.routers import (
         health, auth, clusters, analysis, plans,
         kubernetes, settings, subscriptions, scheduler, alerts,
-        project_controls, legacy, ai,
+        project_controls, legacy, ai, badge,
     )
 
     app.include_router(health.router)
@@ -218,6 +218,7 @@ def create_app() -> FastAPI:
     app.include_router(project_controls.router)
     app.include_router(legacy.router)
     app.include_router(ai.router)
+    app.include_router(badge.router)
 
     # Serve React SPA static files (only if frontend/dist exists)
     frontend_dist = project_root / "frontend" / "dist"

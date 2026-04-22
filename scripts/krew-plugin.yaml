@@ -1,0 +1,101 @@
+apiVersion: krew.googlecontainertools.github.com/v1alpha2
+kind: Plugin
+metadata:
+  name: kubeopt
+spec:
+  version: v0.1.0
+  homepage: https://github.com/kubeopt/kubeopt
+  shortDescription: "Kubernetes cost optimization — find savings opportunities"
+  description: |
+    KubeOpt analyzes your Kubernetes clusters across AKS, EKS, and GKE,
+    identifies cost optimization opportunities, and surfaces actionable
+    recommendations with estimated savings.
+
+    The plugin is a thin shell wrapper around the KubeOpt CLI (cli.py) and
+    requires a running KubeOpt server reachable from your workstation.
+
+    Usage:
+      kubectl kubeopt scan                          # scan all clusters
+      kubectl kubeopt scan --cluster <id>           # scan one cluster
+      kubectl kubeopt scan --top <n>                # top N recommendations
+      kubectl kubeopt scan --json                   # machine-readable output
+      kubectl kubeopt version                       # print plugin version
+
+  caveats: |
+    * Python 3.8+ must be installed on your system.
+    * Set $KUBEOPT_HOME to the directory where cli.py lives, or install
+      via the provided install-kubectl-plugin.sh script which places
+      kubectl-kubeopt on your $PATH alongside a KUBEOPT_HOME pointer.
+    * A running KubeOpt server is required for scan commands.
+
+  platforms:
+  # -------------------------------------------------------------------------
+  # macOS — amd64 (Intel)
+  # -------------------------------------------------------------------------
+  - selector:
+      matchLabels:
+        os: darwin
+        arch: amd64
+    uri: https://github.com/kubeopt/kubeopt/releases/download/v0.1.0/kubectl-kubeopt-darwin-amd64.tar.gz
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    bin: kubectl-kubeopt
+    files:
+    - from: kubectl-kubeopt
+      to: kubectl-kubeopt
+
+  # -------------------------------------------------------------------------
+  # macOS — arm64 (Apple Silicon)
+  # -------------------------------------------------------------------------
+  - selector:
+      matchLabels:
+        os: darwin
+        arch: arm64
+    uri: https://github.com/kubeopt/kubeopt/releases/download/v0.1.0/kubectl-kubeopt-darwin-arm64.tar.gz
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    bin: kubectl-kubeopt
+    files:
+    - from: kubectl-kubeopt
+      to: kubectl-kubeopt
+
+  # -------------------------------------------------------------------------
+  # Linux — amd64
+  # -------------------------------------------------------------------------
+  - selector:
+      matchLabels:
+        os: linux
+        arch: amd64
+    uri: https://github.com/kubeopt/kubeopt/releases/download/v0.1.0/kubectl-kubeopt-linux-amd64.tar.gz
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    bin: kubectl-kubeopt
+    files:
+    - from: kubectl-kubeopt
+      to: kubectl-kubeopt
+
+  # -------------------------------------------------------------------------
+  # Linux — arm64
+  # -------------------------------------------------------------------------
+  - selector:
+      matchLabels:
+        os: linux
+        arch: arm64
+    uri: https://github.com/kubeopt/kubeopt/releases/download/v0.1.0/kubectl-kubeopt-linux-arm64.tar.gz
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    bin: kubectl-kubeopt
+    files:
+    - from: kubectl-kubeopt
+      to: kubectl-kubeopt
+
+  # -------------------------------------------------------------------------
+  # Windows — amd64
+  # Note: the plugin is a bash script; Windows users need Git Bash or WSL.
+  # -------------------------------------------------------------------------
+  - selector:
+      matchLabels:
+        os: windows
+        arch: amd64
+    uri: https://github.com/kubeopt/kubeopt/releases/download/v0.1.0/kubectl-kubeopt-windows-amd64.zip
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    bin: kubectl-kubeopt
+    files:
+    - from: kubectl-kubeopt
+      to: kubectl-kubeopt

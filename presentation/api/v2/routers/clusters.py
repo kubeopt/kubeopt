@@ -1,6 +1,7 @@
 """Cluster management endpoints."""
 
 import logging
+import secrets
 from typing import Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -213,6 +214,76 @@ async def get_cluster_info(
     except Exception as e:
         logger.error(f"Failed to get cluster info for {cluster_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to get cluster info")
+
+
+def _badge_token_response(cluster_id: str, token: str) -> Dict[str, Any]:
+    """Build the standard badge-token response payload."""
+    savings_url = f"/badge/{cluster_id}?token={token}"
+    score_url = f"/badge/{cluster_id}/score?token={token}"
+    markdown = (
+        f"[![KubeOpt savings](https://your-kubeopt-host{savings_url})]"
+        f"(https://your-kubeopt-host{savings_url}) "
+        f"[![KubeOpt score](https://your-kubeopt-host{score_url})]"
+        f"(https://your-kubeopt-host{score_url})"
+    )
+    return {
+        "badge_token": token,
+        "badge_savings_url": savings_url,
+        "badge_score_url": score_url,
+        "markdown": markdown,
+    }
+
+
+@router.post("/clusters/{cluster_id:path}/badge-token")
+async def generate_badge_token(
+    cluster_id: str,
+    user: Dict[str, Any] = Depends(get_current_user),
+    cluster_manager=Depends(get_cluster_manager),
+):
+    """Generate (or rotate) a per-cluster badge token and return the shareable badge URLs."""
+    try:
+        c = cluster_manager.get_cluster(cluster_id)
+        if not c:
+            raise HTTPException(status_code=404, detail=f"Cluster {cluster_id} not found")
+
+        token = secrets.token_urlsafe(32)
+        ok = cluster_manager.set_badge_token(cluster_id, token)
+        if not ok:
+            raise HTTPException(status_code=500, detail="Failed to store badge token")
+
+        return _badge_token_response(cluster_id, token)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to generate badge token for {cluster_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate badge token")
+
+
+@router.get("/clusters/{cluster_id:path}/badge-token")
+async def get_badge_token(
+    cluster_id: str,
+    user: Dict[str, Any] = Depends(get_current_user),
+    cluster_manager=Depends(get_cluster_manager),
+):
+    """Return the current badge token and shareable badge URLs for a cluster."""
+    try:
+        c = cluster_manager.get_cluster(cluster_id)
+        if not c:
+            raise HTTPException(status_code=404, detail=f"Cluster {cluster_id} not found")
+
+        token = c.get("badge_token")
+        if not token:
+            raise HTTPException(
+                status_code=404,
+                detail="No badge token exists for this cluster. POST to /api/clusters/{cluster_id}/badge-token to generate one.",
+            )
+
+        return _badge_token_response(cluster_id, token)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get badge token for {cluster_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve badge token")
 
 
 @router.get("/clusters/dropdown")

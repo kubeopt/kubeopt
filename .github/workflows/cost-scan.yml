@@ -1,0 +1,43 @@
+name: K8s Cost Scan
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'   # Every Monday at 08:00 UTC
+  pull_request:
+    types: [opened, synchronize]
+  workflow_dispatch:
+    inputs:
+      cluster-id:
+        description: 'Cluster ID to scan (leave blank for all clusters)'
+        required: false
+        default: ''
+      top:
+        description: 'Number of top opportunities to show'
+        required: false
+        default: '5'
+
+permissions:
+  contents: read
+  pull-requests: write   # Required to post PR comments
+
+jobs:
+  cost-scan:
+    name: KubeOpt Cost Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run KubeOpt cost scan
+        id: kubeopt
+        uses: kubeopt/kubeopt@main
+        with:
+          kubeopt-url:      ${{ secrets.KUBEOPT_URL }}
+          kubeopt-username: ${{ secrets.KUBEOPT_USERNAME }}
+          kubeopt-password: ${{ secrets.KUBEOPT_PASSWORD }}
+          cluster-id:       ${{ github.event_name == 'workflow_dispatch' && inputs.cluster-id || '' }}
+          top:              ${{ github.event_name == 'workflow_dispatch' && inputs.top || '5' }}
+          post-comment:     ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
+
+      - name: Print total savings to log
+        if: always()
+        run: |
+          echo "Total potential monthly savings: \$${{ steps.kubeopt.outputs.total-savings }}"

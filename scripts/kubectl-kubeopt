@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# kubectl-kubeopt — kubectl plugin for KubeOpt
+# Discovered by kubectl via the name "kubectl-kubeopt" on $PATH.
+#
+# Usage:
+#   kubectl kubeopt scan
+#   kubectl kubeopt scan --cluster <id>
+#   kubectl kubeopt scan --top <n>
+#   kubectl kubeopt scan --json
+#   kubectl kubeopt version
+#
+# Developer: Srinivas Kondepudi
+# Organization: Nivaya Technologies PTY LTD
+
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# Resolve the KubeOpt installation directory
+# Priority: $KUBEOPT_HOME env var → directory containing this script
+# ---------------------------------------------------------------------------
+if [[ -n "${KUBEOPT_HOME:-}" ]]; then
+    KUBEOPT_DIR="$KUBEOPT_HOME"
+else
+    # Resolve the real path of this script even if it's a symlink (e.g. /usr/local/bin)
+    SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}" 2>/dev/null || readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
+    SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+
+    # If the script lives in a bin directory (e.g. /usr/local/bin), look for
+    # cli.py one level up (standard install layout).  Otherwise assume the
+    # script and cli.py are siblings inside the project.
+    if [[ -f "$SCRIPT_DIR/cli.py" ]]; then
+        KUBEOPT_DIR="$SCRIPT_DIR"
+    elif [[ -f "$SCRIPT_DIR/../cli.py" ]]; then
+        KUBEOPT_DIR="$(realpath "$SCRIPT_DIR/..")"
+    else
+        echo "ERROR: Cannot locate KubeOpt installation." >&2
+        echo "       Set \$KUBEOPT_HOME to the directory containing cli.py, or" >&2
+        echo "       re-run the install script from the kubeopt source tree." >&2
+        exit 1
+    fi
+fi
+
+CLI="$KUBEOPT_DIR/cli.py"
+
+# ---------------------------------------------------------------------------
+# Verify cli.py exists and Python is available
+# ---------------------------------------------------------------------------
+if [[ ! -f "$CLI" ]]; then
+    echo "ERROR: cli.py not found at $CLI" >&2
+    echo "       Set \$KUBEOPT_HOME or reinstall KubeOpt." >&2
+    exit 1
+fi
+
+PYTHON="${PYTHON:-python3}"
+if ! command -v "$PYTHON" &>/dev/null; then
+    PYTHON="python"
+    if ! command -v "$PYTHON" &>/dev/null; then
+        echo "ERROR: Python interpreter not found. Install Python 3.8+ and try again." >&2
+        exit 1
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# Helper: friendly error when the KubeOpt server is not reachable
+# ---------------------------------------------------------------------------
+handle_server_error() {
+    echo "" >&2
+    echo "ERROR: KubeOpt server is not running or unreachable." >&2
+    echo "" >&2
+    echo "  Start the server with:" >&2
+    echo "    cd $KUBEOPT_DIR && python main.py" >&2
+    echo "" >&2
+    echo "  Or with Docker:" >&2
+    echo "    docker-compose up -d" >&2
+    echo "" >&2
+    exit 2
+}
+
+# ---------------------------------------------------------------------------
+# Usage / help
+# ---------------------------------------------------------------------------
+usage() {
+    cat <<EOF
+
+kubectl-kubeopt — Kubernetes cost optimization powered by KubeOpt
+
+USAGE
+  kubectl kubeopt <command> [flags]
+
+COMMANDS
+  scan        Scan clusters and surface cost optimization opportunities
+  version     Print the kubectl-kubeopt plugin version
+
+SCAN FLAGS
+  --cluster <id>   Scan a specific cluster by ID (default: all clusters)
+  --top <n>        Show only the top N recommendations (default: all)
+  --json           Emit machine-readable JSON instead of human-friendly text
+  --help           Show this help message
+
+EXAMPLES
+  kubectl kubeopt scan
+  kubectl kubeopt scan --cluster my-aks-prod
+  kubectl kubeopt scan --top 5
+  kubectl kubeopt scan --cluster my-eks-dev --top 10 --json
+
+ENVIRONMENT
+  KUBEOPT_HOME     Path to the KubeOpt install dir (overrides auto-detection)
+  PYTHON           Python interpreter to use (default: python3)
+
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+COMMAND="${1:-}"
+
+if [[ -z "$COMMAND" || "$COMMAND" == "--help" || "$COMMAND" == "-h" ]]; then
+    usage
+    exit 0
+fi
+
+shift  # consume the subcommand
+
+case "$COMMAND" in
+    version)
+        echo "kubectl-kubeopt v0.1.0"
+        exit 0
+        ;;
+
+    scan)
+        # Pass-through all remaining flags directly to cli.py
+        SCAN_ARGS=()
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --help|-h)
+                    usage
+                    exit 0
+                    ;;
+                --cluster)
+                    if [[ -z "${2:-}" ]]; then
+                        echo "ERROR: --cluster requires a value." >&2
+                        exit 1
+                    fi
+                    SCAN_ARGS+=("--cluster" "$2")
+                    shift 2
+                    ;;
+                --top)
+                    if [[ -z "${2:-}" ]]; then
+                        echo "ERROR: --top requires a numeric value." >&2
+                        exit 1
+                    fi
+                    SCAN_ARGS+=("--top" "$2")
+                    shift 2
+                    ;;
+                --json)
+                    SCAN_ARGS+=("--json")
+                    shift
+                    ;;
+                *)
+                    echo "ERROR: Unknown flag '$1'. Run 'kubectl kubeopt --help' for usage." >&2
+                    exit 1
+                    ;;
+            esac
+        done
+
+        # Run the CLI scan — trap connection-refused / server errors
+        set +e
+        "$PYTHON" "$CLI" scan "${SCAN_ARGS[@]+"${SCAN_ARGS[@]}"}"
+        EXIT_CODE=$?
+        set -e
+
+        if [[ $EXIT_CODE -eq 7 ]]; then
+            # curl exit 7 = "Failed to connect to host" — reuse as server-down sentinel
+            handle_server_error
+        elif [[ $EXIT_CODE -ne 0 ]]; then
+            # Propagate other non-zero exits (auth errors, bad cluster id, etc.)
+            exit $EXIT_CODE
+        fi
+        ;;
+
+    *)
+        echo "ERROR: Unknown command '$COMMAND'." >&2
+        echo "       Run 'kubectl kubeopt --help' for available commands." >&2
+        exit 1
+        ;;
+esac

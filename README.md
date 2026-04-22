@@ -21,6 +21,104 @@ Works with **Azure AKS**, **AWS EKS**, and **Google GKE**.
 - Generates a 3-week implementation plan with kubectl commands ready to execute
 - Dashboard with cost breakdowns, workload analysis, and optimization scores
 
+## Claude AI Integration (MCP)
+
+Ask Claude about your Kubernetes costs in plain English.
+
+KubeOpt ships an [MCP](https://modelcontextprotocol.io) server (`mcp_server/`) that exposes 6 tools over stdio transport. Once connected, Claude Desktop, Cursor, or Windsurf can query your cluster data directly — no copy-pasting dashboards.
+
+**Tools exposed:**
+
+| Tool | What it does |
+|------|-------------|
+| `list_clusters` | List all monitored clusters with cost data |
+| `get_cost_summary` | Portfolio-level cost summary across all clusters |
+| `get_cluster_analysis` | Detailed analysis for a specific cluster |
+| `get_recommendations` | Actionable recommendations sorted by savings impact |
+| `analyze_cluster` | Trigger a fresh analysis and poll until complete |
+| `get_pod_costs` | Per-pod cost breakdown, filterable by namespace |
+
+### Prerequisites
+
+- KubeOpt running locally (`python main.py`) or deployed on Railway
+- Python virtual environment with dependencies installed (`pip install -r requirements.txt`)
+
+### Claude Desktop
+
+Edit `~/.claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "kubeopt": {
+      "command": "/path/to/kubeopt/.venv/bin/python3",
+      "args": ["-m", "mcp_server.server"],
+      "env": {
+        "KUBEOPT_API_URL": "http://localhost:5001",
+        "KUBEOPT_USERNAME": "kubeopt",
+        "KUBEOPT_PASSWORD": "your-password"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop after saving.
+
+### Cursor
+
+Open **Cursor Settings → MCP** and add a new server entry:
+
+```json
+{
+  "kubeopt": {
+    "command": "/path/to/kubeopt/.venv/bin/python3",
+    "args": ["-m", "mcp_server.server"],
+    "env": {
+      "KUBEOPT_API_URL": "http://localhost:5001",
+      "KUBEOPT_USERNAME": "kubeopt",
+      "KUBEOPT_PASSWORD": "your-password"
+    }
+  }
+}
+```
+
+### Windsurf / Codeium
+
+Edit `~/.codeium/windsurf/mcp_config.json` (create it if it doesn't exist):
+
+```json
+{
+  "mcpServers": {
+    "kubeopt": {
+      "command": "/path/to/kubeopt/.venv/bin/python3",
+      "args": ["-m", "mcp_server.server"],
+      "env": {
+        "KUBEOPT_API_URL": "http://localhost:5001",
+        "KUBEOPT_USERNAME": "kubeopt",
+        "KUBEOPT_PASSWORD": "your-password"
+      }
+    }
+  }
+}
+```
+
+Restart Windsurf after saving.
+
+### Example prompts
+
+```
+What are my top 3 cost savings opportunities across all clusters?
+Which pods are costing the most in the production namespace?
+Give me a summary of total Kubernetes spend this month.
+What's the optimization score for my staging cluster?
+Trigger a fresh analysis on cluster prod-aks-eastus and report back.
+```
+
+For more on the protocol: [modelcontextprotocol.io](https://modelcontextprotocol.io)
+
+---
+
 ## Architecture
 
 ```

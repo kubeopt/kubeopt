@@ -37,6 +37,7 @@ def migrate_database_schema(db_path: str = '../data/database/clusters.db'):
                 'enhanced_analysis_data': 'BLOB',
                 'last_confidence': 'REAL DEFAULT 0',
                 'cloud_provider': "TEXT DEFAULT 'azure'",
+                'badge_token': 'TEXT DEFAULT NULL',
             }
             
             # Add missing columns
@@ -211,7 +212,8 @@ def migrate_database_for_multi_subscription(db_path: str = '../data/database/clu
                 'auto_analyze_enabled': 'BOOLEAN DEFAULT 1',
                 'subscription_context_verified': 'BOOLEAN DEFAULT 0',
                 'subscription_last_validated': 'TIMESTAMP NULL',
-                'cost_fetched_at': 'TIMESTAMP NULL'
+                'cost_fetched_at': 'TIMESTAMP NULL',
+                'badge_token': 'TEXT DEFAULT NULL',
             }
             
             # Add missing columns
@@ -466,7 +468,8 @@ class EnhancedMultiSubscriptionClusterManager:
                         subscription_context_verified BOOLEAN DEFAULT 0,
                         subscription_last_validated TIMESTAMP NULL,
                         cost_fetched_at TIMESTAMP NULL,
-                        cloud_provider TEXT DEFAULT 'azure'
+                        cloud_provider TEXT DEFAULT 'azure',
+                        badge_token TEXT DEFAULT NULL
                     )
                 ''')
                 
@@ -1314,7 +1317,7 @@ class EnhancedMultiSubscriptionClusterManager:
                            analysis_progress, analysis_message, analysis_started_at,
                            auto_analyze_enabled, subscription_id, subscription_name,
                            subscription_context_verified, subscription_last_validated,
-                           cloud_provider
+                           cloud_provider, badge_token
                     FROM clusters WHERE id = ?
                 ''', (cluster_id,))
 
@@ -1432,6 +1435,21 @@ class EnhancedMultiSubscriptionClusterManager:
             
         except Exception as e:
             self.logger.error(f"❌ Failed to update cluster subscription info: {e}")
+
+    def set_badge_token(self, cluster_id: str, token: str) -> bool:
+        """Store a per-cluster badge token used to authenticate public badge URLs."""
+        try:
+            with self._connect() as conn:
+                conn.execute(
+                    'UPDATE clusters SET badge_token = ? WHERE id = ?',
+                    (token, cluster_id),
+                )
+                conn.commit()
+            self.logger.info(f"Badge token set for cluster {cluster_id}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to set badge token for cluster {cluster_id}: {e}")
+            return False
 
     def update_cluster_analysis_without_plan_generation(self, cluster_id: str, analysis_data: dict, enhanced_input: dict = None):
         """
