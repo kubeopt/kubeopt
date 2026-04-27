@@ -119,6 +119,119 @@ For more on the protocol: [modelcontextprotocol.io](https://modelcontextprotocol
 
 ---
 
+## GitHub Action
+
+Run a Kubernetes cost scan on every pull request or on a schedule. The action posts a summary as a PR comment (upserted on re-runs) and writes results to the GitHub Step Summary.
+
+**What you get on each PR:**
+
+```
+## KubeOpt Cost Scan — 2026-04-27
+
+| Cluster          | Provider | Monthly Spend | Savings Available |
+|------------------|----------|---------------|-------------------|
+| prod-eks-us-east | AWS      | $4,120        | $890/mo           |
+| staging-aks-weu  | Azure    | $1,340        | $210/mo           |
+
+**Total potential savings: $1,100/mo**
+
+<details>
+<summary>Top opportunities</summary>
+
+1. $540/mo — prod-eks-us-east — Rightsize 6 over-provisioned node groups
+2. $350/mo — prod-eks-us-east — Enable HPA on 4 deployments with static replicas
+3. $210/mo — staging-aks-weu  — Remove 3 idle nodes outside business hours
+
+</details>
+```
+
+### Setup
+
+**1. Add secrets to your repository**
+
+Go to **Settings → Secrets and variables → Actions** and add:
+
+| Secret | Value |
+|--------|-------|
+| `KUBEOPT_URL` | URL of your KubeOpt instance (e.g. `https://demo.kubeopt.com`) |
+| `KUBEOPT_USERNAME` | KubeOpt username |
+| `KUBEOPT_PASSWORD` | KubeOpt password |
+
+**2. Create `.github/workflows/cost-scan.yml`**
+
+```yaml
+name: K8s Cost Scan
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  schedule:
+    - cron: '0 8 * * 1'   # Every Monday at 08:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  cost-scan:
+    name: KubeOpt Cost Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run KubeOpt cost scan
+        id: kubeopt
+        uses: kubeopt/kubeopt@v1
+        with:
+          kubeopt-url:      ${{ secrets.KUBEOPT_URL }}
+          kubeopt-username: ${{ secrets.KUBEOPT_USERNAME }}
+          kubeopt-password: ${{ secrets.KUBEOPT_PASSWORD }}
+          top:              5
+          post-comment:     ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
+
+      - name: Print savings to log
+        if: always()
+        run: echo "Total savings available: ${{ steps.kubeopt.outputs.total-savings }}/mo"
+```
+
+### Inputs
+
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `kubeopt-url` | yes | | URL of your KubeOpt instance |
+| `kubeopt-username` | yes | `kubeopt` | KubeOpt username |
+| `kubeopt-password` | yes | | KubeOpt password |
+| `cluster-id` | no | (all clusters) | Scan a specific cluster only |
+| `top` | no | `5` | Number of top savings opportunities to show |
+| `post-comment` | no | `true` | Post results as a PR comment |
+
+### Outputs
+
+| Output | Description |
+|--------|-------------|
+| `total-savings` | Total potential monthly savings in USD |
+| `scan-summary` | Full markdown summary (use in downstream steps) |
+
+### Scan a specific cluster
+
+```yaml
+- uses: kubeopt/kubeopt@v1
+  with:
+    kubeopt-url:      ${{ secrets.KUBEOPT_URL }}
+    kubeopt-username: ${{ secrets.KUBEOPT_USERNAME }}
+    kubeopt-password: ${{ secrets.KUBEOPT_PASSWORD }}
+    cluster-id:       prod-eks-us-east-1
+    top:              10
+```
+
+### Notes
+
+- The action checks out `kubeopt/kubeopt@v1` at runtime to run the scan. No local install needed.
+- PR comments are upserted: re-running the action updates the existing comment rather than adding a new one.
+- Requires `pull-requests: write` permission to post comments.
+- The action does not modify your cluster. It is read-only.
+
+---
+
 ## Architecture
 
 ```
