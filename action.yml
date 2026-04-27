@@ -1,5 +1,9 @@
 name: 'KubeOpt Cost Scan'
-description: 'Scan Kubernetes cluster costs and report savings opportunities'
+description: 'Scan Kubernetes cluster costs and report savings opportunities across AKS, EKS, and GKE. Posts a savings breakdown as a PR comment.'
+
+branding:
+  icon: trending-down
+  color: green
 
 inputs:
   kubeopt-url:
