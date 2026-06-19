@@ -1,17 +1,5 @@
 #!/usr/bin/env python3
-"""
-from pydantic import BaseModel, Field, validator
-Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
-"""
-
-"""
-Authentication Manager for AKS Cost Optimizer
-=============================================
-
-Provides secure authentication and session management for the web interface.
-"""
+"""Authentication manager for KubeOpt."""
 
 import os
 import hashlib
@@ -71,6 +59,10 @@ class AuthManager:
     
     def _ensure_default_credentials(self):
         """Initialize credentials from environment variables or settings"""
+        from infrastructure.demo.demo_data import is_demo_mode
+        if is_demo_mode():
+            return
+
         try:
             from infrastructure.services.settings_manager import settings_manager
             
@@ -111,14 +103,18 @@ class AuthManager:
     def authenticate_user(self, username: str, password: str) -> bool:
         """
         Authenticate user credentials using persistent settings
-        
+
         Args:
             username: Username to authenticate
             password: Plain text password
-            
+
         Returns:
             bool: True if authentication successful
         """
+        from infrastructure.demo.demo_data import is_demo_mode
+        if is_demo_mode() and username == "demo" and password == "demo":
+            return True
+
         try:
             from infrastructure.services.settings_manager import settings_manager
             

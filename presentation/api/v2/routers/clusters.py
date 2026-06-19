@@ -11,6 +11,7 @@ from presentation.api.v2.schemas.clusters import (
 )
 from presentation.api.v2.dependencies.auth import get_current_user
 from presentation.api.v2.dependencies.services import get_cluster_manager
+from infrastructure.demo.demo_data import is_demo_mode, DEMO_CLUSTERS
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,10 @@ async def list_clusters(
     cluster_manager=Depends(get_cluster_manager),
 ):
     """List all registered clusters."""
+    if is_demo_mode():
+        clusters = [ClusterResponse(**c) for c in DEMO_CLUSTERS]
+        return ClusterListResponse(clusters=clusters, total=len(clusters))
+
     try:
         clusters_data = cluster_manager.get_all_clusters()
 

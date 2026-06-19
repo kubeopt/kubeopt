@@ -18,6 +18,9 @@ from presentation.api.v2.dependencies.services import (
     get_cluster_manager, get_cpu_report_exporter,
     get_analysis_results, get_analysis_cache,
 )
+from infrastructure.demo.demo_data import (
+    is_demo_mode, get_demo_cluster, get_demo_analysis_status, get_demo_chart_data,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +51,9 @@ async def analyze_cluster(
     cluster_manager=Depends(get_cluster_manager),
 ):
     """Trigger analysis for a cluster. Returns session key for progress tracking."""
+    if is_demo_mode() and get_demo_cluster(cluster_id):
+        return {"session_key": cluster_id, "status": "completed", "message": "Demo analysis ready"}
+
     try:
         from infrastructure.services.background_processor import run_subscription_aware_background_analysis
 
@@ -88,6 +94,9 @@ async def analysis_status(
     cluster_manager=Depends(get_cluster_manager),
 ):
     """Get current analysis status for a cluster."""
+    if is_demo_mode() and get_demo_cluster(cluster_id):
+        return AnalysisStatus(**get_demo_analysis_status(cluster_id))
+
     try:
         # Check in-memory tracker first (real-time updates from background_processor)
         from shared.config.config import analysis_status_tracker
@@ -170,6 +179,11 @@ async def chart_data(
     try:
         from presentation.api import chart_generator
         from shared.utils.shared import _get_analysis_data
+
+        if is_demo_mode() and cluster_id:
+            demo_charts = get_demo_chart_data(cluster_id)
+            if demo_charts:
+                return {**demo_charts, 'anomaly_detection': {}}
 
         empty_result = {
             'cost_breakdown': [],

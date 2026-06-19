@@ -3,7 +3,7 @@
 HPA Analyzer Module - Consistent and Simplified
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: KubeOpt
 
 Comprehensive HPA analysis with consistent variable naming.
 """

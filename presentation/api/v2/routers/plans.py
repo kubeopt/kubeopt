@@ -86,7 +86,7 @@ async def generate_plan(
         if not validator.has_feature(Feature.AI_PLAN_GENERATION):
             raise HTTPException(
                 status_code=403,
-                detail="AI plan generation requires a PRO or ENTERPRISE license"
+                detail="Hosted AI plan generation requires a PRO or ENTERPRISE license"
             )
 
         allowed, limit_msg = validator.check_usage_limit('plans_per_day')

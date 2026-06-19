@@ -2,7 +2,7 @@
 """
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: KubeOpt
 """
 
 # Enhanced alerts_integration.py - Complete API with frequency management and notification support

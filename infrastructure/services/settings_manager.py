@@ -3,11 +3,11 @@
 from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: KubeOpt
 """
 
 """
-Settings Manager for AKS Cost Optimizer
+Settings Manager for KubeOpt
 =======================================
 
 Manages application configuration, environment variables, and settings persistence.
@@ -226,7 +226,7 @@ class SettingsManager:
             
             # Build output lines
             config_lines = [
-                "# AKS Cost Optimizer Configuration",
+                "# KubeOpt Configuration",
                 f"# Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
                 "",
                 "# Azure Configuration"
@@ -442,8 +442,8 @@ class SettingsManager:
             
             message = {
                 'channel': channel,
-                'username': 'AKS Cost Optimizer',
-                'text': f'🧪 Test message from AKS Cost Optimizer - {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
+                'username': 'KubeOpt',
+                'text': f'🧪 Test message from KubeOpt - {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
                 'icon_emoji': ':cloud:'
             }
             
@@ -477,8 +477,8 @@ class SettingsManager:
             
             message = {
                 'channel': channel,
-                'username': 'AKS Cost Optimizer',
-                'text': f'🧪 Test message from AKS Cost Optimizer - {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
+                'username': 'KubeOpt',
+                'text': f'🧪 Test message from KubeOpt - {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
                 'icon_emoji': ':cloud:'
             }
             
@@ -514,13 +514,13 @@ class SettingsManager:
             msg = MIMEMultipart()
             msg['From'] = username
             msg['To'] = ', '.join(recipients)
-            msg['Subject'] = 'AKS Cost Optimizer - Test Email'
+            msg['Subject'] = 'KubeOpt - Test Email'
             
             body = f"""
             <html>
             <body>
-                <h2>AKS Cost Optimizer Test Email</h2>
-                <p>This is a test email from your AKS Cost Optimizer instance.</p>
+                <h2>KubeOpt Test Email</h2>
+                <p>This is a test email from your KubeOpt instance.</p>
                 <p><strong>Timestamp:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
                 <p><strong>Server:</strong> {smtp_server}:{smtp_port}</p>
                 <p>If you received this email, your email configuration is working correctly!</p>
@@ -585,7 +585,7 @@ class SettingsManager:
                 
                 message = {
                     'channel': channel,
-                    'username': 'AKS Cost Optimizer',
+                    'username': 'KubeOpt',
                     'text': f'🚨 Cost Alert for {cluster_name}',
                     'attachments': [{
                         'color': 'danger',
@@ -638,7 +638,7 @@ class SettingsManager:
                     </table>
                     <p>Please review your cluster resources and consider optimization recommendations.</p>
                     <hr>
-                    <p><em>AKS Cost Optimizer by kubeopt & Nivaya Technologies</em></p>
+                    <p><em>KubeOpt by kubeopt & Nivaya Technologies</em></p>
                 </body>
                 </html>
                 """

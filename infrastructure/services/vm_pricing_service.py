@@ -3,7 +3,7 @@
 Azure VM Pricing Service - Real-Time Pricing from Azure Retail Prices API
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: KubeOpt
 
 Fetches real-time VM pricing from the free, unauthenticated Azure Retail Prices API.
 Caches results per-region with a 24-hour TTL.

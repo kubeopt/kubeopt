@@ -5,7 +5,7 @@ AKS Industry Standards & Best Practices Framework
 
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: KubeOpt
 
 International standards and best practices for AKS clusters based on:
 - Microsoft Well-Architected Framework for AKS

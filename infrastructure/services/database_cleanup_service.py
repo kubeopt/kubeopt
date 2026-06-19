@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Database Cleanup Service for AKS Cost Optimizer
+Database Cleanup Service for KubeOpt
 ===============================================
 
 Automatically cleans up old data from SQLite databases based on retention policies.
@@ -8,7 +8,7 @@ Configurable via environment variables and settings page.
 
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: KubeOpt
 """
 
 import os

@@ -2,7 +2,7 @@
 """
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: KubeOpt
 """
 
 # verify_database.py - Script to verify SQLite database setup

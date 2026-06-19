@@ -3,7 +3,7 @@
 from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: KubeOpt
 """
 
 # cluster_database.py - Complete Enhanced Cluster Manager with Multi-Subscription Support

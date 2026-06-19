@@ -185,7 +185,7 @@ async def ai_chat(
     if not validator.has_feature(Feature.AI_CHAT):
         raise HTTPException(
             status_code=403,
-            detail="AI chat requires a PRO or ENTERPRISE license"
+            detail="Hosted AI chat requires a PRO or ENTERPRISE license"
         )
 
     allowed, limit_msg = validator.check_usage_limit('chat_per_day')

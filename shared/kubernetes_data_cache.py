@@ -2,7 +2,7 @@
 """
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: KubeOpt
 
 Centralized Kubernetes Data Cache Manager
 - Runs ALL kubectl commands in parallel (no static data, always fresh)

@@ -3,7 +3,7 @@
 AKS Pod Cost Analyzer - Enhanced Version
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: KubeOpt
 
 Analyzes and distributes costs across pods, workloads, and namespaces
 using actual resource consumption data.

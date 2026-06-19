@@ -1,7 +1,8 @@
 """
 License checking dependency for FastAPI.
 
-Validates that user has an active PRO or ENTERPRISE license.
+Validates access to hosted/commercial features. The open-source core does not
+require this dependency.
 """
 
 import logging
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 async def check_license(user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     """
-    Verify the user has a valid license. Returns license info dict.
+    Verify the user has a valid license for hosted/commercial features.
     Raises 403 if no valid license found.
 
     Usage:
@@ -32,7 +33,7 @@ async def check_license(user: Dict[str, Any] = Depends(get_current_user)) -> Dic
         if tier == LicenseTier.NONE:
             raise HTTPException(
                 status_code=403,
-                detail="Valid PRO or ENTERPRISE license required"
+                detail="This hosted feature requires a valid PRO or ENTERPRISE license"
             )
 
         return {

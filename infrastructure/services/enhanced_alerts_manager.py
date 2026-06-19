@@ -3,7 +3,7 @@
 from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: KubeOpt
 """
 
 # enhanced_alerts_manager.py - Complete Enhanced Alerts Manager with Database Backend
@@ -632,7 +632,7 @@ AKS Cost Intelligence Team
             
             payload = {
                 "channel": slack_channel,
-                "username": "AKS Cost Optimizer",
+                "username": "KubeOpt",
                 "icon_emoji": ":cloud:",
                 "text": f"🧪 Test Alert: {alert['name']}",
                 "attachments": [
@@ -756,7 +756,7 @@ AKS Cost Intelligence Team
             
             payload = {
                 "channel": slack_channel,
-                "username": "AKS Cost Optimizer",
+                "username": "KubeOpt",
                 "icon_emoji": ":cloud:",
                 "text": f"🚨 Cost Alert: {alert['name']}",
                 "attachments": [

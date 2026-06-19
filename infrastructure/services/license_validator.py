@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-License Validator for AKS Cost Optimizer
-=========================================
+License Validator for KubeOpt
+=============================
 Single source of truth for license validation through external License Manager API.
-NO FREE TIER - All features require PRO or ENTERPRISE license.
+
+The open-source core works without a license. Licenses gate hosted AI and
+commercial features that depend on KubeOpt-managed services.
 """
 
 import os
@@ -18,14 +20,14 @@ import json
 logger = logging.getLogger(__name__)
 
 class LicenseTier(Enum):
-    """License tiers - NO FREE TIER"""
-    NONE = "none"  # No license - no access
+    """License tiers."""
+    NONE = "none"  # Open-source core, no hosted/commercial add-ons
     PRO = "pro"
     ENTERPRISE = "enterprise"
 
 class Feature(Enum):
     """Feature flags for different capabilities"""
-    # PRO Features (Basic access)
+    # Open-source core features
     DASHBOARD = "dashboard"
     CLUSTER_ANALYSIS = "cluster_analysis"
     COST_REPORTING = "cost_reporting"
@@ -33,8 +35,8 @@ class Feature(Enum):
     SLACK_ALERTS = "slack_alerts"
     BASIC_RECOMMENDATIONS = "basic_recommendations"
     EXPORT_REPORTS = "export_reports"
-    
-    # PRO+ Features (Cost money — Claude API calls)
+
+    # Hosted/commercial features
     AI_PLAN_GENERATION = "ai_plan_generation"
     AI_CHAT = "ai_chat"
     UNLIMITED_CLUSTERS = "unlimited_clusters"
@@ -52,7 +54,15 @@ class LicenseValidator:
     
     # Feature mapping by tier
     TIER_FEATURES = {
-        LicenseTier.NONE: [],
+        LicenseTier.NONE: [
+            Feature.DASHBOARD,
+            Feature.CLUSTER_ANALYSIS,
+            Feature.COST_REPORTING,
+            Feature.EMAIL_ALERTS,
+            Feature.SLACK_ALERTS,
+            Feature.BASIC_RECOMMENDATIONS,
+            Feature.EXPORT_REPORTS,
+        ],
         LicenseTier.PRO: [
             Feature.DASHBOARD,
             Feature.CLUSTER_ANALYSIS,
@@ -88,11 +98,11 @@ class LicenseValidator:
     # Usage limits by tier
     TIER_LIMITS = {
         LicenseTier.NONE: {
-            'clusters': 0,
-            'analyses_per_day': 0,
+            'clusters': -1,
+            'analyses_per_day': -1,
             'plans_per_day': 0,
             'chat_per_day': 0,
-            'api_calls_per_hour': 0
+            'api_calls_per_hour': -1
         },
         LicenseTier.PRO: {
             'clusters': 5,
@@ -119,7 +129,7 @@ class LicenseValidator:
         
         # Initialize with validation
         if not self.license_key:
-            logger.warning("No license key configured - all features disabled")
+            logger.info("No license key configured - running open-source core")
         else:
             logger.info(f"License validator initialized with key: {self.license_key[:10]}...")
     
@@ -153,7 +163,8 @@ class LicenseValidator:
         if not self.license_key:
             return False, {
                 'error': 'No license key configured',
-                'tier': LicenseTier.NONE.value
+                'tier': LicenseTier.NONE.value,
+                'oss_core': True,
             }
         
         # Check cache first
@@ -301,7 +312,7 @@ class LicenseValidator:
         if not self.has_feature(Feature.AI_PLAN_GENERATION):
             return {
                 'available': False,
-                'reason': 'AI plan generation requires a PRO or ENTERPRISE license',
+                'reason': 'Hosted AI plan generation requires a PRO or ENTERPRISE license',
                 'tier': tier.value
             }
 
@@ -343,9 +354,11 @@ class LicenseValidator:
             return {
                 'valid': False,
                 'tier': LicenseTier.NONE.value,
-                'features': [],
+                'features': [f.value for f in self.TIER_FEATURES[LicenseTier.NONE]],
                 'limits': self.TIER_LIMITS[LicenseTier.NONE],
-                'error': info.get('error', 'Invalid license')
+                'oss_core': True,
+                'message': 'Open-source core enabled; hosted AI features require a license',
+                'error': info.get('error', 'No license configured')
             }
         
         # Get current usage
@@ -395,7 +408,7 @@ def require_license(min_tier: LicenseTier = LicenseTier.PRO):
             if tier == LicenseTier.NONE:
                 return {
                     'error': 'No valid license found',
-                    'message': 'This feature requires a PRO or ENTERPRISE license'
+                    'message': 'This hosted or commercial feature requires a PRO or ENTERPRISE license'
                 }, 401
             
             if tier.value < min_tier.value:
@@ -403,7 +416,7 @@ def require_license(min_tier: LicenseTier = LicenseTier.PRO):
                     'error': 'Insufficient license tier',
                     'required': min_tier.value,
                     'current': tier.value,
-                    'message': f'This feature requires {min_tier.value.upper()} license'
+                    'message': f'This hosted or commercial feature requires a {min_tier.value.upper()} license'
                 }, 403
             
             return f(*args, **kwargs)

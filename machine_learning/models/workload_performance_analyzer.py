@@ -3,7 +3,7 @@
 Workload Performance Analyzer - Consistent and Simplified
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: KubeOpt
 
 Complete self-learning workload analyzer with consistent variable naming.
 """

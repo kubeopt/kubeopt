@@ -7,7 +7,7 @@ Follows coding standards principles: fail fast, no silent failures, explicit par
 
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
-Project: AKS Cost Optimizer
+Project: KubeOpt
 """
 
 import logging

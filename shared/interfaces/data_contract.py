@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Data Contract Interface for AKS Cost Optimizer
+Data Contract Interface for KubeOpt
 Defines standardized field names and data structures across the entire pipeline
 """
 

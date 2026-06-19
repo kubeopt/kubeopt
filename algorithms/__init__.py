@@ -1,5 +1,5 @@
 """
-AKS Cost Optimizer - Algorithms Package
+KubeOpt - Algorithms Package
 ========================================
 
 This package contains specialized cost optimization algorithms following 
@@ -20,4 +20,4 @@ Algorithms:
 """
 
 __version__ = "1.0.0"
-__author__ = "AKS Cost Optimizer Team"
+__author__ = "KubeOpt Team"

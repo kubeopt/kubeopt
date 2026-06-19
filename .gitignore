@@ -136,3 +136,5 @@ infrastructure/persistence/database/clusters.db-wal
 .venv/*
 cookies.txt
 docs/*
+2026-*-this-session*.txt
+*.session.txt
