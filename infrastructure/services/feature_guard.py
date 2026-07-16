@@ -10,11 +10,18 @@ from functools import wraps
 from flask import g, jsonify
 from typing import Dict, Any
 
-from infrastructure.services.license_validator import (
-    get_license_validator,
-    LicenseTier,
-    Feature
-)
+try:
+    from kubeopt.infrastructure.services.license_validator import (
+        get_license_validator,
+        LicenseTier,
+        Feature
+    )
+except ImportError:
+    from infrastructure.services.license_validator import (  # type: ignore[no-redef]
+        get_license_validator,
+        LicenseTier,
+        Feature
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +128,7 @@ def get_ui_feature_flags() -> Dict[str, Any]:
             'show_analysis': True,
             'show_alerts': True,
             'show_recommendations': True,
-            'show_ai_plans': False,  # Not for PRO
+            'show_ai_plans': True,
             'show_export': True,
             'show_settings': True,
             'cluster_limit': 5,
