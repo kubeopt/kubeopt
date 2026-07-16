@@ -21,6 +21,7 @@ from presentation.api.v2.dependencies.services import (
 from assessment.command_generator import generate_recommendations
 from infrastructure.demo.demo_data import (
     is_demo_mode, get_demo_cluster, get_demo_analysis_status, get_demo_chart_data,
+    get_demo_recommendations,
 )
 
 logger = logging.getLogger(__name__)
@@ -548,12 +549,7 @@ async def get_recommendations(
     if is_demo_mode():
         demo = get_demo_cluster(cluster_id)
         if demo:
-            from shared.utils.shared import _get_analysis_data
-            analysis_data, _ = _get_analysis_data(cluster_id)
-            analysis_data = analysis_data or {}
-            if "recommendations" in analysis_data:
-                return analysis_data["recommendations"]
-            return [r.model_dump() for r in generate_recommendations(analysis_data)]
+            return get_demo_recommendations(cluster_id)
         raise HTTPException(status_code=404, detail="Cluster not found")
 
     cluster = cluster_manager.get_cluster(cluster_id)

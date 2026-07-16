@@ -1,8 +1,13 @@
 import uuid
 
-from kubeopt.shared.models.recommendation import (
-    Recommendation, RiskLevel, RecommendationCategory,
-)
+try:
+    from shared.models.recommendation import (
+        Recommendation, RiskLevel, RecommendationCategory,
+    )
+except ModuleNotFoundError:
+    from kubeopt.shared.models.recommendation import (  # test runner path
+        Recommendation, RiskLevel, RecommendationCategory,
+    )
 
 _RISK_WEIGHT = {RiskLevel.LOW: 1.0, RiskLevel.MEDIUM: 0.6, RiskLevel.HIGH: 0.2}
 _NODE_CONFIDENCE_THRESHOLD = 0.80
