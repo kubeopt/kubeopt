@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional
+
 from kubeopt.shared.models.recommendation import (
     Recommendation, RiskLevel, RecommendationCategory,
 )
@@ -34,7 +34,7 @@ def _rightsizing_recs(analysis_data: dict) -> list[Recommendation]:
             f"kubectl set resources {kind}/{name} "
             f"--requests=cpu={recommended_m}m -n {ns}"
         )
-        rollback = f"kubectl rollout undo {kind}/{name} -n {ns}"
+        rollback = f"kubectl set resources {kind}/{name} --requests=cpu={cpu_req}m -n {ns}"
         evidence = (
             f"p95 CPU {cpu_p95}m, current request {cpu_req}m "
             f"({round(ratio * 100)}% utilization)"
@@ -133,7 +133,7 @@ def _node_pool_recs(analysis_data: dict) -> list[Recommendation]:
         current_vm = n.get("current_vm", "")
         recommended_vm = n.get("recommended_vm", "")
         savings = float(n.get("estimated_savings", 0))
-        ns = n.get("namespace", "default")
+        ns = n.get("namespace", "")  # node pools are cluster-scoped; namespace is not applicable
         recs.append(Recommendation(
             id=str(uuid.uuid4()),
             category=RecommendationCategory.NODE_POOL,

@@ -122,7 +122,8 @@ def test_rightsizing_includes_rollback():
     recs = generate_recommendations(RIGHTSIZING_DATA)
     rightsizing = [r for r in recs if r.category == "rightsizing"]
     assert rightsizing[0].rollback is not None
-    assert "rollout undo" in rightsizing[0].rollback
+    assert "kubectl set resources" in rightsizing[0].rollback
+    assert "--requests=cpu=" in rightsizing[0].rollback
 
 
 def test_hpa_recommendation_generates_autoscale_command():
