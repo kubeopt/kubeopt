@@ -1,5 +1,7 @@
-import sys
 import os
+os.environ.setdefault("LOCAL_DEV", "true")
+
+import sys
 
 # Add the parent of kubeopt/ to sys.path so that `from kubeopt.x import y` works
 # when pytest is run from inside the kubeopt/ directory.

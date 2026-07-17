@@ -185,7 +185,7 @@ export default function ImplementationTab({ clusterId }: ImplementationTabProps)
     URL.revokeObjectURL(url)
   }
 
-  const hasPlan = Object.keys(phases).length > 0 || markdownPlan
+  const hasPlan = (plan && Object.keys(phases).length > 0) || markdownPlan
 
   return (
     <div className="space-y-4">
@@ -290,11 +290,13 @@ export default function ImplementationTab({ clusterId }: ImplementationTabProps)
         </Card>
       )}
 
-      {!hasPlan ? (
+      {!hasPlan && recs.length === 0 && (
         <Card className="py-8 text-center" style={{ color: 'var(--text-muted)' }}>
           No implementation plan available. Run an analysis first, then generate a plan.
         </Card>
-      ) : (
+      )}
+
+      {plan && Object.keys(phases).length > 0 && (
         Object.entries(phases).map(([phaseName, commands]) => {
           const isExpanded = expandedPhases[phaseName] !== false // default open
           return (
