@@ -1,4 +1,4 @@
-import uuid
+import hashlib
 
 try:
     from shared.models.recommendation import (
@@ -10,6 +10,11 @@ except ModuleNotFoundError:
     )
 
 _RISK_WEIGHT = {RiskLevel.LOW: 1.0, RiskLevel.MEDIUM: 0.6, RiskLevel.HIGH: 0.2}
+
+
+def _rec_id(category: str, kind: str, name: str, ns: str) -> str:
+    raw = f"{category}:{kind}/{name}:{ns}"
+    return hashlib.sha1(raw.encode()).hexdigest()[:12]
 _NODE_CONFIDENCE_THRESHOLD = 0.80
 _RIGHTSIZING_UTILIZATION_THRESHOLD = 0.60  # flag if p95 < 60% of request
 
@@ -45,7 +50,7 @@ def _rightsizing_recs(analysis_data: dict) -> list[Recommendation]:
             f"({round(ratio * 100)}% utilization)"
         )
         recs.append(Recommendation(
-            id=str(uuid.uuid4()),
+            id=_rec_id(RecommendationCategory.RIGHTSIZING, kind, name, ns),
             category=RecommendationCategory.RIGHTSIZING,
             title=f"Reduce CPU request for {name}",
             resource_ref=f"{kind}/{name}",
@@ -80,7 +85,7 @@ def _hpa_recs(analysis_data: dict) -> list[Recommendation]:
         )
         rollback = f"kubectl delete hpa {name} -n {ns}"
         recs.append(Recommendation(
-            id=str(uuid.uuid4()),
+            id=_rec_id(RecommendationCategory.HPA, kind, name, ns),
             category=RecommendationCategory.HPA,
             title=f"Add HPA to {name}",
             resource_ref=f"{kind}/{name}",
@@ -110,7 +115,7 @@ def _idle_workload_recs(analysis_data: dict) -> list[Recommendation]:
         savings = float(insight.get("estimated_savings", 0))
         confidence = float(insight.get("confidence", 0.6))
         recs.append(Recommendation(
-            id=str(uuid.uuid4()),
+            id=_rec_id(RecommendationCategory.IDLE_WORKLOAD, kind, name, ns),
             category=RecommendationCategory.IDLE_WORKLOAD,
             title=f"Review idle workload: {name}",
             resource_ref=f"{kind}/{name}",
@@ -140,7 +145,7 @@ def _node_pool_recs(analysis_data: dict) -> list[Recommendation]:
         savings = float(n.get("estimated_savings", 0))
         ns = n.get("namespace", "")  # node pools are cluster-scoped; namespace is not applicable
         recs.append(Recommendation(
-            id=str(uuid.uuid4()),
+            id=_rec_id(RecommendationCategory.NODE_POOL, "nodepool", pool, ns),
             category=RecommendationCategory.NODE_POOL,
             title=f"Review node pool resize: {pool}",
             resource_ref=f"nodepool/{pool}",

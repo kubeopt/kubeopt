@@ -3,6 +3,7 @@ import { Check, Copy, Download, ChevronDown, ChevronRight } from 'lucide-react'
 import Markdown from 'react-markdown'
 import { getPlan, generatePlan } from '../../api/plans'
 import { getChartData } from '../../api/analysis'
+import { getRecommendations } from '../../api/recommendations'
 import Card from '../common/Card'
 import Button from '../common/Button'
 import Badge from '../common/Badge'
@@ -82,7 +83,7 @@ export default function ImplementationTab({ clusterId }: ImplementationTabProps)
       const [planResult, chartResult, recsResult] = await Promise.allSettled([
         getPlan(clusterId),
         getChartData(clusterId),
-        fetch(`/api/clusters/${clusterId}/recommendations`).then(r => r.json()),
+        getRecommendations(clusterId),
       ])
 
       let mergedPlan: Record<string, unknown> = {}

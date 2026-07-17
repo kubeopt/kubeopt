@@ -180,3 +180,9 @@ def test_all_recommendations_have_ids():
     ids = [r.id for r in recs]
     assert all(ids)
     assert len(ids) == len(set(ids))  # all unique
+
+
+def test_recommendation_ids_are_stable_across_calls():
+    recs1 = generate_recommendations(RIGHTSIZING_DATA)
+    recs2 = generate_recommendations(RIGHTSIZING_DATA)
+    assert [r.id for r in recs1] == [r.id for r in recs2]
