@@ -170,9 +170,6 @@ def register_project_controls_api(app):
 def _generate_dynamic_action_items(analysis_data, optimization_history, performance_metrics, cpu_avg, memory_avg, cost_savings):
     """Generate dynamic action items using existing implementation"""
     try:
-        # Create an instance of the implementation generator
-        generator = AIImplementationPlanGenerator()
-        
         # Scores derived from actual analysis data only
         scores = {
             'operational_maturity': (cpu_avg + memory_avg) / 2 if (cpu_avg + memory_avg) > 0 else None,
@@ -277,108 +274,10 @@ def _generate_dynamic_action_items(analysis_data, optimization_history, performa
                 logger.warning(f"⚠️ Non-string action item converted: {type(item)} -> {item}")
         
         return string_action_items
-        
+
     except Exception as e:
         logger.error(f"❌ Failed to generate dynamic action items: {e}")
         return []
-
-    @app.route('/api/project-controls', methods=['GET'])
-    def api_project_controls():
-        """Get project controls framework data with commands"""
-        try:
-            logger.info("🔒 Project Controls API called - WITH COMMANDS")
-            
-            # Extract cluster ID
-            cluster_id = request.args.get('cluster_id')
-            if not cluster_id:
-                referrer = request.headers.get('Referer', '')
-                if '/cluster/' in referrer:
-                    try:
-                        cluster_id = referrer.split('/cluster/')[-1].split('/')[0].split('?')[0]
-                        logger.info(f"🔒 Extracted cluster_id from referrer: {cluster_id}")
-                    except Exception:
-                        pass
-            
-            if not cluster_id:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'No cluster ID provided for project controls'
-                }), 400
-            
-            # Get cluster info
-            cluster = enhanced_cluster_manager.get_cluster(cluster_id)
-            if not cluster:
-                return jsonify({
-                    'status': 'error',
-                    'message': f'Cluster {cluster_id} not found'
-                }), 404
-            
-            # Get REAL analysis data
-            current_analysis, data_source = _get_analysis_data(cluster_id)
-            
-            if not current_analysis:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'No analysis data available for project controls. Please run analysis first.',
-                    'cluster_id': cluster_id,
-                    'data_source': data_source,
-                    'action_required': 'run_analysis'
-                }), 404
-            
-            # Log what we received for debugging
-            logger.info(f"🔍  Raw analysis data keys: {list(current_analysis.keys())}")
-            
-            # Project Controls has been migrated to Enterprise Metrics
-            framework_data = {
-                'status': 'migrated',
-                'message': 'Project Controls has been upgraded to Enterprise Operational Metrics. Please use the Enterprise Metrics tab for comprehensive operational intelligence.',
-                'migration_info': {
-                    'old_system': 'Project Controls Framework',
-                    'new_system': 'Enterprise Operational Metrics',
-                    'new_tab': 'Enterprise Metrics',
-                    'benefits': [
-                        'Real-time cluster data analysis',
-                        'Industry-standard benchmarks (CIS, DORA, NIST)',
-                        'Kubernetes upgrade readiness assessment',
-                        'Disaster recovery scoring',
-                        'DORA metrics for team velocity',
-                        'Compliance readiness scoring'
-                    ]
-                },
-                'framework': {},
-                'execution_plan': {}
-            }
-            
-            # Add metadata
-            framework_data['metadata'] = {
-                'cluster_id': cluster_id,
-                'cluster_name': cluster['name'],
-                'resource_group': cluster['resource_group'],
-                'subscription_id': cluster.get('subscription_id'),
-                'subscription_name': cluster.get('subscription_name'),
-                'data_source': data_source,
-                'generated_at': datetime.now().isoformat(),
-                'framework_version': '2.0.0-fixed',
-                'analysis_timestamp': current_analysis.get('analyzed_at'),
-                'real_data_only': True,
-                'commands_extracted': True
-            }
-            
-            logger.info(f"✅  Project controls with commands prepared for cluster: {cluster_id}")
-            logger.info(f"📊 Framework components: {list(framework_data.get('framework', {}).keys())}")
-            
-            # Sanitize the framework data before JSON serialization
-            sanitized_framework = sanitize_for_json(framework_data)
-            return jsonify(sanitized_framework)
-            
-        except Exception as e:
-            logger.error(f"❌ Error in project controls API: {e}")
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
-            return jsonify({
-                'status': 'error',
-                'message': f'project controls API error: {str(e)}',
-                'error_type': type(e).__name__
-            }), 500
 
 
 def extract_framework_with_commands(analysis_data, cluster, data_source):

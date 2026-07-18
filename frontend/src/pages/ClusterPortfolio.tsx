@@ -68,7 +68,7 @@ export default function ClusterPortfolio() {
     }
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { fetchData() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()

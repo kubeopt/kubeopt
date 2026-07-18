@@ -125,7 +125,7 @@ export default function ImplementationTab({ clusterId }: ImplementationTabProps)
     }
   }
 
-  useEffect(() => { fetchPlan() }, [clusterId])
+  useEffect(() => { fetchPlan() }, [clusterId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGenerate = async () => {
     setGenerating(true)

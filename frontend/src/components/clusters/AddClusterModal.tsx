@@ -49,7 +49,7 @@ export default function AddClusterModal({ open, onClose, onAdded }: AddClusterMo
       })
       .catch(() => setSubscriptions([]))
       .finally(() => setSubsLoading(false))
-  }, [open, provider])
+  }, [open, provider]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
