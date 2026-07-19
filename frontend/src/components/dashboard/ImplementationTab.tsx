@@ -3,6 +3,7 @@ import { Check, Copy, Download, ChevronDown, ChevronRight } from 'lucide-react'
 import Markdown from 'react-markdown'
 import { getPlan, generatePlan } from '../../api/plans'
 import { getChartData } from '../../api/analysis'
+import { getRecommendations } from '../../api/recommendations'
 import Card from '../common/Card'
 import Button from '../common/Button'
 import Badge from '../common/Badge'
@@ -18,6 +19,32 @@ interface Command {
   priority_score: number
   risk_level: string
 }
+
+interface DeterministicRecommendation {
+  id: string;
+  category: string;
+  title: string;
+  resource_ref: string;
+  namespace: string;
+  monthly_savings: number;
+  confidence: number;
+  risk_level: 'low' | 'medium' | 'high';
+  priority_score: number;
+  evidence: string;
+  command: string | null;
+  yaml_patch: string | null;
+  rollback: string | null;
+  requires_ai: boolean;
+}
+
+const RISK_BADGE: Record<string, string> = {
+  low: 'bg-green-100 text-green-800',
+  medium: 'bg-yellow-100 text-yellow-800',
+  high: 'bg-red-100 text-red-800',
+}
+
+const formatSavings = (n: number) =>
+  n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${n.toFixed(0)}`
 
 function CopyButton({ text, label }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false)
@@ -44,6 +71,7 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
 
 export default function ImplementationTab({ clusterId }: ImplementationTabProps) {
   const [plan, setPlan] = useState<Record<string, unknown> | null>(null)
+  const [recs, setRecs] = useState<DeterministicRecommendation[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({})
@@ -51,10 +79,11 @@ export default function ImplementationTab({ clusterId }: ImplementationTabProps)
   const fetchPlan = async () => {
     setLoading(true)
     try {
-      // Fetch AI plan and analysis data in parallel
-      const [planResult, chartResult] = await Promise.allSettled([
+      // Fetch AI plan, analysis data, and deterministic recommendations in parallel
+      const [planResult, chartResult, recsResult] = await Promise.allSettled([
         getPlan(clusterId),
         getChartData(clusterId),
+        getRecommendations(clusterId),
       ])
 
       let mergedPlan: Record<string, unknown> = {}
@@ -83,6 +112,11 @@ export default function ImplementationTab({ clusterId }: ImplementationTabProps)
         }
       }
 
+      // Extract deterministic recommendations
+      if (recsResult.status === 'fulfilled' && Array.isArray(recsResult.value)) {
+        setRecs(recsResult.value)
+      }
+
       setPlan(Object.keys(mergedPlan).length > 0 ? mergedPlan : null)
     } catch {
       setPlan(null)
@@ -91,7 +125,7 @@ export default function ImplementationTab({ clusterId }: ImplementationTabProps)
     }
   }
 
-  useEffect(() => { fetchPlan() }, [clusterId])
+  useEffect(() => { fetchPlan() }, [clusterId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGenerate = async () => {
     setGenerating(true)
@@ -133,7 +167,7 @@ export default function ImplementationTab({ clusterId }: ImplementationTabProps)
   )
 
   const downloadMarkdown = () => {
-    const lines: string[] = [`# Implementation Plan — ${clusterId}\n`]
+    const lines: string[] = [`# Implementation Plan - ${clusterId}\n`]
     if (totalSavings > 0) lines.push(`Estimated savings: $${(totalSavings as number).toFixed(0)}/month\n`)
     if (markdownPlan) lines.push(markdownPlan, '\n---\n')
     Object.entries(phases).forEach(([phase, cmds]) => {
@@ -151,7 +185,7 @@ export default function ImplementationTab({ clusterId }: ImplementationTabProps)
     URL.revokeObjectURL(url)
   }
 
-  const hasPlan = Object.keys(phases).length > 0 || markdownPlan
+  const hasPlan = (plan && Object.keys(phases).length > 0) || markdownPlan
 
   return (
     <div className="space-y-4">
@@ -175,11 +209,76 @@ export default function ImplementationTab({ clusterId }: ImplementationTabProps)
               )}
             </>
           )}
-          <Button onClick={handleGenerate} disabled={generating} size="sm">
-            {generating ? 'Generating...' : 'Generate AI Plan'}
-          </Button>
+          <div className="flex flex-col items-end">
+            <Button onClick={handleGenerate} disabled={generating} size="sm">
+              {generating ? 'Generating...' : 'Generate AI Narrative (optional)'}
+            </Button>
+            <p className="text-xs text-gray-500 mt-1">
+              Requires hosted AI (PRO or ENTERPRISE). Produces a narrative summary and implementation walkthrough.
+            </p>
+          </div>
         </div>
       </div>
+
+      {/* Deterministic recommendations */}
+      {recs.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-lg font-bold mb-3">
+            Optimization Recommendations
+            <span className="ml-2 text-sm font-normal text-gray-500">
+              {recs.length} actions - no AI required
+            </span>
+          </h2>
+          <div className="space-y-3">
+            {recs.map(rec => (
+              <div key={rec.id} className="border rounded-lg p-4 bg-white shadow-sm">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <span className="font-bold text-sm">{rec.title}</span>
+                    <span className="ml-2 text-xs text-gray-500">{rec.resource_ref} / {rec.namespace}</span>
+                  </div>
+                  <div className="flex gap-2 text-xs">
+                    <span className={`px-2 py-0.5 rounded ${RISK_BADGE[rec.risk_level]}`}>
+                      {rec.risk_level} risk
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                      {formatSavings(rec.monthly_savings)}/mo
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                      {Math.round(rec.confidence * 100)}% confidence
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-600 mb-3">{rec.evidence}</p>
+                {rec.command && (
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-gray-500 uppercase">Command</span>
+                      <CopyButton text={rec.command} />
+                    </div>
+                    <pre className="bg-gray-900 text-green-400 text-xs p-3 rounded overflow-x-auto">
+                      {rec.command}
+                    </pre>
+                  </div>
+                )}
+                {rec.rollback && (
+                  <div>
+                    <span className="text-xs font-bold text-gray-500 uppercase">Rollback</span>
+                    <pre className="bg-gray-800 text-yellow-300 text-xs p-2 rounded mt-1 overflow-x-auto">
+                      {rec.rollback}
+                    </pre>
+                  </div>
+                )}
+                {!rec.command && (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                    Manual review required - verify before making changes
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* AI-generated markdown plan */}
       {markdownPlan && (
@@ -191,11 +290,13 @@ export default function ImplementationTab({ clusterId }: ImplementationTabProps)
         </Card>
       )}
 
-      {!hasPlan ? (
+      {!hasPlan && recs.length === 0 && (
         <Card className="py-8 text-center" style={{ color: 'var(--text-muted)' }}>
           No implementation plan available. Run an analysis first, then generate a plan.
         </Card>
-      ) : (
+      )}
+
+      {plan && Object.keys(phases).length > 0 && (
         Object.entries(phases).map(([phaseName, commands]) => {
           const isExpanded = expandedPhases[phaseName] !== false // default open
           return (

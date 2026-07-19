@@ -29,3 +29,20 @@ class CPUOptimizationPlan(BaseModel):
     plan: Dict[str, Any] = {}
     recommendations: List[Dict[str, Any]] = []
     estimated_savings: float = 0.0
+
+
+class RecommendationSchema(BaseModel):
+    id: str
+    category: str
+    title: str
+    resource_ref: str
+    namespace: str
+    monthly_savings: float
+    confidence: float
+    risk_level: str
+    priority_score: float
+    evidence: str
+    command: Optional[str] = None
+    yaml_patch: Optional[str] = None
+    rollback: Optional[str] = None
+    requires_ai: bool = False

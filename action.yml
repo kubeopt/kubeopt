@@ -7,15 +7,17 @@ branding:
 
 inputs:
   kubeopt-url:
-    description: 'URL of your KubeOpt instance'
-    required: true
+    description: 'URL of your KubeOpt instance (e.g. https://kubeopt.example.com). Leave blank to skip scan.'
+    required: false
+    default: ''
   kubeopt-username:
     description: 'KubeOpt username'
-    required: true
+    required: false
     default: 'kubeopt'
   kubeopt-password:
     description: 'KubeOpt password'
-    required: true
+    required: false
+    default: ''
   cluster-id:
     description: 'Specific cluster ID to scan (omit for all clusters)'
     required: false
@@ -42,48 +44,50 @@ runs:
   steps:
 
     # ------------------------------------------------------------------ #
-    # 1. Mask secrets before any output appears in the log
+    # 1. Skip gracefully when no KubeOpt instance is configured
     # ------------------------------------------------------------------ #
-    - name: Mask secrets
+    - name: Check configuration
+      id: check
       shell: bash
       run: |
-        echo "::add-mask::${{ inputs.kubeopt-url }}"
-        echo "::add-mask::${{ inputs.kubeopt-password }}"
+        if [ -z "${{ inputs.kubeopt-url }}" ] || [ -z "${{ inputs.kubeopt-password }}" ]; then
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+          echo "::notice::KUBEOPT_URL or KUBEOPT_PASSWORD not configured -- skipping cost scan."
+        else
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "::add-mask::${{ inputs.kubeopt-url }}"
+          echo "::add-mask::${{ inputs.kubeopt-password }}"
+        fi
 
     # ------------------------------------------------------------------ #
-    # 2. Check out the KubeOpt source (provides cli.py)
-    # ------------------------------------------------------------------ #
-    - name: Check out KubeOpt
-      uses: actions/checkout@v4
-      with:
-        repository: kubeopt/kubeopt
-        ref: v1.0.0
-        path: _kubeopt_src
-
-    # ------------------------------------------------------------------ #
-    # 3. Set up Python and install requirements
+    # 2. Set up Python using the action's own bundled requirements
+    #    ${{ github.action_path }} resolves correctly whether called as
+    #    `uses: ./` (same repo) or `uses: kubeopt/kubeopt@v1` (external).
     # ------------------------------------------------------------------ #
     - name: Set up Python
+      if: steps.check.outputs.skip == 'false'
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
         cache: pip
-        cache-dependency-path: _kubeopt_src/requirements/requirements.txt
+        cache-dependency-path: ${{ github.action_path }}/requirements/requirements.txt
 
     - name: Install dependencies
+      if: steps.check.outputs.skip == 'false'
       shell: bash
       run: |
         python -m pip install --upgrade pip --quiet
-        pip install -r _kubeopt_src/requirements/requirements.txt --quiet
+        pip install -r "${{ github.action_path }}/requirements/requirements.txt" --quiet
 
     # ------------------------------------------------------------------ #
-    # 4. Run the cost scan and capture JSON output
+    # 3. Run the cost scan and capture JSON output
     # ------------------------------------------------------------------ #
     - name: Run KubeOpt scan
       id: scan
+      if: steps.check.outputs.skip == 'false'
       shell: bash
       env:
-        KUBEOPT_URL: ${{ inputs.kubeopt-url }}
+        KUBEOPT_URL:      ${{ inputs.kubeopt-url }}
         KUBEOPT_USERNAME: ${{ inputs.kubeopt-username }}
         KUBEOPT_PASSWORD: ${{ inputs.kubeopt-password }}
       run: |
@@ -92,7 +96,8 @@ runs:
           ARGS="$ARGS --cluster ${{ inputs.cluster-id }}"
         fi
 
-        python _kubeopt_src/cli.py scan $ARGS > /tmp/kubeopt_scan.json 2>/tmp/kubeopt_scan.err
+        python "${{ github.action_path }}/cli.py" scan $ARGS \
+          > /tmp/kubeopt_scan.json 2>/tmp/kubeopt_scan.err
         STATUS=$?
 
         if [ $STATUS -ne 0 ]; then
@@ -104,11 +109,11 @@ runs:
         echo "Scan completed successfully."
 
     # ------------------------------------------------------------------ #
-    # 5. Parse JSON and produce markdown + step outputs
-    #    Using shell: python avoids heredoc-in-YAML pipe-character issues
+    # 4. Parse JSON and produce markdown + step outputs
     # ------------------------------------------------------------------ #
     - name: Parse and format results
       id: parse
+      if: steps.check.outputs.skip == 'false'
       shell: python
       run: |
         import json, os, sys, datetime
@@ -122,29 +127,26 @@ runs:
             sys.exit(1)
 
         scan_date  = data.get("scan_date",          datetime.date.today().isoformat())
-        total_cost = data.get("total_monthly_cost", 0)
         total_sav  = data.get("total_savings",      0)
         clusters   = data.get("clusters",           [])
         opps       = data.get("opportunities",      [])
 
-        # ---- cluster table rows ----
         if clusters:
             cluster_rows = "\n".join(
-                f"| {c.get('cluster_id','—')} "
-                f"| {c.get('provider','—')} "
+                f"| {c.get('cluster_id','--')} "
+                f"| {c.get('provider','--')} "
                 f"| ${c.get('monthly_cost', 0):,.0f} "
                 f"| ${c.get('savings', 0):,.0f}/mo |"
                 for c in clusters
             )
         else:
-            cluster_rows = "| — | — | — | — |"
+            cluster_rows = "| -- | -- | -- | -- |"
 
-        # ---- opportunities list ----
         if opps:
             opp_lines = "\n".join(
                 f"{i}. ${opp.get('savings', 0):,.0f}/mo"
-                f" — {opp.get('cluster_id', '—')}"
-                f" — {opp.get('description', 'opportunity')}"
+                f" -- {opp.get('cluster_id', '--')}"
+                f" -- {opp.get('description', 'opportunity')}"
                 for i, opp in enumerate(opps, 1)
             )
         else:
@@ -153,7 +155,7 @@ runs:
         total_fmt = f"{total_sav:,.0f}"
 
         md_lines = [
-            f"## KubeOpt Cost Scan \u2014 {scan_date}",
+            f"## KubeOpt Cost Scan -- {scan_date}",
             "",
             "| Cluster | Provider | Monthly Spend | Savings Available |",
             "|---------|----------|--------------|-------------------|",
@@ -170,7 +172,6 @@ runs:
         ]
         md = "\n".join(md_lines)
 
-        # ---- write to GITHUB_OUTPUT ----
         github_output = os.environ.get("GITHUB_OUTPUT", "")
         if github_output:
             delimiter = "KUBEOPT_MD_EOF"
@@ -178,14 +179,13 @@ runs:
                 out.write(f"total-savings={total_sav:.2f}\n")
                 out.write(f"scan-summary<<{delimiter}\n{md}\n{delimiter}\n")
 
-        print(f"Parsed successfully. Total savings: ${total_fmt}/mo "
-              f"across {data.get('total_clusters', '?')} cluster(s).")
+        print(f"Parsed. Total savings: ${total_fmt}/mo across {data.get('total_clusters', '?')} cluster(s).")
 
     # ------------------------------------------------------------------ #
-    # 6. Write to GitHub Step Summary (always runs, even on failure)
+    # 5. Write to GitHub Step Summary
     # ------------------------------------------------------------------ #
     - name: Write step summary
-      if: always()
+      if: always() && steps.check.outputs.skip == 'false'
       shell: python
       run: |
         import json, os, sys, datetime
@@ -193,13 +193,11 @@ runs:
         SCAN_PATH = "/tmp/kubeopt_scan.json"
         summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "")
         if not summary_path:
-            print("GITHUB_STEP_SUMMARY not set — skipping.")
             sys.exit(0)
 
         if not os.path.exists(SCAN_PATH):
             with open(summary_path, "a") as f:
-                f.write("## KubeOpt Cost Scan\n\n"
-                        "_Scan did not produce output \u2014 check logs for errors._\n")
+                f.write("## KubeOpt Cost Scan\n\n_Scan did not produce output -- check logs._\n")
             sys.exit(0)
 
         try:
@@ -207,7 +205,7 @@ runs:
                 data = json.load(f)
         except Exception as e:
             with open(summary_path, "a") as f:
-                f.write(f"## KubeOpt Cost Scan\n\n_Could not parse scan output: {e}_\n")
+                f.write(f"## KubeOpt Cost Scan\n\n_Could not parse output: {e}_\n")
             sys.exit(0)
 
         scan_date = data.get("scan_date",     datetime.date.today().isoformat())
@@ -215,57 +213,41 @@ runs:
         clusters  = data.get("clusters",      [])
         opps      = data.get("opportunities", [])
 
-        if clusters:
-            cluster_rows = "\n".join(
-                f"| {c.get('cluster_id','—')} "
-                f"| {c.get('provider','—')} "
-                f"| ${c.get('monthly_cost', 0):,.0f} "
-                f"| ${c.get('savings', 0):,.0f}/mo |"
-                for c in clusters
-            )
-        else:
-            cluster_rows = "| — | — | — | — |"
+        cluster_rows = "\n".join(
+            f"| {c.get('cluster_id','--')} | {c.get('provider','--')} "
+            f"| ${c.get('monthly_cost', 0):,.0f} | ${c.get('savings', 0):,.0f}/mo |"
+            for c in clusters
+        ) or "| -- | -- | -- | -- |"
 
-        if opps:
-            opp_lines = "\n".join(
-                f"{i}. ${opp.get('savings', 0):,.0f}/mo"
-                f" — {opp.get('cluster_id', '—')}"
-                f" — {opp.get('description', 'opportunity')}"
-                for i, opp in enumerate(opps, 1)
-            )
-        else:
-            opp_lines = "_No detailed opportunities returned._"
+        opp_lines = "\n".join(
+            f"{i}. ${opp.get('savings', 0):,.0f}/mo -- {opp.get('cluster_id','--')} -- {opp.get('description','opportunity')}"
+            for i, opp in enumerate(opps, 1)
+        ) or "_No detailed opportunities returned._"
 
-        total_fmt = f"{total_sav:,.0f}"
-
-        md_lines = [
-            f"## KubeOpt Cost Scan \u2014 {scan_date}",
+        md = "\n".join([
+            f"## KubeOpt Cost Scan -- {scan_date}",
             "",
             "| Cluster | Provider | Monthly Spend | Savings Available |",
             "|---------|----------|--------------|-------------------|",
             cluster_rows,
             "",
-            f"**Total potential savings: ${total_fmt}/mo**",
+            f"**Total potential savings: ${total_sav:,.0f}/mo**",
             "",
-            "<details>",
-            "<summary>Top opportunities</summary>",
+            "<details><summary>Top opportunities</summary>",
             "",
             opp_lines,
             "",
             "</details>",
-        ]
-        md = "\n".join(md_lines)
+        ])
 
         with open(summary_path, "a") as f:
             f.write(md + "\n")
 
-        print("Step summary written.")
-
     # ------------------------------------------------------------------ #
-    # 7. Post PR comment (only on pull_request events when opted in)
+    # 6. Post PR comment
     # ------------------------------------------------------------------ #
     - name: Post PR comment
-      if: ${{ inputs.post-comment == 'true' && github.event_name == 'pull_request' }}
+      if: inputs.post-comment == 'true' && github.event_name == 'pull_request' && steps.check.outputs.skip == 'false'
       uses: actions/github-script@v7
       with:
         script: |
@@ -279,69 +261,52 @@ runs:
             return;
           }
 
-          const scanDate = data.scan_date  || new Date().toISOString().split('T')[0];
+          const scanDate = data.scan_date    || new Date().toISOString().split('T')[0];
           const totalSav = data.total_savings || 0;
           const clusters = data.clusters      || [];
           const opps     = data.opportunities || [];
 
-          // ---- cluster table ----
-          const fmtNum = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
+          const fmt = n => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 
-          let clusterRows = '';
-          if (clusters.length > 0) {
-            for (const c of clusters) {
-              clusterRows +=
-                `| ${c.cluster_id  || '—'} ` +
-                `| ${c.provider    || '—'} ` +
-                `| $${fmtNum(c.monthly_cost)} ` +
-                `| $${fmtNum(c.savings)}/mo |\n`;
-            }
-          } else {
-            clusterRows = '| — | — | — | — |\n';
-          }
+          const clusterRows = clusters.length
+            ? clusters.map(c =>
+                `| ${c.cluster_id || '--'} | ${c.provider || '--'} | $${fmt(c.monthly_cost)} | $${fmt(c.savings)}/mo |`
+              ).join('\n')
+            : '| -- | -- | -- | -- |';
 
-          // ---- opportunities list ----
-          let oppLines = '';
-          opps.forEach((opp, i) => {
-            oppLines +=
-              `${i + 1}. $${fmtNum(opp.savings)}/mo` +
-              ` — ${opp.cluster_id  || '—'}` +
-              ` — ${opp.description || 'opportunity'}\n`;
-          });
-          if (!oppLines) oppLines = '_No detailed opportunities returned._\n';
+          const oppLines = opps.length
+            ? opps.map((o, i) => `${i+1}. $${fmt(o.savings)}/mo -- ${o.cluster_id || '--'} -- ${o.description || 'opportunity'}`).join('\n')
+            : '_No detailed opportunities returned._';
 
           const body = [
-            `## KubeOpt Cost Scan \u2014 ${scanDate}`,
+            `## KubeOpt Cost Scan -- ${scanDate}`,
             '',
             '| Cluster | Provider | Monthly Spend | Savings Available |',
             '|---------|----------|--------------|-------------------|',
-            clusterRows.trimEnd(),
+            clusterRows,
             '',
-            `**Total potential savings: $${fmtNum(totalSav)}/mo**`,
+            `**Total potential savings: $${fmt(totalSav)}/mo**`,
             '',
             '<details>',
             '<summary>Top opportunities</summary>',
             '',
-            oppLines.trimEnd(),
+            oppLines,
             '',
             '</details>',
             '',
             '---',
-            '_Powered by [KubeOpt](https://github.com/kubeopt/kubeopt) \u2014 Kubernetes cost intelligence_',
+            '_Powered by [KubeOpt](https://github.com/kubeopt/kubeopt) -- Kubernetes cost intelligence_',
           ].join('\n');
 
           const MARKER = '## KubeOpt Cost Scan';
 
-          // Upsert: update existing bot comment or create a new one
           const { data: comments } = await github.rest.issues.listComments({
             owner:        context.repo.owner,
             repo:         context.repo.repo,
             issue_number: context.issue.number,
           });
 
-          const existing = comments.find(
-            c => c.user.type === 'Bot' && c.body.includes(MARKER)
-          );
+          const existing = comments.find(c => c.user.type === 'Bot' && c.body.includes(MARKER));
 
           if (existing) {
             await github.rest.issues.updateComment({

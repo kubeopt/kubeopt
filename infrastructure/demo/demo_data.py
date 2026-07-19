@@ -257,3 +257,143 @@ _CHART_DATA = {
 
 def get_demo_chart_data(cluster_id: str) -> dict:
     return _CHART_DATA.get(cluster_id, {})
+
+
+# Pre-built recommendations for demo clusters.
+# Each entry matches the RecommendationSchema field set exactly.
+DEMO_RECOMMENDATIONS = {
+    "demo-prod-eks-us-east-1": [
+        {
+            "id": "demo-prod-rs-001",
+            "category": "rightsizing",
+            "title": "Reduce CPU request for api-server",
+            "resource_ref": "deployment/api-server",
+            "namespace": "production",
+            "monthly_savings": 336.0,
+            "confidence": 0.87,
+            "risk_level": "low",
+            "priority_score": 292.3,
+            "evidence": "p95 CPU 420m over 30 days; current request 2000m (21% utilisation)",
+            "command": (
+                "kubectl set resources deployment/api-server"
+                " --requests=cpu=600m -n production"
+            ),
+            "yaml_patch": 'resources:\n  requests:\n    cpu: "600m"',
+            "rollback": (
+                "kubectl set resources deployment/api-server"
+                " --requests=cpu=2000m -n production"
+            ),
+            "requires_ai": False,
+        },
+        {
+            "id": "demo-prod-rs-002",
+            "category": "rightsizing",
+            "title": "Reduce CPU request for prometheus",
+            "resource_ref": "deployment/prometheus",
+            "namespace": "monitoring",
+            "monthly_savings": 192.0,
+            "confidence": 0.84,
+            "risk_level": "low",
+            "priority_score": 161.3,
+            "evidence": "p95 CPU 310m over 30 days; current request 1500m (21% utilisation)",
+            "command": (
+                "kubectl set resources deployment/prometheus"
+                " --requests=cpu=400m -n monitoring"
+            ),
+            "yaml_patch": 'resources:\n  requests:\n    cpu: "400m"',
+            "rollback": (
+                "kubectl set resources deployment/prometheus"
+                " --requests=cpu=1500m -n monitoring"
+            ),
+            "requires_ai": False,
+        },
+        {
+            "id": "demo-prod-idle-001",
+            "category": "idle_workload",
+            "title": "Review idle workload: data-processor",
+            "resource_ref": "deployment/data-processor",
+            "namespace": "data-pipeline",
+            "monthly_savings": 288.0,
+            "confidence": 0.78,
+            "risk_level": "medium",
+            "priority_score": 112.3,
+            "evidence": "Under 5% CPU utilisation for 18 of the last 30 days",
+            "command": None,
+            "yaml_patch": None,
+            "rollback": None,
+            "requires_ai": False,
+        },
+        {
+            "id": "demo-prod-node-001",
+            "category": "node_rightsizing",
+            "title": "Downsize 4x m5.2xlarge to m5.xlarge",
+            "resource_ref": "node-group/prod-general",
+            "namespace": "",
+            "monthly_savings": 480.0,
+            "confidence": 0.89,
+            "risk_level": "medium",
+            "priority_score": 427.2,
+            "evidence": (
+                "4 nodes running at <45% average CPU; m5.xlarge provides"
+                " sufficient headroom at current p95 load"
+            ),
+            "command": None,
+            "yaml_patch": None,
+            "rollback": None,
+            "requires_ai": False,
+        },
+    ],
+    "demo-staging-gke-eu-west1": [
+        {
+            "id": "demo-staging-rs-001",
+            "category": "rightsizing",
+            "title": "Reduce CPU request for frontend",
+            "resource_ref": "deployment/frontend",
+            "namespace": "default",
+            "monthly_savings": 120.0,
+            "confidence": 0.82,
+            "risk_level": "low",
+            "priority_score": 98.4,
+            "evidence": "p95 CPU 180m; current request 800m (22% utilisation)",
+            "command": (
+                "kubectl set resources deployment/frontend"
+                " --requests=cpu=250m -n default"
+            ),
+            "yaml_patch": 'resources:\n  requests:\n    cpu: "250m"',
+            "rollback": (
+                "kubectl set resources deployment/frontend"
+                " --requests=cpu=800m -n default"
+            ),
+            "requires_ai": False,
+        },
+    ],
+    "demo-dev-aks-westus2": [
+        {
+            "id": "demo-dev-rs-001",
+            "category": "rightsizing",
+            "title": "Reduce CPU request for backend-api",
+            "resource_ref": "deployment/backend-api",
+            "namespace": "dev",
+            "monthly_savings": 96.0,
+            "confidence": 0.80,
+            "risk_level": "low",
+            "priority_score": 76.8,
+            "evidence": "p95 CPU 200m; current request 1000m (20% utilisation)",
+            "command": (
+                "kubectl set resources deployment/backend-api"
+                " --requests=cpu=300m -n dev"
+            ),
+            "yaml_patch": 'resources:\n  requests:\n    cpu: "300m"',
+            "rollback": (
+                "kubectl set resources deployment/backend-api"
+                " --requests=cpu=1000m -n dev"
+            ),
+            "requires_ai": False,
+        },
+    ],
+}
+
+
+def get_demo_recommendations(cluster_id: str) -> list:
+    """Return pre-built recommendations for a demo cluster."""
+    return DEMO_RECOMMENDATIONS.get(cluster_id, [])

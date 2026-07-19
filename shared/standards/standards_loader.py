@@ -310,7 +310,7 @@ def get_standards_loader(cloud_provider: str = 'azure') -> StandardsLoader:
     Returns:
         StandardsLoader for the specified provider
     """
-    global _standards_loaders
+    global _standards_loaders  # noqa: F824
     if cloud_provider not in _standards_loaders:
         _standards_loaders[cloud_provider] = StandardsLoader(cloud_provider=cloud_provider)
     return _standards_loaders[cloud_provider]

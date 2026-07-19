@@ -12,14 +12,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from presentation.api.v2.schemas.clusters import AnalysisStatus
-from presentation.api.v2.schemas.analysis import ChartDataResponse, CPUOptimizationPlan
+from presentation.api.v2.schemas.analysis import ChartDataResponse, CPUOptimizationPlan, RecommendationSchema
 from presentation.api.v2.dependencies.auth import get_current_user
 from presentation.api.v2.dependencies.services import (
     get_cluster_manager, get_cpu_report_exporter,
     get_analysis_results, get_analysis_cache,
 )
+from assessment.command_generator import generate_recommendations
 from infrastructure.demo.demo_data import (
     is_demo_mode, get_demo_cluster, get_demo_analysis_status, get_demo_chart_data,
+    get_demo_recommendations,
 )
 
 logger = logging.getLogger(__name__)
@@ -535,6 +537,28 @@ async def cpu_report(
     except Exception as e:
         logger.error(f"Failed to export CPU report: {e}")
     raise HTTPException(status_code=500, detail="Failed to export report")
+
+
+@router.get("/clusters/{cluster_id:path}/recommendations", response_model=list[RecommendationSchema])
+async def get_recommendations(
+    cluster_id: str,
+    user: Dict[str, Any] = Depends(get_current_user),
+    cluster_manager=Depends(get_cluster_manager),
+):
+    """Return deterministic recommendations for a cluster. No AI required."""
+    if is_demo_mode():
+        demo = get_demo_cluster(cluster_id)
+        if demo:
+            return get_demo_recommendations(cluster_id)
+        raise HTTPException(status_code=404, detail="Cluster not found")
+
+    cluster = cluster_manager.get_cluster(cluster_id)
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    analysis_data = cluster.get("analysis_data") or {}
+    if "recommendations" in analysis_data:
+        return analysis_data["recommendations"]
+    return [r.model_dump() for r in generate_recommendations(analysis_data)]
 
 
 @router.get("/debug-analysis")

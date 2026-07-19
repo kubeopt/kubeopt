@@ -26,9 +26,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
+
       - name: Run KubeOpt cost scan
         id: kubeopt
-        uses: kubeopt/kubeopt@v1
+        uses: ./
         with:
           kubeopt-url:      ${{ secrets.KUBEOPT_URL }}
           kubeopt-username: ${{ secrets.KUBEOPT_USERNAME }}
