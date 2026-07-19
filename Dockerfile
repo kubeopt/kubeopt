@@ -57,6 +57,7 @@ WORKDIR /app
 COPY *.py ./
 COPY analytics/ ./analytics/
 COPY application/ ./application/
+COPY assessment/ ./assessment/
 COPY infrastructure/ ./infrastructure/
 COPY machine_learning/ ./machine_learning/
 COPY presentation/ ./presentation/
