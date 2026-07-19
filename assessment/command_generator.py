@@ -14,7 +14,7 @@ _RISK_WEIGHT = {RiskLevel.LOW: 1.0, RiskLevel.MEDIUM: 0.6, RiskLevel.HIGH: 0.2}
 
 def _rec_id(category: str, kind: str, name: str, ns: str) -> str:
     raw = f"{category}:{kind}/{name}:{ns}"
-    return hashlib.sha1(raw.encode()).hexdigest()[:12]
+    return hashlib.sha1(raw.encode(), usedforsecurity=False).hexdigest()[:12]
 _NODE_CONFIDENCE_THRESHOLD = 0.80
 _RIGHTSIZING_UTILIZATION_THRESHOLD = 0.60  # flag if p95 < 60% of request
 

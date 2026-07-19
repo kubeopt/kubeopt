@@ -486,6 +486,6 @@ __all__ = [
     'get_multi_subscription_status',
     'validate_multi_subscription_configuration',
     'CLUSTER_CONFIG_AVAILABLE',
-    'ALERTS_AVAILABLE'
-    'alerts_manager'
+    'ALERTS_AVAILABLE',
+    'alerts_manager',
 ]

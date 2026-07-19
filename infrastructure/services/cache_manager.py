@@ -214,8 +214,8 @@ def clear_analysis_cache(cluster_id: str = None, subscription_id: str = None):
     """
     Complete cache clearing with subscription awareness
     """
-    global analysis_cache
-    
+    global analysis_cache  # noqa: F824
+
     if cluster_id:
         # Clear all variants of this cluster
         key_variants = CacheKeyStrategy.find_cache_key_variants(cluster_id)
@@ -300,8 +300,8 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
     """
     Save to cache with consistent key strategy and comprehensive validation
     """
-    global analysis_cache
-    
+    global analysis_cache  # noqa: F824
+
     # Generate consistent cache key
     cache_key = CacheKeyStrategy.generate_cache_key(cluster_id, subscription_id)
     

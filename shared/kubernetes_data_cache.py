@@ -20,6 +20,8 @@ import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
 
+logger = logging.getLogger(__name__)
+
 # Import Azure Metric Collector for replacing high-impact queries
 try:
     from shared.azure_metric_collector import AzureMetricCollector
@@ -29,8 +31,6 @@ except ImportError:
     AZURE_COLLECTOR_AVAILABLE = False
 
 # No fallback collectors - we implement proper batching instead
-
-logger = logging.getLogger(__name__)
 
 
 def normalize_cluster_info(raw_details_json, cloud_provider='azure'):
@@ -2513,7 +2513,7 @@ def fetch_cluster_data(cluster_name: str, resource_group: str, subscription_id: 
 
 def clear_all_caches():
     """Clear all active caches"""
-    global _active_caches
+    global _active_caches  # noqa: F824
     _active_caches.clear()
     logger.info("All caches cleared")
 

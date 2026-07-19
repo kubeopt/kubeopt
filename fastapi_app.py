@@ -32,7 +32,7 @@ _scheduler_ref = None  # Track scheduler for graceful shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown events."""
-    global _scheduler_ref
+    global _scheduler_ref  # noqa: F824
 
     # --- Startup ---
     logger.info("KubeOpt FastAPI starting up...")

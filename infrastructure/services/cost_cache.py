@@ -5,12 +5,15 @@ Simple Cost Cache - Just cache Azure API calls for 12 hours to avoid 429 errors
 """
 
 import json
+import logging
 import sqlite3
 import hashlib
 import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Callable
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 class CostCache:
     def __init__(self, cache_file: str = "infrastructure/persistence/cache/costs.db"):

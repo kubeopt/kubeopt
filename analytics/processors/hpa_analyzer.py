@@ -23,6 +23,11 @@ except ImportError:
     # Standards must be available - fail explicitly
     raise ImportError("Performance standards are required but not found")
 
+try:
+    from analytics.processors.pod_cost_analyzer import KubernetesParsingUtils
+except ImportError:
+    from analytics.collectors.cluster_realtime_metrics import KubernetesParsingUtils
+
 logger = logging.getLogger(__name__)
 
 
