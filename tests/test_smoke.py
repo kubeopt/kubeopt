@@ -1,6 +1,16 @@
 """Smoke tests: CLI demo mode, API recommendations on demo data, no-AI requirement.
 
 https://app.clickup.com/t/86d3qg0c0
+
+Test categories
+---------------
+- No marker: static assertions, no server required, always run in CI.
+- @pytest.mark.integration: requires a running demo server (spun up by the
+  demo_api fixture using .venv/bin/python3.12). These are skipped unless
+  RUN_INTEGRATION_TESTS=1 is set in the environment.
+
+  To run locally:
+      RUN_INTEGRATION_TESTS=1 python3 -m pytest tests/test_smoke.py -v
 """
 
 import os
@@ -15,6 +25,12 @@ import requests
 
 DEMO_API_BASE = "http://localhost:15001"
 NPM_CLI_PATH = "kubeopt-distribution/npm-cli/bin/kubeopt.js"
+
+_run_integration = os.environ.get("RUN_INTEGRATION_TESTS", "").lower() in ("1", "true", "yes")
+integration = pytest.mark.skipif(
+    not _run_integration,
+    reason="Set RUN_INTEGRATION_TESTS=1 to run demo-server smoke tests",
+)
 
 # Root of the KubeOpt monorepo (two levels above kubeopt/)
 _REPO_ROOT = pathlib.Path(__file__).parents[2]
@@ -93,6 +109,7 @@ def _get_demo_token():
 # API smoke assertions (require demo server)
 # ---------------------------------------------------------------------------
 
+@integration
 def test_demo_api_returns_clusters(demo_api):
     token = _get_demo_token()
     r = requests.get(
@@ -106,6 +123,7 @@ def test_demo_api_returns_clusters(demo_api):
     assert len(clusters) > 0, "Demo mode must return at least one cluster"
 
 
+@integration
 def test_demo_api_recommendations_non_empty(demo_api):
     token = _get_demo_token()
     clusters_r = requests.get(
@@ -131,6 +149,7 @@ def test_demo_api_recommendations_non_empty(demo_api):
     assert "priority_score" in first
 
 
+@integration
 def test_demo_recommendations_do_not_require_ai(demo_api):
     token = _get_demo_token()
     clusters_r = requests.get(
