@@ -1,0 +1,197 @@
+{
+  "cluster_id": "test-cluster-002",
+  "collected_at": "2026-07-26T10:00:00",
+  "collector_version": "1.0.0",
+  "metrics_server_available": true,
+  "total_nodes": 3,
+  "total_pods": 6,
+  "total_cpu_allocatable_m": 12000,
+  "total_memory_allocatable_mb": 24576,
+  "total_cpu_requested_m": 5500,
+  "total_memory_requested_mb": 8192,
+  "nodes": [
+    {
+      "name": "node-1",
+      "instance_type": "Standard_D8s_v3",
+      "cpu_allocatable_m": 4000,
+      "memory_allocatable_mb": 8192,
+      "cpu_requested_m": 3000,
+      "memory_requested_mb": 4096,
+      "cpu_used_m": 800,
+      "memory_used_mb": 3000,
+      "node_pool": "prod-pool",
+      "zone": "eastus-1",
+      "ready": true
+    },
+    {
+      "name": "node-2",
+      "instance_type": "Standard_D8s_v3",
+      "cpu_allocatable_m": 4000,
+      "memory_allocatable_mb": 8192,
+      "cpu_requested_m": 2000,
+      "memory_requested_mb": 3000,
+      "cpu_used_m": 400,
+      "memory_used_mb": 2000,
+      "node_pool": "prod-pool",
+      "zone": "eastus-2",
+      "ready": true
+    },
+    {
+      "name": "node-3",
+      "instance_type": "Standard_D8s_v3",
+      "cpu_allocatable_m": 4000,
+      "memory_allocatable_mb": 8192,
+      "cpu_requested_m": 500,
+      "memory_requested_mb": 1096,
+      "cpu_used_m": 20,
+      "memory_used_mb": 100,
+      "node_pool": "dev-pool",
+      "zone": "eastus-1",
+      "ready": true
+    }
+  ],
+  "pods": [
+    {
+      "name": "frontend-abc-001",
+      "namespace": "prod",
+      "workload": "frontend",
+      "workload_kind": "Deployment",
+      "cpu_request_m": 1000,
+      "memory_request_mb": 1024,
+      "cpu_limit_m": 2000,
+      "memory_limit_mb": 2048,
+      "cpu_used_m": 350,
+      "memory_used_mb": 900,
+      "node": "node-1",
+      "phase": "Running",
+      "restarts": 0
+    },
+    {
+      "name": "backend-xyz-001",
+      "namespace": "prod",
+      "workload": "backend",
+      "workload_kind": "Deployment",
+      "cpu_request_m": 2000,
+      "memory_request_mb": 3072,
+      "cpu_limit_m": 4000,
+      "memory_limit_mb": 4096,
+      "cpu_used_m": 450,
+      "memory_used_mb": 2100,
+      "node": "node-2",
+      "phase": "Running",
+      "restarts": 0
+    },
+    {
+      "name": "dev-app-001",
+      "namespace": "dev",
+      "workload": "dev-app",
+      "workload_kind": "Deployment",
+      "cpu_request_m": 200,
+      "memory_request_mb": 256,
+      "cpu_limit_m": 500,
+      "memory_limit_mb": 512,
+      "cpu_used_m": 8,
+      "memory_used_mb": 40,
+      "node": "node-3",
+      "phase": "Running",
+      "restarts": 12
+    },
+    {
+      "name": "dev-db-001",
+      "namespace": "dev",
+      "workload": "dev-db",
+      "workload_kind": "Deployment",
+      "cpu_request_m": 100,
+      "memory_request_mb": 512,
+      "cpu_limit_m": 200,
+      "memory_limit_mb": 1024,
+      "cpu_used_m": 3,
+      "memory_used_mb": 60,
+      "node": "node-3",
+      "phase": "Running",
+      "restarts": 0
+    },
+    {
+      "name": "old-service-001",
+      "namespace": "dev",
+      "workload": "old-service",
+      "workload_kind": "Deployment",
+      "cpu_request_m": 100,
+      "memory_request_mb": 128,
+      "cpu_limit_m": 200,
+      "memory_limit_mb": 256,
+      "cpu_used_m": 1,
+      "memory_used_mb": 15,
+      "node": "node-3",
+      "phase": "Running",
+      "restarts": 0
+    },
+    {
+      "name": "legacy-cron-001",
+      "namespace": "dev",
+      "workload": "legacy-cron",
+      "workload_kind": "Deployment",
+      "cpu_request_m": 100,
+      "memory_request_mb": 200,
+      "cpu_limit_m": 200,
+      "memory_limit_mb": 400,
+      "cpu_used_m": 2,
+      "memory_used_mb": 20,
+      "node": "node-3",
+      "phase": "Running",
+      "restarts": 0
+    }
+  ],
+  "hpas": [
+    {
+      "name": "frontend-hpa",
+      "namespace": "prod",
+      "target_kind": "Deployment",
+      "target_name": "frontend",
+      "min_replicas": 2,
+      "max_replicas": 20,
+      "current_replicas": 1,
+      "desired_replicas": 1,
+      "cpu_target_percent": 70
+    }
+  ],
+  "pvcs": [],
+  "services": [
+    {
+      "name": "frontend-lb",
+      "namespace": "prod",
+      "type": "LoadBalancer",
+      "load_balancer_ip": "20.5.6.7",
+      "ports": [443]
+    },
+    {
+      "name": "dev-lb-unused",
+      "namespace": "dev",
+      "type": "LoadBalancer",
+      "load_balancer_ip": "20.8.9.10",
+      "ports": [8080]
+    }
+  ],
+  "namespaces": [
+    {
+      "name": "prod",
+      "pod_count": 2,
+      "cpu_requested_m": 3000,
+      "memory_requested_mb": 4096,
+      "cpu_used_m": 800,
+      "memory_used_mb": 3000,
+      "hpa_count": 1,
+      "workload_count": 2
+    },
+    {
+      "name": "dev",
+      "pod_count": 4,
+      "cpu_requested_m": 500,
+      "memory_requested_mb": 1096,
+      "cpu_used_m": 14,
+      "memory_used_mb": 135,
+      "hpa_count": 0,
+      "workload_count": 4
+    }
+  ]
+}

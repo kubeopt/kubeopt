@@ -1,0 +1,149 @@
+{
+  "cluster_id": "test-cluster-003",
+  "collected_at": "2026-07-26T10:00:00",
+  "collector_version": "1.0.0",
+  "metrics_server_available": false,
+  "total_nodes": 2,
+  "total_pods": 5,
+  "total_cpu_allocatable_m": 8000,
+  "total_memory_allocatable_mb": 16384,
+  "total_cpu_requested_m": 4500,
+  "total_memory_requested_mb": 9216,
+  "nodes": [
+    {
+      "name": "node-1",
+      "instance_type": "t3.xlarge",
+      "cpu_allocatable_m": 4000,
+      "memory_allocatable_mb": 8192,
+      "cpu_requested_m": 2500,
+      "memory_requested_mb": 5120,
+      "cpu_used_m": null,
+      "memory_used_mb": null,
+      "node_pool": "default",
+      "zone": "us-east-1a",
+      "ready": true
+    },
+    {
+      "name": "node-2",
+      "instance_type": "t3.xlarge",
+      "cpu_allocatable_m": 4000,
+      "memory_allocatable_mb": 8192,
+      "cpu_requested_m": 2000,
+      "memory_requested_mb": 4096,
+      "cpu_used_m": null,
+      "memory_used_mb": null,
+      "node_pool": "default",
+      "zone": "us-east-1b",
+      "ready": true
+    }
+  ],
+  "pods": [
+    {
+      "name": "svc-a-001",
+      "namespace": "prod",
+      "workload": "svc-a",
+      "workload_kind": "Deployment",
+      "cpu_request_m": 1000,
+      "memory_request_mb": 2048,
+      "cpu_limit_m": 2000,
+      "memory_limit_mb": 4096,
+      "cpu_used_m": null,
+      "memory_used_mb": null,
+      "node": "node-1",
+      "phase": "Running",
+      "restarts": 0
+    },
+    {
+      "name": "svc-b-001",
+      "namespace": "prod",
+      "workload": "svc-b",
+      "workload_kind": "Deployment",
+      "cpu_request_m": 500,
+      "memory_request_mb": 1024,
+      "cpu_limit_m": 1000,
+      "memory_limit_mb": 2048,
+      "cpu_used_m": null,
+      "memory_used_mb": null,
+      "node": "node-1",
+      "phase": "Running",
+      "restarts": 0
+    },
+    {
+      "name": "svc-c-001",
+      "namespace": "prod",
+      "workload": "svc-c",
+      "workload_kind": "Deployment",
+      "cpu_request_m": 1000,
+      "memory_request_mb": 2048,
+      "cpu_limit_m": 2000,
+      "memory_limit_mb": 4096,
+      "cpu_used_m": null,
+      "memory_used_mb": null,
+      "node": "node-2",
+      "phase": "Running",
+      "restarts": 0
+    },
+    {
+      "name": "svc-d-001",
+      "namespace": "prod",
+      "workload": "svc-d",
+      "workload_kind": "Deployment",
+      "cpu_request_m": 500,
+      "memory_request_mb": 512,
+      "cpu_limit_m": 1000,
+      "memory_limit_mb": 1024,
+      "cpu_used_m": null,
+      "memory_used_mb": null,
+      "node": "node-2",
+      "phase": "Running",
+      "restarts": 5
+    },
+    {
+      "name": "svc-e-001",
+      "namespace": "prod",
+      "workload": "svc-e",
+      "workload_kind": "Deployment",
+      "cpu_request_m": 500,
+      "memory_request_mb": 512,
+      "cpu_limit_m": 1000,
+      "memory_limit_mb": 1024,
+      "cpu_used_m": null,
+      "memory_used_mb": null,
+      "node": "node-2",
+      "phase": "Running",
+      "restarts": 0
+    }
+  ],
+  "hpas": [],
+  "pvcs": [
+    {
+      "name": "svc-a-data",
+      "namespace": "prod",
+      "storage_class": "gp3",
+      "capacity_gb": 200.0,
+      "phase": "Bound",
+      "access_modes": ["ReadWriteOnce"]
+    }
+  ],
+  "services": [
+    {
+      "name": "svc-a-lb",
+      "namespace": "prod",
+      "type": "LoadBalancer",
+      "load_balancer_ip": "54.1.2.3",
+      "ports": [443]
+    }
+  ],
+  "namespaces": [
+    {
+      "name": "prod",
+      "pod_count": 5,
+      "cpu_requested_m": 3500,
+      "memory_requested_mb": 6144,
+      "cpu_used_m": null,
+      "memory_used_mb": null,
+      "hpa_count": 0,
+      "workload_count": 5
+    }
+  ]
+}

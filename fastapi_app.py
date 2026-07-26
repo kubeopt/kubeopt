@@ -201,7 +201,7 @@ def create_app() -> FastAPI:
     from presentation.api.v2.routers import (
         health, auth, clusters, analysis, plans,
         kubernetes, settings, subscriptions, scheduler, alerts,
-        project_controls, legacy, ai, badge,
+        project_controls, legacy, ai, badge, collector,
     )
 
     app.include_router(health.router)
@@ -219,6 +219,7 @@ def create_app() -> FastAPI:
     app.include_router(legacy.router)
     app.include_router(ai.router)
     app.include_router(badge.router)
+    app.include_router(collector.router)
 
     # Serve React SPA static files (only if frontend/dist exists)
     frontend_dist = project_root / "frontend" / "dist"

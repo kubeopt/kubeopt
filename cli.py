@@ -27,6 +27,17 @@ from typing import Any, Dict, List, Optional
 # .env loader — mirrors the logic in main.py so credentials are always found
 # ---------------------------------------------------------------------------
 
+def _load_config() -> Dict[str, Any]:
+    """Load ~/.kubeopt/config.json if present."""
+    config_path = Path.home() / ".kubeopt" / "config.json"
+    if config_path.exists():
+        try:
+            return json.loads(config_path.read_text())
+        except Exception:
+            pass
+    return {}
+
+
 def _load_dotenv(env_path: Optional[Path] = None) -> None:
     """Load .env file into os.environ (only sets keys that are not already set)."""
     if env_path is None:
@@ -357,6 +368,46 @@ def _info(msg: str) -> None:
 # CLI argument parsing
 # ---------------------------------------------------------------------------
 
+def _simulate_collector(fixture: str, api_url: str, token: str, repeat: int, interval: int) -> int:
+    """POST a collector report fixture to the KubeOpt API."""
+    import time
+    import urllib.request
+    import urllib.error
+
+    fixture_path = Path(fixture)
+    if not fixture_path.exists():
+        # Try relative to bundled fixtures
+        bundled = Path(__file__).parent / "tests" / "fixtures" / fixture
+        if bundled.exists():
+            fixture_path = bundled
+        else:
+            print(f"error: fixture not found: {fixture}", file=sys.stderr)
+            return 1
+
+    payload = fixture_path.read_bytes()
+    url = f"{api_url.rstrip('/')}/api/collector/report"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}",
+    }
+
+    for i in range(max(1, repeat)):
+        try:
+            req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                body = json.loads(resp.read())
+                print(f"[{i+1}/{repeat}] accepted: cluster={body.get('cluster_id')} nodes={body.get('nodes')} pods={body.get('pods')}")
+        except urllib.error.HTTPError as e:
+            print(f"[{i+1}/{repeat}] HTTP {e.code}: {e.read().decode()}", file=sys.stderr)
+        except Exception as e:
+            print(f"[{i+1}/{repeat}] error: {e}", file=sys.stderr)
+
+        if repeat > 1 and i < repeat - 1:
+            time.sleep(interval)
+
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="kubeopt",
@@ -384,6 +435,25 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="as_json",
         help="Emit machine-readable JSON to stdout.",
     )
+
+    collector_cmd = sub.add_parser("collector", help="Collector simulation utilities.")
+    collector_sub = collector_cmd.add_subparsers(dest="collector_command")
+
+    simulate = collector_sub.add_parser(
+        "simulate",
+        help="POST a fixture collector report to the KubeOpt API (for testing).",
+    )
+    simulate.add_argument("--fixture", required=True, metavar="FILE",
+                          help="Path to a collector report JSON fixture.")
+    simulate.add_argument("--api-url", default=None, metavar="URL",
+                          help="KubeOpt API base URL (default: from config/env).")
+    simulate.add_argument("--token", default=None, metavar="TOKEN",
+                          help="Bearer token for auth (default: from config/env).")
+    simulate.add_argument("--repeat", type=int, default=1, metavar="N",
+                          help="Send the report N times (default: 1).")
+    simulate.add_argument("--interval", type=int, default=5, metavar="SECONDS",
+                          help="Seconds between repeats (default: 5).")
+
     return parser
 
 
@@ -392,6 +462,7 @@ def _build_parser() -> argparse.ArgumentParser:
 # ---------------------------------------------------------------------------
 
 def main(argv: Optional[List[str]] = None) -> int:
+    _load_dotenv()
     parser = _build_parser()
     args = parser.parse_args(argv)
 
@@ -401,6 +472,21 @@ def main(argv: Optional[List[str]] = None) -> int:
             top_n=args.top,
             as_json=args.as_json,
         ))
+
+    if args.command == "collector":
+        if args.collector_command == "simulate":
+            cfg = _load_config()
+            api_url = args.api_url or cfg.get("apiUrl", "http://localhost:5010")
+            token = args.token or cfg.get("token", "")
+            return _simulate_collector(
+                fixture=args.fixture,
+                api_url=api_url,
+                token=token,
+                repeat=args.repeat,
+                interval=args.interval,
+            )
+        parser.parse_args(["collector", "--help"])
+        return 0
 
     # No sub-command: print help
     parser.print_help()

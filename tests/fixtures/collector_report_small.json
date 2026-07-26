@@ -1,0 +1,163 @@
+{
+  "cluster_id": "test-cluster-001",
+  "collected_at": "2026-07-26T10:00:00",
+  "collector_version": "1.0.0",
+  "metrics_server_available": true,
+  "total_nodes": 2,
+  "total_pods": 4,
+  "total_cpu_allocatable_m": 8000,
+  "total_memory_allocatable_mb": 16384,
+  "total_cpu_requested_m": 2200,
+  "total_memory_requested_mb": 4096,
+  "nodes": [
+    {
+      "name": "node-1",
+      "instance_type": "Standard_D4s_v3",
+      "cpu_allocatable_m": 4000,
+      "memory_allocatable_mb": 8192,
+      "cpu_requested_m": 1200,
+      "memory_requested_mb": 2048,
+      "cpu_used_m": 320,
+      "memory_used_mb": 1800,
+      "node_pool": "default",
+      "zone": "eastus-1",
+      "ready": true
+    },
+    {
+      "name": "node-2",
+      "instance_type": "Standard_D4s_v3",
+      "cpu_allocatable_m": 4000,
+      "memory_allocatable_mb": 8192,
+      "cpu_requested_m": 1000,
+      "memory_requested_mb": 2048,
+      "cpu_used_m": 180,
+      "memory_used_mb": 1200,
+      "node_pool": "default",
+      "zone": "eastus-2",
+      "ready": true
+    }
+  ],
+  "pods": [
+    {
+      "name": "api-server-7d4b9f-xkp2q",
+      "namespace": "prod",
+      "workload": "api-server",
+      "workload_kind": "Deployment",
+      "cpu_request_m": 500,
+      "memory_request_mb": 512,
+      "cpu_limit_m": 1000,
+      "memory_limit_mb": 1024,
+      "cpu_used_m": 120,
+      "memory_used_mb": 400,
+      "node": "node-1",
+      "phase": "Running",
+      "restarts": 0
+    },
+    {
+      "name": "worker-6c9d8f-mnp4r",
+      "namespace": "prod",
+      "workload": "worker",
+      "workload_kind": "Deployment",
+      "cpu_request_m": 700,
+      "memory_request_mb": 1024,
+      "cpu_limit_m": 1000,
+      "memory_limit_mb": 2048,
+      "cpu_used_m": 200,
+      "memory_used_mb": 900,
+      "node": "node-1",
+      "phase": "Running",
+      "restarts": 2
+    },
+    {
+      "name": "cache-5b7c6d-qrs9t",
+      "namespace": "staging",
+      "workload": "cache",
+      "workload_kind": "Deployment",
+      "cpu_request_m": 500,
+      "memory_request_mb": 256,
+      "cpu_limit_m": 500,
+      "memory_limit_mb": 512,
+      "cpu_used_m": 10,
+      "memory_used_mb": 50,
+      "node": "node-2",
+      "phase": "Running",
+      "restarts": 0
+    },
+    {
+      "name": "batch-job-abc123",
+      "namespace": "staging",
+      "workload": "batch-job",
+      "workload_kind": "Deployment",
+      "cpu_request_m": 500,
+      "memory_request_mb": 256,
+      "cpu_limit_m": 500,
+      "memory_limit_mb": 512,
+      "cpu_used_m": 5,
+      "memory_used_mb": 40,
+      "node": "node-2",
+      "phase": "Running",
+      "restarts": 0
+    }
+  ],
+  "hpas": [
+    {
+      "name": "api-server-hpa",
+      "namespace": "prod",
+      "target_kind": "Deployment",
+      "target_name": "api-server",
+      "min_replicas": 2,
+      "max_replicas": 10,
+      "current_replicas": 1,
+      "desired_replicas": 1,
+      "cpu_target_percent": 70
+    }
+  ],
+  "pvcs": [
+    {
+      "name": "data-pvc",
+      "namespace": "prod",
+      "storage_class": "managed-premium",
+      "capacity_gb": 100.0,
+      "phase": "Bound",
+      "access_modes": ["ReadWriteOnce"]
+    }
+  ],
+  "services": [
+    {
+      "name": "api-server-lb",
+      "namespace": "prod",
+      "type": "LoadBalancer",
+      "load_balancer_ip": "20.1.2.3",
+      "ports": [443, 80]
+    },
+    {
+      "name": "cache-svc",
+      "namespace": "staging",
+      "type": "ClusterIP",
+      "load_balancer_ip": "",
+      "ports": [6379]
+    }
+  ],
+  "namespaces": [
+    {
+      "name": "prod",
+      "pod_count": 2,
+      "cpu_requested_m": 1200,
+      "memory_requested_mb": 1536,
+      "cpu_used_m": 320,
+      "memory_used_mb": 1300,
+      "hpa_count": 1,
+      "workload_count": 2
+    },
+    {
+      "name": "staging",
+      "pod_count": 2,
+      "cpu_requested_m": 1000,
+      "memory_requested_mb": 512,
+      "cpu_used_m": 15,
+      "memory_used_mb": 90,
+      "hpa_count": 0,
+      "workload_count": 2
+    }
+  ]
+}
