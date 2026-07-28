@@ -102,7 +102,16 @@ def _get_demo_token():
         timeout=5,
     )
     assert r.status_code == 200, f"Demo login failed: {r.status_code} {r.text}"
-    return r.json()["token"]
+    body = r.json()
+    token = (
+        body.get("token")
+        or body.get("access_token")
+        or body.get("jwt")
+        or body.get("data", {}).get("token")
+        or body.get("data", {}).get("access_token")
+    )
+    assert token, f"Demo login response did not include a token field. Keys: {sorted(body.keys())}"
+    return token
 
 
 # ---------------------------------------------------------------------------
