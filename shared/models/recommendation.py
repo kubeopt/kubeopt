@@ -15,6 +15,7 @@ class RecommendationCategory(str, Enum):
     HPA = "hpa"
     NODE_POOL = "node_pool"
     STORAGE = "storage"
+    GPU_WORKLOAD = "gpu_workload"
 
 
 class Recommendation(BaseModel):

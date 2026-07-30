@@ -42,6 +42,9 @@ class PodSummary(BaseModel):
     node: str = ""
     phase: str = "Running"
     restarts: int = 0
+    gpu_request: int = 0        # number of GPUs requested (any vendor)
+    gpu_limit: int = 0
+    gpu_vendor: Optional[str] = None   # e.g. "nvidia.com/gpu", "amd.com/gpu"
 
 
 class HPASummary(BaseModel):
@@ -104,6 +107,10 @@ class CollectorReport(BaseModel):
     total_cpu_requested_m: int = 0
     total_memory_requested_mb: int = 0
     metrics_server_available: bool = False
+
+    # GPU summary (0 when no GPU workloads present)
+    total_gpu_pods: int = 0
+    total_gpu_requested: int = 0
 
     def is_fresh(self, max_age_seconds: int = 600) -> bool:
         age = (datetime.utcnow() - self.collected_at).total_seconds()
