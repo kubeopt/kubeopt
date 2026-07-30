@@ -1,0 +1,63 @@
+# KubeOpt local dev stack with collector simulator
+#
+# Usage:
+#   cp .env.example .env        # fill in credentials if needed
+#   docker compose -f deploy/docker/docker-compose.dev.yml up
+#
+# Services:
+#   kubeopt-api       -- FastAPI backend in demo mode (port 5010)
+#   collector-sim     -- posts fixture collector reports every 30s
+
+version: '3.9'
+
+services:
+  kubeopt-api:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: kubeopt:dev
+    container_name: kubeopt-api
+    ports:
+      - "5010:5010"
+    environment:
+      - LOCAL_DEV=true
+      - KUBEOPT_DEMO=true
+      - PORT=5010
+    volumes:
+      - kubeopt-db:/app/infrastructure/persistence/database
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5010/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - kubeopt-net
+
+  collector-sim:
+    image: python:3.11-slim
+    container_name: kubeopt-collector-sim
+    depends_on:
+      kubeopt-api:
+        condition: service_healthy
+    environment:
+      - KUBEOPT_API_URL=http://kubeopt-api:5010
+      # Demo mode accepts any bearer token
+      - KUBEOPT_TOKEN=demo-collector-token
+      - FIXTURE_DIR=/fixtures
+      - INTERVAL_SECONDS=30
+    volumes:
+      - ../../tests/fixtures:/fixtures:ro
+      - ./collector-sim.py:/collector-sim.py:ro
+    command: python3 /collector-sim.py
+    restart: unless-stopped
+    networks:
+      - kubeopt-net
+
+volumes:
+  kubeopt-db:
+
+networks:
+  kubeopt-net:
+    driver: bridge

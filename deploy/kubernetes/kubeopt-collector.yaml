@@ -1,0 +1,445 @@
+# KubeOpt Native Collector
+#
+# Installs a read-only collector pod inside your cluster.
+# The collector reads the Kubernetes API and metrics-server,
+# then POSTs a summary to your KubeOpt instance every 5 minutes.
+#
+# This replaces the Azure Run Command tunnel for hot-path analysis.
+# No mutation permissions. No kubectl exec. No secrets read.
+#
+# Usage:
+#   kubectl create namespace kubeopt
+#   kubectl create secret generic kubeopt-collector-token \
+#     --from-literal=token=<your-kubeopt-jwt> \
+#     -n kubeopt
+#   kubectl apply -f kubeopt-collector.yaml
+#   kubectl logs deploy/kubeopt-collector -n kubeopt
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubeopt
+  labels:
+    app.kubernetes.io/managed-by: kubeopt
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubeopt-collector
+  namespace: kubeopt
+  labels:
+    app.kubernetes.io/name: kubeopt-collector
+    app.kubernetes.io/component: collector
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubeopt-collector
+  labels:
+    app.kubernetes.io/name: kubeopt-collector
+    app.kubernetes.io/component: collector
+rules:
+  - apiGroups: [""]
+    resources: [nodes, pods, persistentvolumeclaims, services, namespaces]
+    verbs: [get, list]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets, statefulsets, daemonsets]
+    verbs: [get, list]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list]
+  - apiGroups: [metrics.k8s.io]
+    resources: [nodes, pods]
+    verbs: [get, list]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubeopt-collector
+  labels:
+    app.kubernetes.io/name: kubeopt-collector
+    app.kubernetes.io/component: collector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubeopt-collector
+subjects:
+  - kind: ServiceAccount
+    name: kubeopt-collector
+    namespace: kubeopt
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubeopt-collector
+  namespace: kubeopt
+  labels:
+    app.kubernetes.io/name: kubeopt-collector
+    app.kubernetes.io/component: collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kubeopt-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kubeopt-collector
+        app.kubernetes.io/component: collector
+    spec:
+      serviceAccountName: kubeopt-collector
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: collector
+          image: python:3.11-slim
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: KUBEOPT_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: kubeopt-collector-token
+                  key: api_url
+                  optional: false
+            - name: KUBEOPT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: kubeopt-collector-token
+                  key: token
+                  optional: false
+            - name: COLLECTOR_INTERVAL_SECONDS
+              value: "300"
+            - name: CLUSTER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          command: [python3, -u, /collector/collector.py]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: collector-script
+              mountPath: /collector
+              readOnly: true
+          livenessProbe:
+            exec:
+              command: [cat, /tmp/collector-alive]
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            failureThreshold: 3
+      volumes:
+        - name: collector-script
+          configMap:
+            name: kubeopt-collector-script
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubeopt-collector-script
+  namespace: kubeopt
+  labels:
+    app.kubernetes.io/name: kubeopt-collector
+    app.kubernetes.io/component: collector
+data:
+  collector.py: |
+    """
+    KubeOpt Native Collector
+    Runs inside the cluster, reads Kubernetes API + metrics-server,
+    POSTs a CollectorReport to the KubeOpt API on each interval.
+    """
+    import json
+    import logging
+    import os
+    import sys
+    import time
+    import urllib.request
+    import urllib.error
+    from datetime import datetime, timezone
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    log = logging.getLogger("kubeopt-collector")
+
+    API_URL = os.environ["KUBEOPT_API_URL"].rstrip("/")
+    TOKEN = os.environ["KUBEOPT_TOKEN"]
+    INTERVAL = int(os.environ.get("COLLECTOR_INTERVAL_SECONDS", "300"))
+    CLUSTER_ID = os.environ.get("CLUSTER_ID", "unknown")
+    METRICS_SERVER = os.environ.get("METRICS_SERVER_URL", "http://metrics-server.kube-system.svc/apis/metrics.k8s.io/v1beta1")
+    K8S_API = "https://kubernetes.default.svc"
+    SA_TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    CA_CERT_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+
+    import ssl
+    import urllib.parse
+
+    def _k8s_token():
+        with open(SA_TOKEN_PATH) as f:
+            return f.read().strip()
+
+    def _k8s_get(path):
+        token = _k8s_token()
+        url = f"{K8S_API}{path}"
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+        ctx = ssl.create_default_context(cafile=CA_CERT_PATH)
+        with urllib.request.urlopen(req, context=ctx, timeout=15) as r:
+            return json.loads(r.read())
+
+    def _metrics_get(path):
+        token = _k8s_token()
+        url = f"{METRICS_SERVER}{path}"
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+        ctx = ssl.create_default_context(cafile=CA_CERT_PATH)
+        try:
+            with urllib.request.urlopen(req, context=ctx, timeout=10) as r:
+                return json.loads(r.read()), True
+        except Exception:
+            return {}, False
+
+    def _parse_cpu(val):
+        """Convert CPU string (e.g. '500m', '2') to millicores int."""
+        if not val:
+            return 0
+        if val.endswith("m"):
+            return int(val[:-1])
+        return int(float(val) * 1000)
+
+    def _parse_mem(val):
+        """Convert memory string to MiB int."""
+        if not val:
+            return 0
+        if val.endswith("Ki"):
+            return int(val[:-2]) // 1024
+        if val.endswith("Mi"):
+            return int(val[:-2])
+        if val.endswith("Gi"):
+            return int(val[:-2]) * 1024
+        return int(val) // (1024 * 1024)
+
+    def collect():
+        log.info("collecting cluster inventory...")
+        report = {
+            "cluster_id": CLUSTER_ID,
+            "collected_at": datetime.now(timezone.utc).isoformat(),
+            "collector_version": "2.0.0",
+            "nodes": [],
+            "pods": [],
+            "hpas": [],
+            "pvcs": [],
+            "services": [],
+            "namespaces": [],
+            "metrics_server_available": False,
+        }
+
+        # Nodes
+        nodes_raw = _k8s_get("/api/v1/nodes")
+        node_metrics, metrics_ok = _metrics_get("/nodes")
+        report["metrics_server_available"] = metrics_ok
+        node_usage = {i["metadata"]["name"]: i["usage"] for i in node_metrics.get("items", [])}
+
+        for n in nodes_raw.get("items", []):
+            meta = n["metadata"]
+            labels = meta.get("labels", {})
+            alloc = n["status"].get("allocatable", {})
+            usage = node_usage.get(meta["name"], {})
+            ready = any(
+                c["type"] == "Ready" and c["status"] == "True"
+                for c in n["status"].get("conditions", [])
+            )
+            report["nodes"].append({
+                "name": meta["name"],
+                "instance_type": labels.get("node.kubernetes.io/instance-type", ""),
+                "cpu_allocatable_m": _parse_cpu(alloc.get("cpu")),
+                "memory_allocatable_mb": _parse_mem(alloc.get("memory")),
+                "cpu_requested_m": 0,
+                "memory_requested_mb": 0,
+                "cpu_used_m": _parse_cpu(usage.get("cpu")) if metrics_ok else None,
+                "memory_used_mb": _parse_mem(usage.get("memory")) if metrics_ok else None,
+                "node_pool": labels.get("agentpool", labels.get("eks.amazonaws.com/nodegroup",
+                             labels.get("cloud.google.com/gke-nodepool", ""))),
+                "zone": labels.get("topology.kubernetes.io/zone", ""),
+                "ready": ready,
+            })
+
+        # Pods
+        pods_raw = _k8s_get("/api/v1/pods")
+        pod_metrics, _ = _metrics_get("/pods")
+        pod_usage = {
+            f"{i['metadata']['namespace']}/{i['metadata']['name']}": i["containers"]
+            for i in pod_metrics.get("items", [])
+        }
+
+        ns_agg = {}
+        for p in pods_raw.get("items", []):
+            meta = p["metadata"]
+            spec = p.get("spec", {})
+            status = p.get("status", {})
+            ns = meta["namespace"]
+            if ns not in ns_agg:
+                ns_agg[ns] = {"pod_count": 0, "cpu_requested_m": 0, "memory_requested_mb": 0,
+                               "cpu_used_m": 0 if metrics_ok else None,
+                               "memory_used_mb": 0 if metrics_ok else None,
+                               "hpa_count": 0, "workload_count": 0, "workloads": set()}
+
+            owners = meta.get("ownerReferences", [])
+            workload = owners[0]["name"] if owners else ""
+            workload_kind = owners[0]["kind"] if owners else ""
+
+            containers = spec.get("containers", [])
+            cpu_req = sum(_parse_cpu(c.get("resources", {}).get("requests", {}).get("cpu")) for c in containers)
+            mem_req = sum(_parse_mem(c.get("resources", {}).get("requests", {}).get("memory")) for c in containers)
+            cpu_lim = sum(_parse_cpu(c.get("resources", {}).get("limits", {}).get("cpu")) for c in containers)
+            mem_lim = sum(_parse_mem(c.get("resources", {}).get("limits", {}).get("memory")) for c in containers)
+
+            key = f"{ns}/{meta['name']}"
+            pu = pod_usage.get(key, [])
+            cpu_used = sum(_parse_cpu(c.get("usage", {}).get("cpu")) for c in pu) if metrics_ok and pu else None
+            mem_used = sum(_parse_mem(c.get("usage", {}).get("memory")) for c in pu) if metrics_ok and pu else None
+
+            restarts = sum(
+                cs.get("restartCount", 0)
+                for cs in status.get("containerStatuses", [])
+            )
+
+            report["pods"].append({
+                "name": meta["name"], "namespace": ns,
+                "workload": workload, "workload_kind": workload_kind,
+                "cpu_request_m": cpu_req, "memory_request_mb": mem_req,
+                "cpu_limit_m": cpu_lim, "memory_limit_mb": mem_lim,
+                "cpu_used_m": cpu_used, "memory_used_mb": mem_used,
+                "node": spec.get("nodeName", ""),
+                "phase": status.get("phase", "Unknown"),
+                "restarts": restarts,
+            })
+
+            ns_agg[ns]["pod_count"] += 1
+            ns_agg[ns]["cpu_requested_m"] += cpu_req
+            ns_agg[ns]["memory_requested_mb"] += mem_req
+            if metrics_ok:
+                ns_agg[ns]["cpu_used_m"] = (ns_agg[ns]["cpu_used_m"] or 0) + (cpu_used or 0)
+                ns_agg[ns]["memory_used_mb"] = (ns_agg[ns]["memory_used_mb"] or 0) + (mem_used or 0)
+            if workload:
+                ns_agg[ns]["workloads"].add(workload)
+
+        # HPAs
+        hpas_raw = _k8s_get("/apis/autoscaling/v2/horizontalpodautoscalers")
+        for h in hpas_raw.get("items", []):
+            meta = h["metadata"]
+            spec = h.get("spec", {})
+            status = h.get("status", {})
+            ns = meta["namespace"]
+            if ns in ns_agg:
+                ns_agg[ns]["hpa_count"] += 1
+            cpu_target = None
+            for m in spec.get("metrics", []):
+                if m.get("type") == "Resource" and m.get("resource", {}).get("name") == "cpu":
+                    cpu_target = m["resource"].get("target", {}).get("averageUtilization")
+            report["hpas"].append({
+                "name": meta["name"], "namespace": ns,
+                "target_kind": spec.get("scaleTargetRef", {}).get("kind", ""),
+                "target_name": spec.get("scaleTargetRef", {}).get("name", ""),
+                "min_replicas": spec.get("minReplicas", 1),
+                "max_replicas": spec.get("maxReplicas", 1),
+                "current_replicas": status.get("currentReplicas", 0),
+                "desired_replicas": status.get("desiredReplicas", 0),
+                "cpu_target_percent": cpu_target,
+            })
+
+        # PVCs
+        pvcs_raw = _k8s_get("/api/v1/persistentvolumeclaims")
+        for pvc in pvcs_raw.get("items", []):
+            meta = pvc["metadata"]
+            spec = pvc.get("spec", {})
+            cap = pvc.get("status", {}).get("capacity", {}).get("storage", "0Gi")
+            gb = _parse_mem(cap) / 1024.0
+            report["pvcs"].append({
+                "name": meta["name"], "namespace": meta["namespace"],
+                "storage_class": spec.get("storageClassName", ""),
+                "capacity_gb": gb,
+                "phase": pvc.get("status", {}).get("phase", "Unknown"),
+                "access_modes": spec.get("accessModes", []),
+            })
+
+        # Services
+        svcs_raw = _k8s_get("/api/v1/services")
+        for svc in svcs_raw.get("items", []):
+            meta = svc["metadata"]
+            spec = svc.get("spec", {})
+            ing = svc.get("status", {}).get("loadBalancer", {}).get("ingress", [])
+            lb_ip = ing[0].get("ip", ing[0].get("hostname", "")) if ing else ""
+            ports = [p.get("port") for p in spec.get("ports", []) if p.get("port")]
+            report["services"].append({
+                "name": meta["name"], "namespace": meta["namespace"],
+                "type": spec.get("type", "ClusterIP"),
+                "load_balancer_ip": lb_ip,
+                "ports": ports,
+            })
+
+        # Namespace summaries
+        for ns, agg in ns_agg.items():
+            agg["workload_count"] = len(agg.pop("workloads"))
+            agg["name"] = ns
+            report["namespaces"].append(agg)
+
+        # Cluster-level totals
+        report["total_nodes"] = len(report["nodes"])
+        report["total_pods"] = len(report["pods"])
+        report["total_cpu_allocatable_m"] = sum(n["cpu_allocatable_m"] for n in report["nodes"])
+        report["total_memory_allocatable_mb"] = sum(n["memory_allocatable_mb"] for n in report["nodes"])
+        report["total_cpu_requested_m"] = sum(p["cpu_request_m"] for p in report["pods"])
+        report["total_memory_requested_mb"] = sum(p["memory_request_mb"] for p in report["pods"])
+
+        return report
+
+    def post_report(report):
+        payload = json.dumps(report, default=str).encode()
+        req = urllib.request.Request(
+            f"{API_URL}/api/collector/report",
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {TOKEN}",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return json.loads(r.read())
+
+    def main():
+        log.info("KubeOpt collector starting (cluster=%s, interval=%ds)", CLUSTER_ID, INTERVAL)
+        consecutive_failures = 0
+        while True:
+            try:
+                report = collect()
+                result = post_report(report)
+                log.info("report accepted: nodes=%d pods=%d metrics=%s",
+                         result.get("nodes"), result.get("pods"), report["metrics_server_available"])
+                # Touch liveness file
+                with open("/tmp/collector-alive", "w") as f:
+                    f.write(datetime.now(timezone.utc).isoformat())
+                consecutive_failures = 0
+            except Exception as e:
+                consecutive_failures += 1
+                log.error("collection failed (%d): %s", consecutive_failures, e)
+                if consecutive_failures >= 5:
+                    log.critical("5 consecutive failures -- exiting for pod restart")
+                    sys.exit(1)
+            time.sleep(INTERVAL)
+
+    main()
