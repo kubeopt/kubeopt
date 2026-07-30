@@ -21,6 +21,8 @@ log = logging.getLogger("collector-sim")
 
 API_URL = os.environ.get("KUBEOPT_API_URL", "http://localhost:5010").rstrip("/")
 TOKEN = os.environ.get("KUBEOPT_TOKEN", "")
+USERNAME = os.environ.get("KUBEOPT_USERNAME", "demo")
+PASSWORD = os.environ.get("KUBEOPT_PASSWORD", "demo")
 FIXTURE_DIR = Path(os.environ.get("FIXTURE_DIR", "/fixtures"))
 INTERVAL = int(os.environ.get("INTERVAL_SECONDS", "30"))
 
@@ -32,13 +34,38 @@ def load_fixtures():
     return fixtures
 
 
-def post_report(payload: bytes, fixture_name: str):
+def get_token():
+    if TOKEN:
+        return TOKEN
+
+    payload = json.dumps({"username": USERNAME, "password": PASSWORD}).encode()
+    req = urllib.request.Request(
+        f"{API_URL}/api/auth/login",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=10) as r:
+        body = json.loads(r.read())
+    token = (
+        body.get("token")
+        or body.get("access_token")
+        or body.get("jwt")
+        or body.get("data", {}).get("token")
+        or body.get("data", {}).get("access_token")
+    )
+    if not token:
+        raise RuntimeError(f"login response did not include a token field: {sorted(body.keys())}")
+    return token
+
+
+def post_report(payload: bytes, fixture_name: str, token: str):
     req = urllib.request.Request(
         f"{API_URL}/api/collector/report",
         data=payload,
         headers={
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {TOKEN}",
+            "Authorization": f"Bearer {token}",
         },
         method="POST",
     )
@@ -55,12 +82,13 @@ def post_report(payload: bytes, fixture_name: str):
 
 def main():
     log.info("collector simulator starting (api=%s, interval=%ds)", API_URL, INTERVAL)
+    token = get_token()
     while True:
         fixtures = load_fixtures()
         for fixture in fixtures:
             try:
                 payload = fixture.read_bytes()
-                post_report(payload, fixture.name)
+                post_report(payload, fixture.name, token)
             except Exception as e:
                 log.error("failed to read %s: %s", fixture, e)
         if fixtures:

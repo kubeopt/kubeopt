@@ -8,8 +8,6 @@
 #   kubeopt-api       -- FastAPI backend in demo mode (port 5010)
 #   collector-sim     -- posts fixture collector reports every 30s
 
-version: '3.9'
-
 services:
   kubeopt-api:
     build:
@@ -43,8 +41,8 @@ services:
         condition: service_healthy
     environment:
       - KUBEOPT_API_URL=http://kubeopt-api:5010
-      # Demo mode accepts any bearer token
-      - KUBEOPT_TOKEN=demo-collector-token
+      - KUBEOPT_USERNAME=demo
+      - KUBEOPT_PASSWORD=demo
       - FIXTURE_DIR=/fixtures
       - INTERVAL_SECONDS=30
     volumes:
