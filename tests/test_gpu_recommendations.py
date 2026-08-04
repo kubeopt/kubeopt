@@ -3,6 +3,7 @@
 import json
 import os
 import pytest
+from datetime import datetime
 from pathlib import Path
 
 os.environ.setdefault("LOCAL_DEV", "true")
@@ -127,3 +128,53 @@ class TestGPUEvaluator:
         recs = _recs(r)
         occupancy_recs = [rec for rec in recs if "occupanc" in rec.title.lower() or "node pool" in rec.title.lower() or "utiliz" in rec.title.lower()]
         assert len(occupancy_recs) >= 1
+
+
+# ---------------------------------------------------------------------------
+# API route wiring
+# ---------------------------------------------------------------------------
+
+class TestGPURecommendationEndpointWiring:
+    @pytest.mark.asyncio
+    async def test_cluster_recommendations_include_collector_gpu_findings(self, monkeypatch):
+        monkeypatch.setenv("KUBEOPT_DEMO", "false")
+
+        from presentation.api.v2.routers import analysis
+        from infrastructure.services.collector_store import get_collector_store
+
+        report = _load("collector_report_gpu_workloads.json")
+        report.collected_at = datetime.utcnow()
+        get_collector_store().save(report)
+
+        class ClusterManager:
+            def get_cluster(self, cluster_id):
+                return {"cluster_id": cluster_id, "analysis_data": {}}
+
+        recs = await analysis.get_recommendations(
+            report.cluster_id,
+            user={"sub": "test"},
+            cluster_manager=ClusterManager(),
+        )
+
+        gpu_recs = [r for r in recs if r["category"] == RecommendationCategory.GPU_WORKLOAD]
+        assert len(gpu_recs) >= 4
+        assert any("Idle GPU pod" in r["title"] for r in gpu_recs)
+        assert any("without autoscaling" in r["title"] for r in gpu_recs)
+
+    @pytest.mark.asyncio
+    async def test_cluster_recommendations_without_collector_report_still_work(self, monkeypatch):
+        monkeypatch.setenv("KUBEOPT_DEMO", "false")
+
+        from presentation.api.v2.routers import analysis
+
+        class ClusterManager:
+            def get_cluster(self, cluster_id):
+                return {"cluster_id": cluster_id, "analysis_data": {}}
+
+        recs = await analysis.get_recommendations(
+            "cluster-without-collector",
+            user={"sub": "test"},
+            cluster_manager=ClusterManager(),
+        )
+
+        assert recs == []

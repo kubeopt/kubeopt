@@ -19,6 +19,8 @@ from presentation.api.v2.dependencies.services import (
     get_analysis_results, get_analysis_cache,
 )
 from assessment.command_generator import generate_recommendations
+from assessment.gpu_evaluator import evaluate_gpu_workloads
+from infrastructure.services.collector_store import get_collector_store
 from infrastructure.demo.demo_data import (
     is_demo_mode, get_demo_cluster, get_demo_analysis_status, get_demo_chart_data,
     get_demo_recommendations,
@@ -44,6 +46,22 @@ def _sanitize_numpy(obj):
     return obj
 
 router = APIRouter(prefix="/api", tags=["analysis"])
+
+
+def _append_collector_gpu_recommendations(cluster_id: str, recommendations: list[dict]) -> list[dict]:
+    """Append deterministic GPU recommendations from the latest collector report."""
+    report = get_collector_store().get(cluster_id)
+    if report is None:
+        return recommendations
+
+    gpu_recommendations = [r.model_dump() for r in evaluate_gpu_workloads(report)]
+    if not gpu_recommendations:
+        return recommendations
+
+    existing_ids = {r.get("id") for r in recommendations if isinstance(r, dict)}
+    recommendations.extend(r for r in gpu_recommendations if r.get("id") not in existing_ids)
+    recommendations.sort(key=lambda r: (-float(r.get("priority_score", 0) or 0), str(r.get("id", ""))))
+    return recommendations
 
 
 @router.post("/clusters/{cluster_id:path}/analyze")
@@ -557,8 +575,9 @@ async def get_recommendations(
         raise HTTPException(status_code=404, detail="Cluster not found")
     analysis_data = cluster.get("analysis_data") or {}
     if "recommendations" in analysis_data:
-        return analysis_data["recommendations"]
-    return [r.model_dump() for r in generate_recommendations(analysis_data)]
+        return _append_collector_gpu_recommendations(cluster_id, list(analysis_data["recommendations"]))
+    recommendations = [r.model_dump() for r in generate_recommendations(analysis_data)]
+    return _append_collector_gpu_recommendations(cluster_id, recommendations)
 
 
 @router.get("/debug-analysis")
