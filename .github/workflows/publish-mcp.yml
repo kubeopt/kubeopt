@@ -1,0 +1,148 @@
+name: Publish kubeopt-mcp to PyPI
+
+# Triggers:
+#   - Tag push matching kubeopt-mcp-v*   (e.g. kubeopt-mcp-v1.1.0)
+#   - Manual dispatch with optional version override
+#
+# To release:
+#   git tag kubeopt-mcp-v1.1.0 && git push origin kubeopt-mcp-v1.1.0
+#
+# Trusted Publishing (preferred, no token required):
+#   Configure on pypi.org: project kubeopt-mcp > Publishing > Add publisher
+#   Set: owner=kubeopt, repo=kubeopt, workflow=publish-mcp.yml, env=pypi
+#
+# Fallback: set PYPI_TOKEN secret in repo settings if Trusted Publishing is not configured.
+
+on:
+  push:
+    tags:
+      - 'kubeopt-mcp-v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run only -- build and validate, do not publish'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write  # required for Trusted Publishing OIDC
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # CI gate -- runs on every call (tag or dispatch)
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/requirements.txt
+          pip install pytest
+
+      - name: Import check -- mcp_server
+        run: python -c "from mcp_server.server import server, run; print('import OK')"
+        env:
+          LOCAL_DEV: "true"
+
+      - name: Run MCP server tool registration check
+        run: |
+          python -c "
+          import asyncio, sys
+          sys.path.insert(0, '.')
+          from mcp_server.server import server
+          async def check():
+              tools = await server.list_tools()
+              names = [t.name for t in tools]
+              assert 'list_clusters' in names, f'list_clusters missing, got: {names}'
+              assert 'analyze_cluster' in names, f'analyze_cluster missing, got: {names}'
+              assert len(tools) == 6, f'expected 6 tools, got {len(tools)}: {names}'
+              print(f'OK -- {len(tools)} tools registered: {names}')
+          asyncio.run(check())
+          "
+        env:
+          LOCAL_DEV: "true"
+
+  # ---------------------------------------------------------------------------
+  # Build -- package wheel + sdist
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Build dist/
+        run: uv build
+
+      - name: Verify build artifacts
+        run: |
+          ls -lh dist/
+          python -c "
+          import glob
+          whl = glob.glob('dist/*.whl')
+          sdist = glob.glob('dist/*.tar.gz')
+          assert whl, 'no wheel built'
+          assert sdist, 'no sdist built'
+          print('wheel:', whl[0])
+          print('sdist:', sdist[0])
+          "
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Publish -- only on tag push or manual dispatch with dry_run=false
+  # ---------------------------------------------------------------------------
+  publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)
+    environment: pypi  # ties to PyPI Trusted Publishing environment
+
+    steps:
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Publish to PyPI (Trusted Publishing)
+        if: vars.PYPI_TRUSTED_PUBLISHING == 'true'
+        run: uv publish dist/*
+
+      - name: Publish to PyPI (API token fallback)
+        if: vars.PYPI_TRUSTED_PUBLISHING != 'true'
+        run: uv publish dist/* --token ${{ secrets.PYPI_TOKEN }}
+
+      - name: Confirm published version
+        run: |
+          sleep 15
+          curl -sf https://pypi.org/pypi/kubeopt-mcp/json | python3 -c "
+          import sys, json
+          d = json.load(sys.stdin)
+          print('Published version:', d['info']['version'])
+          "
