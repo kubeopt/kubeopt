@@ -67,13 +67,16 @@ export default function OverviewTab({ clusterId }: OverviewTabProps) {
 
   // Formatting helpers
   const ABBREVS: Record<string, string> = { hpa: 'HPA', cpu: 'CPU', gpu: 'GPU', io: 'I/O', aks: 'AKS', eks: 'EKS', gke: 'GKE' }
-  const titleCase = (s: string) => s.replace(/_/g, ' ').replace(/\b\w+/g, (w) => ABBREVS[w.toLowerCase()] || (w.charAt(0).toUpperCase() + w.slice(1)))
+  const titleCase = (s?: string) => (s || 'Unknown')
+    .replace(/_/g, ' ')
+    .replace(/\b\w+/g, (w) => ABBREVS[w.toLowerCase()] || (w.charAt(0).toUpperCase() + w.slice(1)))
 
   // Cost category data (Compute, Storage, Networking, etc.)
   const costCategories = (chartData?.cost_categories as { name: string; value: number }[]) || []
   // Fallback to namespace-based breakdown if no category data
   const costBreakdown = (chartData?.cost_breakdown as { name: string; value: number }[]) || []
   const costDistributionData = (costCategories.length > 0 ? costCategories : costBreakdown)
+    .filter((d) => d?.name)
     .map((d) => ({ ...d, name: titleCase(d.name) }))
 
   const resourceData = (chartData?.resource_utilization as { name: string; cpu: number; memory: number }[]) || []
@@ -94,8 +97,13 @@ export default function OverviewTab({ clusterId }: OverviewTabProps) {
   const nodeRecs = (chartData?.node_recommendations as { node_name: string; current_vm: string; recommended_vm: string; monthly_savings: number; avg_cpu_pct: number; avg_memory_pct: number; priority: string; reasoning?: string }[]) || []
 
   // Compute average CPU/Memory utilization from resourceData for Node Efficiency metric
-  const avgCpu = resourceData.length > 0 ? resourceData.reduce((s, d) => s + d.cpu, 0) / resourceData.length : 0
-  const avgMem = resourceData.length > 0 ? resourceData.reduce((s, d) => s + d.memory, 0) / resourceData.length : 0
+  const validResourceValues = resourceData
+    .map((d) => ({
+      cpu: Number.isFinite(d.cpu) ? d.cpu : 0,
+      memory: Number.isFinite(d.memory) ? d.memory : 0,
+    }))
+  const avgCpu = validResourceValues.length > 0 ? validResourceValues.reduce((s, d) => s + d.cpu, 0) / validResourceValues.length : 0
+  const avgMem = validResourceValues.length > 0 ? validResourceValues.reduce((s, d) => s + d.memory, 0) / validResourceValues.length : 0
   const nodeEfficiency = (avgCpu + avgMem) / 2
 
   // Key metrics (Optimization Score excluded — shown as gauge)

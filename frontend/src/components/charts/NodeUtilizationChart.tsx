@@ -18,13 +18,19 @@ export default function NodeUtilizationChart({ data }: NodeUtilizationProps) {
     if (key) setHidden((prev) => ({ ...prev, [key]: !prev[key] }))
   }, [])
 
-  if (!data.length) {
+  const chartData = data.map((d) => ({
+    ...d,
+    cpu: Number.isFinite(d.cpu) ? d.cpu : 0,
+    memory: Number.isFinite(d.memory) ? d.memory : 0,
+  }))
+
+  if (!chartData.length) {
     return <div className="py-8 text-center text-dark-400">No node data available</div>
   }
 
   return (
     <ResponsiveContainer width="100%" height={280}>
-      <BarChart data={data} margin={{ bottom: 20, right: 8 }}>
+      <BarChart data={chartData} margin={{ bottom: 20, right: 8 }}>
         <CartesianGrid stroke="var(--border-subtle)" strokeOpacity={0.5} vertical={false} />
         <XAxis
           dataKey="name"
