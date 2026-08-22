@@ -17,3 +17,11 @@ export async function getCollectorStatus(clusterId: string): Promise<CollectorSt
     return null
   }
 }
+
+export async function getAllCollectorStatuses(): Promise<Record<string, CollectorStatus>> {
+  try {
+    return await api.get('/api/collector/reports')
+  } catch {
+    return {}
+  }
+}
