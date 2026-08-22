@@ -12,12 +12,18 @@ export default function ResourceUtilizationChart({ data }: ResourceUtilizationPr
     setHidden((prev) => ({ ...prev, [key]: !prev[key] }))
   }, [])
 
-  if (!data.length) {
+  const chartData = data.map((d) => ({
+    ...d,
+    cpu: Number.isFinite(d.cpu) ? d.cpu : 0,
+    memory: Number.isFinite(d.memory) ? d.memory : 0,
+  }))
+
+  if (!chartData.length) {
     return <div className="py-8 text-center text-dark-400">No resource data available</div>
   }
 
-  const avgCpu = data.reduce((s, d) => s + d.cpu, 0) / data.length
-  const avgMemory = data.reduce((s, d) => s + d.memory, 0) / data.length
+  const avgCpu = chartData.reduce((s, d) => s + d.cpu, 0) / chartData.length
+  const avgMemory = chartData.reduce((s, d) => s + d.memory, 0) / chartData.length
   const cpuWaste = Math.max(0, 100 - avgCpu)
   const memWaste = Math.max(0, 100 - avgMemory)
 

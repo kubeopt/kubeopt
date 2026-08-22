@@ -3,7 +3,7 @@
 import json
 import os
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 os.environ.setdefault("LOCAL_DEV", "true")
@@ -31,6 +31,11 @@ class TestCollectorReportSchema:
 
     def test_is_fresh_when_just_collected(self):
         r = CollectorReport(cluster_id="c1")
+        assert r.is_fresh() is True
+
+    def test_is_fresh_accepts_timezone_aware_collector_timestamp(self):
+        collected_at = datetime.now(timezone.utc) - timedelta(seconds=30)
+        r = CollectorReport(cluster_id="c1", collected_at=collected_at)
         assert r.is_fresh() is True
 
     def test_is_stale_when_old(self):
@@ -195,3 +200,31 @@ class TestCollectorPreference:
         store.save(CollectorReport(cluster_id="c1", collected_at=old))
         source = get_data_source("c1", store)
         assert source == DataSource.PROVIDER
+
+
+# ---------------------------------------------------------------------------
+# API endpoint tests
+# ---------------------------------------------------------------------------
+
+class TestCollectorAPI:
+    @pytest.mark.asyncio
+    async def test_get_collector_report_accepts_timezone_aware_timestamp(self):
+        from infrastructure.services.collector_store import get_collector_store
+        from presentation.api.v2.routers.collector import get_collector_report
+
+        report = CollectorReport(
+            cluster_id="tz-aware-cluster",
+            collected_at=datetime.now(timezone.utc),
+            total_nodes=1,
+            total_pods=9,
+            metrics_server_available=False,
+        )
+        get_collector_store().save(report)
+
+        response = await get_collector_report("tz-aware-cluster", user={"sub": "test"})
+
+        assert response["cluster_id"] == "tz-aware-cluster"
+        assert response["is_fresh"] is True
+        assert response["nodes"] == 1
+        assert response["pods"] == 9
+        assert response["metrics_server_available"] is False

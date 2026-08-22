@@ -9,7 +9,7 @@ command tunnels (e.g. Azure Run Command).
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from pydantic import BaseModel, Field
 
@@ -113,5 +113,9 @@ class CollectorReport(BaseModel):
     total_gpu_requested: int = 0
 
     def is_fresh(self, max_age_seconds: int = 600) -> bool:
-        age = (datetime.utcnow() - self.collected_at).total_seconds()
+        collected_at = self.collected_at
+        if collected_at.tzinfo is None:
+            collected_at = collected_at.replace(tzinfo=timezone.utc)
+        now = datetime.now(collected_at.tzinfo)
+        age = (now - collected_at).total_seconds()
         return age <= max_age_seconds
