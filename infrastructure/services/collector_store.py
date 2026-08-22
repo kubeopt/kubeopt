@@ -26,6 +26,10 @@ class CollectorStore:
         with self._lock:
             return self._reports.get(cluster_id)
 
+    def get_all(self) -> dict[str, CollectorReport]:
+        with self._lock:
+            return dict(self._reports)
+
     def has_fresh_report(self, cluster_id: str) -> bool:
         report = self.get(cluster_id)
         if report is None:

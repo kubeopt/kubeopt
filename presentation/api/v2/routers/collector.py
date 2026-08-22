@@ -44,6 +44,26 @@ async def ingest_collector_report(
     }
 
 
+@router.get("/reports")
+async def get_all_collector_reports(
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Return latest collector reports for all clusters in one request."""
+    store = get_collector_store()
+    return {
+        cluster_id: {
+            "cluster_id": report.cluster_id,
+            "collected_at": report.collected_at.isoformat(),
+            "is_fresh": report.is_fresh(),
+            "data_source": get_data_source(cluster_id, store).value,
+            "nodes": report.total_nodes,
+            "pods": report.total_pods,
+            "metrics_server_available": report.metrics_server_available,
+        }
+        for cluster_id, report in store.get_all().items()
+    }
+
+
 @router.get("/report/{cluster_id}")
 async def get_collector_report(
     cluster_id: str,

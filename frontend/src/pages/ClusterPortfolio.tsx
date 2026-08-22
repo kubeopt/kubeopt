@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, RefreshCw, Search, Trash2, ArrowUpDown, DollarSign, TrendingDown, Server, BarChart3, LayoutGrid, List } from 'lucide-react'
+import { Plus, RefreshCw, Search, Trash2, ArrowUpDown, DollarSign, TrendingDown, Server, BarChart3, LayoutGrid, List, Radio } from 'lucide-react'
 import { useClusterStore, type Cluster } from '../store/clusterStore'
 import { getClusters, getPortfolioSummary, removeCluster } from '../api/clusters'
+import { getAllCollectorStatuses, type CollectorStatus } from '../api/collector'
 import { formatCurrency } from '../utils/format'
 import Card from '../components/common/Card'
 import Button from '../components/common/Button'
@@ -52,15 +53,21 @@ export default function ClusterPortfolio() {
   const [providerFilter, setProviderFilter] = useState<ProviderFilter>('all')
   const [confirmDelete, setConfirmDelete] = useState<Cluster | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [collectorStatuses, setCollectorStatuses] = useState<Record<string, CollectorStatus>>({})
   const navigate = useNavigate()
 
   const fetchData = async () => {
     setLoading(true)
     setError('')
     try {
-      const [clusterRes, summaryRes] = await Promise.all([getClusters(), getPortfolioSummary()])
+      const [clusterRes, summaryRes, statuses] = await Promise.all([
+        getClusters(),
+        getPortfolioSummary(),
+        getAllCollectorStatuses(),
+      ])
       setClusters(clusterRes.clusters)
       setPortfolioSummary(summaryRes)
+      setCollectorStatuses(statuses)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load clusters')
     } finally {
@@ -306,6 +313,7 @@ export default function ClusterPortfolio() {
                   <th className="px-5 py-3.5">Score</th>
                   <th className="px-5 py-3.5">Nodes</th>
                   <th className="px-5 py-3.5">Last Analyzed</th>
+                  <th className="px-5 py-3.5">Data</th>
                   <th className="px-5 py-3.5"></th>
                 </tr>
               </thead>
@@ -344,6 +352,19 @@ export default function ClusterPortfolio() {
                     <td className="px-5 py-3.5" style={{ color: 'var(--text-secondary)' }}>{cluster.node_count ?? '—'}</td>
                     <td className="px-5 py-3.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                       {timeAgo((cluster as unknown as Record<string, unknown>).last_analyzed as string | undefined)}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {(() => {
+                        const cs = collectorStatuses[cluster.cluster_id]
+                        if (!cs) return <span className="text-xs" style={{ color: 'var(--text-muted)' }}>--</span>
+                        if (cs.is_fresh) return (
+                          <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--accent-cyan, #00D4FF)' }}>
+                            <Radio size={10} />
+                            {timeAgo(cs.collected_at)} &middot; {cs.nodes}n/{cs.pods}p
+                          </span>
+                        )
+                        return <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Stale {timeAgo(cs.collected_at)}</span>
+                      })()}
                     </td>
                     <td className="px-5 py-3.5">
                       <button
@@ -422,6 +443,16 @@ export default function ClusterPortfolio() {
                   <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{cluster.node_count ?? '—'}</div>
                 </div>
               </div>
+              {(() => {
+                const cs = collectorStatuses[cluster.cluster_id]
+                if (!cs) return null
+                return (
+                  <div className="mt-2 flex items-center gap-1 text-xs" style={{ color: cs.is_fresh ? 'var(--accent-cyan, #00D4FF)' : 'var(--text-muted)' }}>
+                    <Radio size={10} />
+                    {cs.is_fresh ? `Collected ${timeAgo(cs.collected_at)} · ${cs.nodes}n/${cs.pods}p` : `Stale ${timeAgo(cs.collected_at)}`}
+                  </div>
+                )
+              })()}
             </Card>
           ))}
         </div>
