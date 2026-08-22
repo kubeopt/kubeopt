@@ -59,9 +59,41 @@ def load_env_files():
 load_env_files()
 
 
+def _install_access_log_redactor():
+    """Redact ?token= values from uvicorn access log lines before they are written."""
+    import logging
+    import re
+
+    _TOKEN_RE = re.compile(r'([\?&]token=)[^&\s"]+')
+
+    class _TokenRedactor(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            if record.args:
+                args = record.args
+                if isinstance(args, (list, tuple)):
+                    record.args = tuple(
+                        _TOKEN_RE.sub(r'\1[REDACTED]', a) if isinstance(a, str) else a
+                        for a in args
+                    )
+                elif isinstance(args, dict):
+                    record.args = {
+                        k: _TOKEN_RE.sub(r'\1[REDACTED]', v) if isinstance(v, str) else v
+                        for k, v in args.items()
+                    }
+            if isinstance(record.msg, str):
+                record.msg = _TOKEN_RE.sub(r'\1[REDACTED]', record.msg)
+            return True
+
+    redactor = _TokenRedactor()
+    for name in ("uvicorn.access", "uvicorn"):
+        logging.getLogger(name).addFilter(redactor)
+
+
 def main():
     """Main application entry point — starts uvicorn."""
     import uvicorn
+
+    _install_access_log_redactor()
 
     print("Starting KubeOpt (FastAPI)")
     print("=" * 60)
