@@ -27,6 +27,7 @@ class TestCollectorReportSchema:
         assert r.cluster_id == "c1"
         assert r.total_nodes == 0
         assert r.metrics_server_available is False
+        assert r.metrics_server_error is None
         assert isinstance(r.collected_at, datetime)
 
     def test_is_fresh_when_just_collected(self):
@@ -127,6 +128,16 @@ class TestCollectorFixtures:
         for pod in r.pods:
             assert pod.cpu_used_m is None
 
+    def test_report_preserves_metrics_server_error_reason(self):
+        r = CollectorReport(
+            cluster_id="c1",
+            metrics_server_available=False,
+            metrics_server_error="rbac_denied",
+        )
+        dumped = r.model_dump()
+        restored = CollectorReport(**dumped)
+        assert restored.metrics_server_error == "rbac_denied"
+
 
 # ---------------------------------------------------------------------------
 # CollectorStore tests
@@ -218,6 +229,7 @@ class TestCollectorAPI:
             total_nodes=1,
             total_pods=9,
             metrics_server_available=False,
+            metrics_server_error="network_unreachable",
         )
         get_collector_store().save(report)
 
@@ -228,3 +240,4 @@ class TestCollectorAPI:
         assert response["nodes"] == 1
         assert response["pods"] == 9
         assert response["metrics_server_available"] is False
+        assert response["metrics_server_error"] == "network_unreachable"

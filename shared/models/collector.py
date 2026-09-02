@@ -107,6 +107,7 @@ class CollectorReport(BaseModel):
     total_cpu_requested_m: int = 0
     total_memory_requested_mb: int = 0
     metrics_server_available: bool = False
+    metrics_server_error: Optional[str] = None
 
     # GPU summary (0 when no GPU workloads present)
     total_gpu_pods: int = 0
