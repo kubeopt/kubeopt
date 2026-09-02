@@ -120,6 +120,9 @@ export default function OverviewTab({ clusterId }: OverviewTabProps) {
       ? `Collector active -- ${new Date(collectorStatus.collected_at).toLocaleTimeString()} (${collectorStatus.nodes}n / ${collectorStatus.pods}p)`
       : `Collector stale -- last report ${new Date(collectorStatus.collected_at).toLocaleTimeString()}`
     : null
+  const collectorMetricsLabel = collectorStatus && !collectorStatus.metrics_server_available
+    ? ` -- metrics: ${(collectorStatus.metrics_server_error || 'unavailable').replace(/_/g, ' ')}`
+    : ''
 
   return (
     <div className="space-y-6">
@@ -130,7 +133,7 @@ export default function OverviewTab({ clusterId }: OverviewTabProps) {
             style={{ color: collectorStatus?.is_fresh ? 'var(--accent-cyan, #00D4FF)' : 'var(--text-muted)' }}
           >
             <Radio size={11} />
-            {collectorLabel}
+            {collectorLabel}{collectorMetricsLabel}
           </span>
         ) : <span />}
         {lastRefresh && (
