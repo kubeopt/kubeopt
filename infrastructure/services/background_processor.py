@@ -34,6 +34,28 @@ active_analyses = {}
 analysis_semaphore = threading.Semaphore(MAX_CONCURRENT_ANALYSES)
 _status_lock = threading.Lock()  # Shared lock for analysis_status_tracker
 
+def should_validate_cluster_access(cluster_id: str, collector_store=None, cluster_manager=None, results=None) -> bool:
+    """Return whether cloud-provider validation is required before analysis."""
+    if collector_store is None:
+        from infrastructure.services.collector_store import get_collector_store
+        collector_store = get_collector_store()
+    cluster_manager = cluster_manager or enhanced_cluster_manager
+    results = results if results is not None else analysis_results
+
+    if collector_store.has_fresh_report(cluster_id):
+        return False
+
+    if cluster_id in results:
+        return False
+
+    try:
+        if cluster_manager.get_latest_analysis(cluster_id) is not None:
+            return False
+    except Exception as e:
+        logger.warning(f"⚠️ Could not check existing analysis data for {cluster_id}: {e}")
+
+    return True
+
 def run_subscription_aware_background_analysis(cluster_id: str, resource_group: str, cluster_name: str,
                                               subscription_id: Optional[str] = None, days: int = 30,
                                               enable_pod_analysis: bool = True, cloud_provider: str = 'azure',
@@ -224,8 +246,9 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
                 resource_group=resource_group,
                 subscription_id=subscription_id,
             )
-        if not account_mgr.validate_cluster_access(cluster_ident):
-            raise Exception(f"Cluster validation failed for {cluster_name} in {subscription_id[:8]}")
+        if should_validate_cluster_access(cluster_id):
+            if not account_mgr.validate_cluster_access(cluster_ident):
+                raise Exception(f"Cluster validation failed for {cluster_name} in {subscription_id[:8]}")
         
         # CRITICAL FIX: Ensure cluster exists in database before analysis (from backup code)
         cluster_config = {
