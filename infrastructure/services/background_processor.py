@@ -56,6 +56,58 @@ def should_validate_cluster_access(cluster_id: str, collector_store=None, cluste
 
     return True
 
+
+def _get_existing_analysis(cluster_id: str) -> Optional[Dict[str, Any]]:
+    try:
+        return enhanced_cluster_manager.get_latest_analysis(cluster_id)
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to load existing analysis for {cluster_id}: {e}")
+        return None
+
+
+def _complete_with_existing_analysis(
+    cluster_id: str,
+    subscription_id: Optional[str],
+    subscription_name: str,
+    session_id: Optional[str],
+    reason: str,
+) -> bool:
+    existing_analysis = _get_existing_analysis(cluster_id)
+    if not existing_analysis:
+        return False
+
+    message = f"Analysis completed using latest saved results ({reason})"
+    enhanced_cluster_manager.update_analysis_status(cluster_id, 'completed', 100, message)
+
+    with _status_lock:
+        analysis_status_tracker[cluster_id] = {
+            'status': 'completed',
+            'progress': 100,
+            'message': message,
+            'timestamp': datetime.now().isoformat(),
+            'subscription_id': subscription_id,
+            'subscription_name': subscription_name,
+            'session_id': session_id,
+            'results': {
+                'total_cost': existing_analysis.get('total_cost', 0),
+                'total_savings': existing_analysis.get('total_savings', 0),
+                'confidence': existing_analysis.get('analysis_confidence', 0),
+            },
+        }
+
+    if session_id:
+        enhanced_cluster_manager.update_subscription_analysis_session(session_id, {
+            'status': 'completed',
+            'progress': 100,
+            'message': message,
+            'completed_at': datetime.now().isoformat(),
+            'results_size': len(str(existing_analysis)),
+        })
+
+    logger.info(f"✅ {message}: {cluster_id}")
+    return True
+
+
 def run_subscription_aware_background_analysis(cluster_id: str, resource_group: str, cluster_name: str,
                                               subscription_id: Optional[str] = None, days: int = 30,
                                               enable_pod_analysis: bool = True, cloud_provider: str = 'azure',
@@ -248,6 +300,14 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
             )
         if should_validate_cluster_access(cluster_id):
             if not account_mgr.validate_cluster_access(cluster_ident):
+                if _complete_with_existing_analysis(
+                    cluster_id,
+                    subscription_id,
+                    subscription_id[:8] if subscription_id else 'unknown',
+                    session_id,
+                    'live cluster validation unavailable',
+                ):
+                    return
                 raise Exception(f"Cluster validation failed for {cluster_name} in {subscription_id[:8]}")
         
         # CRITICAL FIX: Ensure cluster exists in database before analysis (from backup code)
@@ -422,6 +482,15 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
             
         else:
             error_message = result.get('message', 'Subscription-aware analysis failed')
+            if 'Cannot access subscription' in error_message and _complete_with_existing_analysis(
+                cluster_id,
+                subscription_id,
+                subscription_name,
+                session_id,
+                'cloud subscription unavailable',
+            ):
+                return
+
             enhanced_cluster_manager.update_analysis_status(cluster_id, 'failed', 0, error_message)
             
             with _status_lock:
@@ -461,6 +530,15 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
     except Exception as e:
         error_message = f'Subscription-aware analysis error: {str(e)}'
         logger.error(f"❌ Subscription-aware background analysis exception for {cluster_id}: {e}")
+
+        if ('Cannot access subscription' in str(e) or 'Cluster validation failed' in str(e)) and _complete_with_existing_analysis(
+            cluster_id,
+            subscription_id,
+            subscription_id[:8] if subscription_id else 'unknown',
+            session_id,
+            'cloud subscription unavailable',
+        ):
+            return
         
         if session_id is not None and session_id:
             enhanced_cluster_manager.update_subscription_analysis_session(session_id, {
