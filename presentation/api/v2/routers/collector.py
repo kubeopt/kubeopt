@@ -59,6 +59,7 @@ async def get_all_collector_reports(
             "nodes": report.total_nodes,
             "pods": report.total_pods,
             "metrics_server_available": report.metrics_server_available,
+            "metrics_server_error": report.metrics_server_error,
         }
         for cluster_id, report in store.get_all().items()
     }
@@ -82,4 +83,5 @@ async def get_collector_report(
         "nodes": report.total_nodes,
         "pods": report.total_pods,
         "metrics_server_available": report.metrics_server_available,
+        "metrics_server_error": report.metrics_server_error,
     }

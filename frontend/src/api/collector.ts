@@ -8,6 +8,7 @@ export interface CollectorStatus {
   nodes: number
   pods: number
   metrics_server_available: boolean
+  metrics_server_error?: string | null
 }
 
 export async function getCollectorStatus(clusterId: string): Promise<CollectorStatus | null> {

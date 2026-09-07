@@ -202,6 +202,24 @@ data:
         with urllib.request.urlopen(req, context=ctx, timeout=15) as r:
             return json.loads(r.read())
 
+    def _classify_metrics_error(exc):
+        if isinstance(exc, urllib.error.HTTPError):
+            if exc.code in (401, 403):
+                return "rbac_denied"
+            if exc.code == 404:
+                return "metrics_api_not_found"
+            return f"http_{exc.code}"
+        if isinstance(exc, TimeoutError):
+            return "timeout"
+        if isinstance(exc, urllib.error.URLError):
+            reason = str(exc.reason).lower()
+            if "timed out" in reason:
+                return "timeout"
+            if "refused" in reason or "unreachable" in reason or "temporary failure" in reason:
+                return "network_unreachable"
+            return "connection_error"
+        return exc.__class__.__name__
+
     def _metrics_get(path):
         token = _k8s_token()
         url = f"{METRICS_SERVER}{path}"
@@ -209,9 +227,11 @@ data:
         ctx = ssl.create_default_context(cafile=CA_CERT_PATH)
         try:
             with urllib.request.urlopen(req, context=ctx, timeout=10) as r:
-                return json.loads(r.read()), True
-        except Exception:
-            return {}, False
+                return json.loads(r.read()), True, None
+        except Exception as exc:
+            reason = _classify_metrics_error(exc)
+            log.warning("metrics-server unavailable: %s", reason)
+            return {}, False, reason
 
     def _parse_cpu(val):
         """Convert CPU string (e.g. '500m', '2') to millicores int."""
@@ -246,12 +266,14 @@ data:
             "services": [],
             "namespaces": [],
             "metrics_server_available": False,
+            "metrics_server_error": None,
         }
 
         # Nodes
         nodes_raw = _k8s_get("/api/v1/nodes")
-        node_metrics, metrics_ok = _metrics_get("/nodes")
+        node_metrics, metrics_ok, metrics_error = _metrics_get("/nodes")
         report["metrics_server_available"] = metrics_ok
+        report["metrics_server_error"] = metrics_error
         node_usage = {i["metadata"]["name"]: i["usage"] for i in node_metrics.get("items", [])}
 
         for n in nodes_raw.get("items", []):
@@ -280,7 +302,11 @@ data:
 
         # Pods
         pods_raw = _k8s_get("/api/v1/pods")
-        pod_metrics, _ = _metrics_get("/pods")
+        pod_metrics, pods_metrics_ok, pods_metrics_error = _metrics_get("/pods")
+        if metrics_ok and not pods_metrics_ok:
+            report["metrics_server_available"] = False
+            report["metrics_server_error"] = pods_metrics_error
+            metrics_ok = False
         pod_usage = {
             f"{i['metadata']['namespace']}/{i['metadata']['name']}": i["containers"]
             for i in pod_metrics.get("items", [])
