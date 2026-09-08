@@ -34,25 +34,19 @@ active_analyses = {}
 analysis_semaphore = threading.Semaphore(MAX_CONCURRENT_ANALYSES)
 _status_lock = threading.Lock()  # Shared lock for analysis_status_tracker
 
-def should_validate_cluster_access(cluster_id: str, collector_store=None, cluster_manager=None, results=None) -> bool:
-    """Return whether cloud-provider validation is required before analysis."""
+def should_validate_cluster_access(cluster_id: str, collector_store=None) -> bool:
+    """Return whether cloud-provider validation is required before analysis.
+
+    Skipped only when a fresh in-cluster collector report exists -- the collector
+    proves live cluster access without cloud credentials. All other cases must
+    pass cloud-provider validation.
+    """
     if collector_store is None:
         from infrastructure.services.collector_store import get_collector_store
         collector_store = get_collector_store()
-    cluster_manager = cluster_manager or enhanced_cluster_manager
-    results = results if results is not None else analysis_results
 
     if collector_store.has_fresh_report(cluster_id):
         return False
-
-    if cluster_id in results:
-        return False
-
-    try:
-        if cluster_manager.get_latest_analysis(cluster_id) is not None:
-            return False
-    except Exception as e:
-        logger.warning(f"⚠️ Could not check existing analysis data for {cluster_id}: {e}")
 
     return True
 
