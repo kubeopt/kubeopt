@@ -34,12 +34,12 @@ active_analyses = {}
 analysis_semaphore = threading.Semaphore(MAX_CONCURRENT_ANALYSES)
 _status_lock = threading.Lock()  # Shared lock for analysis_status_tracker
 
-def should_validate_cluster_access(cluster_id: str, collector_store=None) -> bool:
+def should_validate_cluster_access(cluster_id: str, collector_store=None, cluster_manager=None, results=None) -> bool:
     """Return whether cloud-provider validation is required before analysis.
 
-    Skipped only when a fresh in-cluster collector report exists -- the collector
-    proves live cluster access without cloud credentials. All other cases must
-    pass cloud-provider validation.
+    Only a fresh in-cluster collector report can bypass cloud validation.
+    Historical results and previously saved analyses cannot waive this check:
+    those represent a past state and do not prove current cloud access is valid.
     """
     if collector_store is None:
         from infrastructure.services.collector_store import get_collector_store
@@ -49,6 +49,94 @@ def should_validate_cluster_access(cluster_id: str, collector_store=None) -> boo
         return False
 
     return True
+
+class StaleReportError(Exception):
+    """Raised when a collector analysis is requested but no fresh report exists."""
+
+
+def select_analysis_path(
+    cluster_id: str,
+    collector_store=None,
+) -> dict:
+    """
+    Choose and run the correct analysis path for cluster_id.
+
+    Decision tree:
+      fresh collector report present -> CollectorAnalysisService (no cloud calls)
+      no fresh report                -> StaleReportError (caller must use cloud path)
+
+    Returns a dict with 'source' and 'recommendations' keys on success.
+    Raises StaleReportError if no fresh report is available.
+
+    This function MUST NOT import cloud adapters, credential managers, or
+    provider APIs. Tests enforce this via sys.modules diffing and by asserting
+    that StaleReportError is raised when no fresh report exists.
+    """
+    if collector_store is None:
+        from infrastructure.services.collector_store import get_collector_store
+        collector_store = get_collector_store()
+
+    # Fetch once so freshness and analysis operate on the same snapshot.
+    # Calling has_fresh_report() then get() separately would allow a concurrent
+    # report update to change what gets analyzed between the two calls.
+    report = collector_store.get(cluster_id)
+    if report is None or not report.is_fresh(collector_store._max_age_seconds):
+        raise StaleReportError(
+            f"No fresh collector report for cluster {cluster_id}. "
+            "A report must be pushed by the in-cluster agent before collector analysis can run. "
+            "Use the cloud analysis path when no collector report is present."
+        )
+
+    from infrastructure.services.collector_analysis import CollectorAnalysisService
+    recs = CollectorAnalysisService().run(report)
+    return {
+        'source': 'collector',
+        'cluster_id': cluster_id,
+        'recommendations': [r.model_dump() for r in recs],
+        'report_collected_at': report.collected_at.isoformat(),
+    }
+
+
+def run_collector_analysis(
+    cluster_id: str,
+    collector_store=None,
+    cluster_manager=None,
+) -> dict:
+    """
+    Run collector-backed analysis and persist results for cluster_id.
+
+    Called by the analyze_cluster route when a fresh collector report is present.
+    This function MUST NOT import cloud adapters, credential managers, or provider
+    APIs. Tests enforce this with sentinels that raise if those are called.
+
+    Raises StaleReportError when no fresh report is available.
+
+    Returns the select_analysis_path result dict on success.
+    """
+    if cluster_manager is None:
+        cluster_manager = enhanced_cluster_manager
+
+    result = select_analysis_path(cluster_id, collector_store=collector_store)
+
+    # Persist inventory results. total_savings is None: pricing is unknown
+    # from a single snapshot and must not be fabricated.
+    analysis_data = {
+        'source': 'collector',
+        'recommendations': result['recommendations'],
+        'report_collected_at': result['report_collected_at'],
+        'total_savings': None,
+        'total_cost': None,
+    }
+    try:
+        cluster_manager.update_cluster_analysis(cluster_id, analysis_data)
+        cluster_manager.update_analysis_status(
+            cluster_id, 'completed', 100, 'Collector-backed analysis completed'
+        )
+    except Exception as e:
+        logger.warning(f"Could not persist collector analysis for {cluster_id}: {e}")
+
+    return result
+
 
 def run_subscription_aware_background_analysis(cluster_id: str, resource_group: str, cluster_name: str,
                                               subscription_id: Optional[str] = None, days: int = 30,

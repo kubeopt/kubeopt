@@ -94,12 +94,38 @@ async def analyze_cluster(
         return {"session_key": cluster_id, "status": "completed", "message": "Demo analysis ready"}
 
     try:
-        from infrastructure.services.background_processor import run_subscription_aware_background_analysis
+        from infrastructure.services.background_processor import (
+            run_subscription_aware_background_analysis,
+            run_collector_analysis,
+            StaleReportError,
+        )
+        from infrastructure.services.collector_store import get_collector_store
 
         cluster_info = cluster_manager.get_cluster(cluster_id)
         if not cluster_info:
             raise HTTPException(status_code=404, detail=f"Cluster {cluster_id} not found")
 
+        # Collector path: fresh in-cluster report present -- no cloud calls needed.
+        collector_store = get_collector_store()
+        if collector_store.has_fresh_report(cluster_id):
+            try:
+                run_collector_analysis(
+                    cluster_id,
+                    collector_store=collector_store,
+                    cluster_manager=cluster_manager,
+                )
+                return {
+                    "session_key": cluster_id,
+                    "status": "completed",
+                    "source": "collector",
+                    "message": "Collector-backed analysis completed",
+                }
+            except StaleReportError as e:
+                # has_fresh_report() raced with a report expiry between the check
+                # and the fetch. Fall through to the cloud path.
+                logger.warning(f"Collector report expired between check and fetch for {cluster_id}: {e}")
+
+        # Cloud path: validate credentials and run subscription-aware analysis.
         resource_group = cluster_info.get('resource_group', '')
         cluster_name = cluster_info.get('name', '')
         subscription_id = cluster_info.get('subscription_id')
@@ -117,6 +143,7 @@ async def analyze_cluster(
         return {
             "session_key": cluster_id,
             "status": "started",
+            "source": "cloud",
             "message": f"Analysis started for {cluster_id}",
         }
     except HTTPException:
