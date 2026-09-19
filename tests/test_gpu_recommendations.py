@@ -73,12 +73,20 @@ class TestGPUEvaluator:
         recs = _recs(r)
         assert recs == []
 
-    def test_idle_gpu_pod_detected(self):
-        """finetune-job-stale: 4 GPUs requested, CPU used only 8m (trivial)."""
+    def test_low_cpu_gpu_pod_produces_no_idle_finding(self):
+        """CPU-only signal must not generate an idle-GPU recommendation, deletion command, or savings."""
         r = _load("collector_report_gpu_workloads.json")
         recs = _recs(r)
-        idle_recs = [rec for rec in recs if "idle" in rec.title.lower() or "stale" in rec.evidence.lower() or "finetune-job-stale" in rec.resource_ref]
-        assert len(idle_recs) >= 1
+        idle_recs = [
+            rec for rec in recs
+            if "idle" in rec.title.lower()
+            or "low cpu" in rec.title.lower()
+            or (rec.command and "delete pod" in rec.command)
+            or "finetune-job-stale" in rec.resource_ref
+        ]
+        assert idle_recs == [], (
+            f"CPU-proxy idle rule must be disabled; got: {[(r.title, r.command) for r in idle_recs]}"
+        )
 
     def test_gpu_without_hpa_detected(self):
         """inference-api is a Deployment with GPU pods and no HPA."""
@@ -122,12 +130,17 @@ class TestGPUEvaluator:
         recs2 = _recs(r)
         assert [rec.id for rec in recs1] == [rec.id for rec in recs2]
 
-    def test_low_gpu_node_occupancy_detected(self):
-        """gpu-node-a100-2: only 4000m CPU requested on a 24000m node with GPU pods -- under-filled."""
+    def test_cpu_occupancy_on_gpu_nodes_produces_no_finding(self):
+        """CPU-request occupancy on GPU nodes must not generate a consolidation recommendation."""
         r = _load("collector_report_gpu_workloads.json")
         recs = _recs(r)
-        occupancy_recs = [rec for rec in recs if "occupanc" in rec.title.lower() or "node pool" in rec.title.lower() or "utiliz" in rec.title.lower()]
-        assert len(occupancy_recs) >= 1
+        occupancy_recs = [
+            rec for rec in recs
+            if "occupanc" in rec.title.lower() or "node pool" in rec.title.lower()
+        ]
+        assert occupancy_recs == [], (
+            f"CPU-proxy occupancy rule must be disabled; got: {[r.title for r in occupancy_recs]}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -157,8 +170,10 @@ class TestGPURecommendationEndpointWiring:
         )
 
         gpu_recs = [r for r in recs if r["category"] == RecommendationCategory.GPU_WORKLOAD]
-        assert len(gpu_recs) >= 4
-        assert any("Idle GPU pod" in r["title"] for r in gpu_recs)
+        assert len(gpu_recs) >= 1
+        # CPU-proxy idle and occupancy rules are disabled; only HPA and limits rules fire
+        assert not any("idle" in r["title"].lower() for r in gpu_recs), "idle-GPU rule must remain disabled"
+        assert not any("delete pod" in (r.get("command") or "") for r in gpu_recs), "no delete-pod commands without GPU metrics"
         assert any("without autoscaling" in r["title"] for r in gpu_recs)
 
     @pytest.mark.asyncio
