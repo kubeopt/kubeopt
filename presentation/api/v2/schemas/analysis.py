@@ -37,7 +37,7 @@ class RecommendationSchema(BaseModel):
     title: str
     resource_ref: str
     namespace: str
-    monthly_savings: float
+    monthly_savings: Optional[float] = None
     confidence: float
     risk_level: str
     priority_score: float

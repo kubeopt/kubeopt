@@ -350,8 +350,8 @@ export default function ClusterPortfolio() {
                       <CostBar cost={cluster.total_cost ?? 0} maxCost={maxCost} />
                     </td>
                     <td className="px-5 py-3.5">
-                      <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                        {formatCurrency(cluster.potential_savings ?? 0)}
+                      <span className={`text-sm font-medium ${cluster.potential_savings == null ? '' : 'text-green-600 dark:text-green-400'}`} style={cluster.potential_savings == null ? { color: 'var(--text-muted)' } : undefined}>
+                        {cluster.potential_savings == null ? 'Unavailable' : formatCurrency(cluster.potential_savings)}
                       </span>
                     </td>
                     <td className="px-5 py-3.5">
@@ -448,7 +448,9 @@ export default function ClusterPortfolio() {
               <div className="mt-3 flex items-center justify-between border-t pt-3" style={{ borderColor: 'var(--border-subtle)' }}>
                 <div>
                   <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Savings</div>
-                  <div className="text-sm font-semibold text-green-600 dark:text-green-400">{formatCurrency(cluster.potential_savings ?? 0)}</div>
+                  <div className={`text-sm font-semibold ${cluster.potential_savings == null ? '' : 'text-green-600 dark:text-green-400'}`} style={cluster.potential_savings == null ? { color: 'var(--text-muted)' } : undefined}>
+                    {cluster.potential_savings == null ? 'Unavailable' : formatCurrency(cluster.potential_savings)}
+                  </div>
                 </div>
                 <div className="text-right">
                   <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Nodes</div>

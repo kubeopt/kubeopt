@@ -47,6 +47,25 @@ def _sanitize_numpy(obj):
 
 router = APIRouter(prefix="/api", tags=["analysis"])
 
+# Titles produced exclusively by CPU-proxy GPU rules that have been disabled.
+# Rules 1 (idle pod) and 4 (low occupancy) used CPU utilisation as a proxy for
+# GPU idleness, which is invalid for inference/serving workloads. Findings with
+# these titles are filtered from all API responses so stale DB records cannot
+# surface after the rules were disabled.
+_DISABLED_GPU_RULE_TITLES: frozenset[str] = frozenset({
+    "Idle GPU pod",              # rule 1 original title
+    "Low CPU on GPU pod",        # rule 1 intermediate title during fix
+    "Low GPU node pool occupancy",  # rule 4
+})
+
+
+def _filter_disabled_gpu_findings(recommendations: list[dict]) -> list[dict]:
+    """Remove stale findings from disabled CPU-proxy GPU rules by stable title prefix."""
+    return [
+        r for r in recommendations
+        if not any(r.get("title", "").startswith(t) for t in _DISABLED_GPU_RULE_TITLES)
+    ]
+
 
 def _append_collector_gpu_recommendations(cluster_id: str, recommendations: list[dict]) -> list[dict]:
     """Append deterministic GPU recommendations from the latest collector report."""
@@ -443,9 +462,30 @@ async def dashboard_overview(
             cost_val = analysis_data.get('total_cost')
             if cost_val is not None and float(cost_val or 0) > 0:
                 overview['total_monthly_cost'] = float(cost_val)
-            savings_val = analysis_data.get('total_savings')
-            if savings_val is not None and float(savings_val or 0) > 0:
-                overview['potential_savings'] = float(savings_val)
+            # Recompute savings from the FULL recommendations list only.
+            # top_recommendations is a truncated display list and cannot establish a total.
+            # Rules:
+            #   empty after filtering  -> 0.0  (confirmed: no active findings)
+            #   non-empty, all None    -> None (unknown: no pricing source available)
+            #   non-empty, some values -> sum of non-None values
+            # Falls back to stored aggregate only when the full list is absent entirely.
+            stored_recs = analysis_data.get('recommendations')
+            if isinstance(stored_recs, list):
+                active_recs = _filter_disabled_gpu_findings(stored_recs)
+                if not active_recs:
+                    overview['potential_savings'] = 0.0
+                else:
+                    known = [
+                        float(r['monthly_savings'])
+                        for r in active_recs
+                        if isinstance(r, dict) and r.get('monthly_savings') is not None
+                    ]
+                    overview['potential_savings'] = sum(known) if known else None
+            else:
+                # No full recommendations list; stored aggregate is all we have
+                savings_val = analysis_data.get('total_savings')
+                if savings_val is not None:
+                    overview['potential_savings'] = float(savings_val or 0)
             # optimization_score is computed by algorithmic_cost_analyzer (100 - savings%)
             opt_val = analysis_data.get('optimization_score', analysis_data.get('confidence_score'))
             if opt_val is not None and float(opt_val or 0) > 0:
@@ -459,10 +499,10 @@ async def dashboard_overview(
                 overview['pod_count'] = len(pods_data)
             elif isinstance(pods_data, int):
                 overview['pod_count'] = pods_data
-            # Top recommendations
-            recs = analysis_data.get('recommendations', analysis_data.get('top_recommendations', []))
-            if isinstance(recs, list):
-                overview['top_recommendations'] = recs[:5]
+            # Top recommendations: display from full list when present, top list otherwise
+            display_recs = stored_recs if isinstance(stored_recs, list) else analysis_data.get('top_recommendations')
+            if isinstance(display_recs, list):
+                overview['top_recommendations'] = _filter_disabled_gpu_findings(display_recs)[:5]
 
         return _sanitize_numpy(overview)
     except Exception as e:
@@ -575,8 +615,11 @@ async def get_recommendations(
         raise HTTPException(status_code=404, detail="Cluster not found")
     analysis_data = cluster.get("analysis_data") or {}
     if "recommendations" in analysis_data:
-        return _append_collector_gpu_recommendations(cluster_id, list(analysis_data["recommendations"]))
-    recommendations = [r.model_dump() for r in generate_recommendations(analysis_data)]
+        recs = _filter_disabled_gpu_findings(list(analysis_data["recommendations"]))
+        return _append_collector_gpu_recommendations(cluster_id, recs)
+    recommendations = _filter_disabled_gpu_findings(
+        [r.model_dump() for r in generate_recommendations(analysis_data)]
+    )
     return _append_collector_gpu_recommendations(cluster_id, recommendations)
 
 

@@ -61,7 +61,11 @@ export default function OverviewTab({ clusterId }: OverviewTabProps) {
 
   const score = (overview?.optimization_score as number) || 0
   const monthlyCost = (overview?.total_monthly_cost as number) || 0
-  const savings = (overview?.potential_savings as number) || 0
+  // null means no pricing source was available; undefined/missing means not yet loaded.
+  // Do not coerce null to 0 -- that would fabricate $0 for unknown-cost findings.
+  const savingsRaw2 = overview !== null ? (overview?.potential_savings as number | null | undefined) : undefined
+  const savings = savingsRaw2 !== undefined ? savingsRaw2 : null
+  const savingsDisplay = savings === null ? 'Unavailable' : formatCurrency(savings, 2)
   const nodeCount = (overview?.node_count as number) || 0
   const hpaEfficiency = (chartData?.hpa_efficiency as number) || 0
 
@@ -109,7 +113,7 @@ export default function OverviewTab({ clusterId }: OverviewTabProps) {
   // Key metrics (Optimization Score excluded — shown as gauge)
   const metrics = [
     { icon: DollarSign, label: 'Monthly Cost', value: formatCurrency(monthlyCost, 2), color: 'var(--text-primary)', iconColor: 'text-blue-500' },
-    { icon: TrendingDown, label: 'Savings', value: formatCurrency(savings, 2), color: '#7FB069', iconColor: 'text-green-500' },
+    { icon: TrendingDown, label: 'Savings', value: savingsDisplay, color: savings === null ? 'var(--text-muted)' : '#7FB069', iconColor: 'text-green-500' },
     { icon: Zap, label: 'HPA Efficiency', value: `${hpaEfficiency.toFixed(1)}%`, color: hpaEfficiency >= 60 ? '#7FB069' : hpaEfficiency >= 30 ? '#eab308' : '#ef4444', iconColor: 'text-purple-500' },
     { icon: Server, label: 'Nodes', value: formatNumber(nodeCount), color: 'var(--text-primary)', iconColor: 'text-indigo-500' },
     { icon: Gauge, label: 'Efficiency', value: `${nodeEfficiency.toFixed(0)}%`, color: nodeEfficiency >= 60 ? '#7FB069' : nodeEfficiency >= 40 ? '#eab308' : '#ef4444', iconColor: 'text-orange-500' },
