@@ -169,6 +169,11 @@ class TestEndToEnd:
                 cluster_manager=mgr,
             )
 
+        # Collector results have no pricing data -- cost must be None, not $0.
+        assert overview.get('total_monthly_cost') is None, (
+            f"total_monthly_cost must be None for collector result (unknown pricing), "
+            f"got {overview.get('total_monthly_cost')!r}"
+        )
         assert overview.get('potential_savings') is None or overview.get('potential_savings') == 0.0, (
             "Savings should be 0.0 (no active recommendations) or None for collector result, "
             f"got {overview.get('potential_savings')}"
@@ -373,28 +378,29 @@ class TestCloudWorkerValidation:
         # bypass path would have been tempted to skip validation.
         report = _load("collector_report_small.json")
         fresh_store = _make_fresh_store_for(cluster_id, report)
-        # Also plant it in the global store to ensure the bypass is not active.
-        with patch("infrastructure.services.collector_store.get_collector_store",
-                   return_value=fresh_store):
-            pass  # patch scope only confirms the module-level reference is patchable
 
         mock_adapter = MagicMock()
-        # validate_cluster_access returns False -> worker sees "validation failed" and
-        # raises internally, which the worker catches. We only care that the call happened.
+        # validate_cluster_access returns False -> worker raises internally and
+        # catches it. We only care that the call was reached.
         mock_adapter.validate_cluster_access.return_value = False
 
-        with patch("infrastructure.services.background_processor.enhanced_cluster_manager", mgr):
-            with patch(
-                "infrastructure.cloud_providers.azure.accounts.AzureAccountAdapter",
-                return_value=mock_adapter,
-            ):
-                run_subscription_aware_background_analysis(
-                    cluster_id=cluster_id,
-                    resource_group="rg-cloud",
-                    cluster_name="cloud-cluster",
-                    subscription_id="sub-test-000",
-                    cloud_provider="azure",
-                )
+        # The collector_store patch must stay active through the worker call so
+        # the global store contains a fresh report -- this is the scenario we
+        # are testing (fresh report present but cloud path must still validate).
+        with patch("infrastructure.services.collector_store.get_collector_store",
+                   return_value=fresh_store):
+            with patch("infrastructure.services.background_processor.enhanced_cluster_manager", mgr):
+                with patch(
+                    "infrastructure.cloud_providers.azure.accounts.AzureAccountAdapter",
+                    return_value=mock_adapter,
+                ):
+                    run_subscription_aware_background_analysis(
+                        cluster_id=cluster_id,
+                        resource_group="rg-cloud",
+                        cluster_name="cloud-cluster",
+                        subscription_id="sub-test-000",
+                        cloud_provider="azure",
+                    )
 
         mock_adapter.validate_cluster_access.assert_called_once(), (
             "validate_cluster_access must be called on the cloud path even when "

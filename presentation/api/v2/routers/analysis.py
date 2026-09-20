@@ -499,15 +499,24 @@ async def dashboard_overview(
         }
 
         if cluster_info:
-            overview['total_monthly_cost'] = float(cluster_info.get('last_cost', 0) or 0)
-            overview['potential_savings'] = float(cluster_info.get('last_savings', 0) or 0)
+            _last_cost = cluster_info.get('last_cost')
+            _last_savings = cluster_info.get('last_savings')
+            # Preserve None: a NULL last_cost means pricing is unknown (collector result).
+            # Do not substitute 0 -- the UI renders None as "Unavailable".
+            overview['total_monthly_cost'] = None if _last_cost is None else float(_last_cost or 0)
+            overview['potential_savings'] = None if _last_savings is None else float(_last_savings or 0)
             overview['optimization_score'] = float(cluster_info.get('last_confidence', 0) or 0)
 
         if analysis_data:
-            # Override with richer analysis data if available (only override if value > 0)
+            # Override with richer analysis data if available. For cost: only
+            # override when a concrete value exists; None means unknown pricing
+            # and must be passed through so the UI can render "Unavailable".
             cost_val = analysis_data.get('total_cost')
-            if cost_val is not None and float(cost_val or 0) > 0:
-                overview['total_monthly_cost'] = float(cost_val)
+            if 'total_cost' in analysis_data:
+                if cost_val is not None and float(cost_val or 0) > 0:
+                    overview['total_monthly_cost'] = float(cost_val)
+                elif cost_val is None:
+                    overview['total_monthly_cost'] = None
             # Recompute savings from the FULL recommendations list only.
             # top_recommendations is a truncated display list and cannot establish a total.
             # Rules:
