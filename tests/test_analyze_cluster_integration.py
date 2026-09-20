@@ -7,16 +7,15 @@ These tests call the real analyze_cluster async handler with:
   - A stub cluster_manager that records update calls
 
 Scenarios:
-  1. Fresh report -> collector path; cloud sentinels not triggered;
-     results persisted via cluster_manager; response source="collector"
-  2. No report -> cloud path started; cluster_manager.update_cluster_analysis
-     not called with collector data; response source="cloud"
-  3. Stale report -> cloud path (expired between check and run is handled);
-     response source="cloud"
-  4. Cloud path validates: run_subscription_aware_background_analysis is called
-     with the correct cluster parameters
-  5. Collector path does not reuse previous analysis data: persisted results
-     come from the fresh report, not from any prior analysis_results in memory
+  1. Fresh report + source='collector' -> collector path completes; results
+     persisted via cluster_manager; response source="collector"
+  2. Persistence failure propagates -- endpoint returns 500, not 200
+  3. Stale report + source='collector' -> 422, no cloud fallthrough
+  4. No report + source='cloud' -> cloud path started via thread
+  5. source omitted + fresh report -> auto-selects collector path
+  6. source omitted + no report -> auto-selects cloud path
+  7. Cloud path does not persist collector-source data
+  8. Cloud path passes correct cluster params to background analysis
 """
 
 import json
@@ -79,10 +78,10 @@ def _cloud_sentinel(*args, **kwargs):
 
 
 # ---------------------------------------------------------------------------
-# Fresh report -> collector path
+# Explicit collector path (source='collector')
 # ---------------------------------------------------------------------------
 
-class TestFreshReportIntegration:
+class TestCollectorPath:
     @pytest.mark.asyncio
     async def test_fresh_report_returns_completed_collector_source(self):
         from presentation.api.v2.routers.analysis import analyze_cluster
@@ -93,9 +92,10 @@ class TestFreshReportIntegration:
 
         with patch("infrastructure.services.background_processor.run_subscription_aware_background_analysis",
                    side_effect=_cloud_sentinel):
-            with patch("infrastructure.services.collector_store.get_collector_store", return_value=store):
+            with patch("presentation.api.v2.routers.analysis.get_collector_store", return_value=store):
                 result = await analyze_cluster(
                     cluster_id=report.cluster_id,
+                    source='collector',
                     user={"sub": "test"},
                     cluster_manager=mgr,
                 )
@@ -114,10 +114,11 @@ class TestFreshReportIntegration:
 
         with patch("infrastructure.services.background_processor.run_subscription_aware_background_analysis",
                    side_effect=_cloud_sentinel):
-            with patch("infrastructure.services.collector_store.get_collector_store", return_value=store):
+            with patch("presentation.api.v2.routers.analysis.get_collector_store", return_value=store):
                 with patch("infrastructure.services.background_processor.enhanced_cluster_manager", mgr):
                     await analyze_cluster(
                         cluster_id=report.cluster_id,
+                        source='collector',
                         user={"sub": "test"},
                         cluster_manager=mgr,
                     )
@@ -127,6 +128,88 @@ class TestFreshReportIntegration:
         assert saved_data['source'] == 'collector'
         assert isinstance(saved_data['recommendations'], list)
         assert saved_data['total_savings'] is None
+        assert saved_data['total_cost'] is None
+        # Inventory counts must be present (used by dashboard without total_cost).
+        assert 'node_count' in saved_data
+        assert 'pod_count' in saved_data
+
+    @pytest.mark.asyncio
+    async def test_persistence_failure_returns_500(self):
+        """
+        Failure in update_cluster_analysis must propagate -- the endpoint must
+        NOT return 200/completed when nothing was saved.
+        """
+        from fastapi import HTTPException
+        from presentation.api.v2.routers.analysis import analyze_cluster
+
+        report = _load("collector_report_small.json")
+        store = _make_fresh_store(report)
+        mgr = _make_cluster_manager(_cluster_row(report.cluster_id))
+        mgr.update_cluster_analysis.side_effect = RuntimeError("DB write failed")
+
+        with patch("infrastructure.services.background_processor.run_subscription_aware_background_analysis",
+                   side_effect=_cloud_sentinel):
+            with patch("presentation.api.v2.routers.analysis.get_collector_store", return_value=store):
+                with patch("infrastructure.services.background_processor.enhanced_cluster_manager", mgr):
+                    with pytest.raises(HTTPException) as exc_info:
+                        await analyze_cluster(
+                            cluster_id=report.cluster_id,
+                            source='collector',
+                            user={"sub": "test"},
+                            cluster_manager=mgr,
+                        )
+
+        assert exc_info.value.status_code == 500
+
+    @pytest.mark.asyncio
+    async def test_stale_report_returns_422_not_cloud(self):
+        """
+        source='collector' on a stale report must return 422. It must NOT
+        silently fall through to cloud analysis.
+        """
+        from fastapi import HTTPException
+        from presentation.api.v2.routers.analysis import analyze_cluster
+
+        report = _load("collector_report_small.json")
+        store = _make_stale_store(report)
+        mgr = _make_cluster_manager(_cluster_row(report.cluster_id))
+
+        with patch("infrastructure.services.background_processor.run_subscription_aware_background_analysis",
+                   side_effect=_cloud_sentinel):
+            with patch("presentation.api.v2.routers.analysis.get_collector_store", return_value=store):
+                with pytest.raises(HTTPException) as exc_info:
+                    await analyze_cluster(
+                        cluster_id=report.cluster_id,
+                        source='collector',
+                        user={"sub": "test"},
+                        cluster_manager=mgr,
+                    )
+
+        assert exc_info.value.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_missing_report_returns_422_not_cloud(self):
+        """
+        source='collector' with no report at all must return 422, not start cloud.
+        """
+        from fastapi import HTTPException
+        from presentation.api.v2.routers.analysis import analyze_cluster
+
+        store = _make_empty_store()
+        mgr = _make_cluster_manager(_cluster_row("no-report-cluster"))
+
+        with patch("infrastructure.services.background_processor.run_subscription_aware_background_analysis",
+                   side_effect=_cloud_sentinel):
+            with patch("presentation.api.v2.routers.analysis.get_collector_store", return_value=store):
+                with pytest.raises(HTTPException) as exc_info:
+                    await analyze_cluster(
+                        cluster_id="no-report-cluster",
+                        source='collector',
+                        user={"sub": "test"},
+                        cluster_manager=mgr,
+                    )
+
+        assert exc_info.value.status_code == 422
 
     @pytest.mark.asyncio
     async def test_fresh_report_persisted_results_have_no_destructive_commands(self):
@@ -138,10 +221,11 @@ class TestFreshReportIntegration:
 
         with patch("infrastructure.services.background_processor.run_subscription_aware_background_analysis",
                    side_effect=_cloud_sentinel):
-            with patch("infrastructure.services.collector_store.get_collector_store", return_value=store):
+            with patch("presentation.api.v2.routers.analysis.get_collector_store", return_value=store):
                 with patch("infrastructure.services.background_processor.enhanced_cluster_manager", mgr):
                     await analyze_cluster(
                         cluster_id=report.cluster_id,
+                        source='collector',
                         user={"sub": "test"},
                         cluster_manager=mgr,
                     )
@@ -172,10 +256,11 @@ class TestFreshReportIntegration:
         try:
             with patch("infrastructure.services.background_processor.run_subscription_aware_background_analysis",
                        side_effect=_cloud_sentinel):
-                with patch("infrastructure.services.collector_store.get_collector_store", return_value=store):
+                with patch("presentation.api.v2.routers.analysis.get_collector_store", return_value=store):
                     with patch("infrastructure.services.background_processor.enhanced_cluster_manager", mgr):
                         await analyze_cluster(
                             cluster_id=report.cluster_id,
+                            source='collector',
                             user={"sub": "test"},
                             cluster_manager=mgr,
                         )
@@ -189,39 +274,34 @@ class TestFreshReportIntegration:
 
 
 # ---------------------------------------------------------------------------
-# No / stale report -> cloud path
+# Explicit cloud path (source='cloud')
 # ---------------------------------------------------------------------------
 
-class TestCloudPathFallback:
+class TestCloudPath:
     @pytest.mark.asyncio
-    async def test_no_report_starts_cloud_analysis(self):
+    async def test_cloud_source_starts_background_thread(self):
         from presentation.api.v2.routers.analysis import analyze_cluster
 
-        store = _make_empty_store()
         mgr = _make_cluster_manager(_cluster_row("cloud-cluster-001"))
-        cloud_thread_started = []
 
-        def _record_cloud_start(*args, **kwargs):
-            cloud_thread_started.append(True)
-
-        with patch("presentation.api.v2.routers.analysis.get_collector_store", return_value=store):
-            with patch("presentation.api.v2.routers.analysis.threading") as mock_threading:
-                mock_thread = MagicMock()
-                mock_threading.Thread.return_value = mock_thread
-                result = await analyze_cluster(
-                    cluster_id="cloud-cluster-001",
-                    user={"sub": "test"},
-                    cluster_manager=mgr,
-                )
+        with patch("presentation.api.v2.routers.analysis.threading") as mock_threading:
+            mock_thread = MagicMock()
+            mock_threading.Thread.return_value = mock_thread
+            result = await analyze_cluster(
+                cluster_id="cloud-cluster-001",
+                source='cloud',
+                user={"sub": "test"},
+                cluster_manager=mgr,
+            )
 
         assert result["source"] == "cloud"
         assert result["status"] == "started"
         mock_thread.start.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_no_report_cloud_path_passes_correct_cluster_params(self):
-        """Cloud path must pass the cluster's resource_group, subscription_id,
-        cloud_provider, and region to run_subscription_aware_background_analysis."""
+    async def test_cloud_source_passes_correct_cluster_params(self):
+        """Cloud path must pass resource_group, subscription_id, provider, and
+        region to run_subscription_aware_background_analysis."""
         from presentation.api.v2.routers.analysis import analyze_cluster
 
         cluster_id = "cloud-cluster-002"
@@ -232,18 +312,17 @@ class TestCloudPathFallback:
             'cloud_provider': 'aws',
             'region': 'us-west-2',
         }
-        store = _make_empty_store()
         mgr = _make_cluster_manager(row)
 
-        with patch("presentation.api.v2.routers.analysis.get_collector_store", return_value=store):
-            with patch("presentation.api.v2.routers.analysis.threading") as mock_threading:
-                mock_thread = MagicMock()
-                mock_threading.Thread.return_value = mock_thread
-                await analyze_cluster(
-                    cluster_id=cluster_id,
-                    user={"sub": "test"},
-                    cluster_manager=mgr,
-                )
+        with patch("presentation.api.v2.routers.analysis.threading") as mock_threading:
+            mock_thread = MagicMock()
+            mock_threading.Thread.return_value = mock_thread
+            await analyze_cluster(
+                cluster_id=cluster_id,
+                source='cloud',
+                user={"sub": "test"},
+                cluster_manager=mgr,
+            )
 
         call_kwargs = mock_threading.Thread.call_args[1]
         assert call_kwargs['kwargs']['subscription_id'] == 'sub-abc'
@@ -251,12 +330,12 @@ class TestCloudPathFallback:
         assert call_kwargs['kwargs']['region'] == 'us-west-2'
 
     @pytest.mark.asyncio
-    async def test_stale_report_falls_through_to_cloud_path(self):
-        """A stale (expired) report must not trigger collector analysis."""
+    async def test_cloud_source_ignores_fresh_report(self):
+        """source='cloud' must ignore a fresh collector report and go to cloud."""
         from presentation.api.v2.routers.analysis import analyze_cluster
 
         report = _load("collector_report_small.json")
-        store = _make_stale_store(report)
+        store = _make_fresh_store(report)
         mgr = _make_cluster_manager(_cluster_row(report.cluster_id))
 
         with patch("presentation.api.v2.routers.analysis.get_collector_store", return_value=store):
@@ -265,6 +344,7 @@ class TestCloudPathFallback:
                 mock_threading.Thread.return_value = mock_thread
                 result = await analyze_cluster(
                     cluster_id=report.cluster_id,
+                    source='cloud',
                     user={"sub": "test"},
                     cluster_manager=mgr,
                 )
@@ -278,21 +358,69 @@ class TestCloudPathFallback:
         collector analysis data."""
         from presentation.api.v2.routers.analysis import analyze_cluster
 
-        store = _make_empty_store()
         mgr = _make_cluster_manager(_cluster_row("cloud-cluster-003"))
 
-        with patch("presentation.api.v2.routers.analysis.get_collector_store", return_value=store):
-            with patch("presentation.api.v2.routers.analysis.threading") as mock_threading:
-                mock_threading.Thread.return_value = MagicMock()
-                await analyze_cluster(
-                    cluster_id="cloud-cluster-003",
-                    user={"sub": "test"},
-                    cluster_manager=mgr,
-                )
+        with patch("presentation.api.v2.routers.analysis.threading") as mock_threading:
+            mock_threading.Thread.return_value = MagicMock()
+            await analyze_cluster(
+                cluster_id="cloud-cluster-003",
+                source='cloud',
+                user={"sub": "test"},
+                cluster_manager=mgr,
+            )
 
-        # update_cluster_analysis should not be called with collector data
         for c in mgr.update_cluster_analysis.call_args_list:
             data = c[0][1] if len(c[0]) > 1 else c[1].get('analysis_data', {})
             assert data.get('source') != 'collector', (
                 "Cloud path must not write collector-source analysis data"
             )
+
+
+# ---------------------------------------------------------------------------
+# Auto-select (source omitted)
+# ---------------------------------------------------------------------------
+
+class TestAutoSelect:
+    @pytest.mark.asyncio
+    async def test_auto_select_with_fresh_report_uses_collector(self):
+        """When source is omitted and a fresh report exists, auto-selects collector."""
+        from presentation.api.v2.routers.analysis import analyze_cluster
+
+        report = _load("collector_report_small.json")
+        store = _make_fresh_store(report)
+        mgr = _make_cluster_manager(_cluster_row(report.cluster_id))
+
+        with patch("infrastructure.services.background_processor.run_subscription_aware_background_analysis",
+                   side_effect=_cloud_sentinel):
+            with patch("presentation.api.v2.routers.analysis.get_collector_store", return_value=store):
+                result = await analyze_cluster(
+                    cluster_id=report.cluster_id,
+                    source=None,
+                    user={"sub": "test"},
+                    cluster_manager=mgr,
+                )
+
+        assert result["source"] == "collector"
+        assert result["status"] == "completed"
+
+    @pytest.mark.asyncio
+    async def test_auto_select_without_report_uses_cloud(self):
+        """When source is omitted and no report is present, auto-selects cloud."""
+        from presentation.api.v2.routers.analysis import analyze_cluster
+
+        store = _make_empty_store()
+        mgr = _make_cluster_manager(_cluster_row("auto-cloud-001"))
+
+        with patch("presentation.api.v2.routers.analysis.get_collector_store", return_value=store):
+            with patch("presentation.api.v2.routers.analysis.threading") as mock_threading:
+                mock_thread = MagicMock()
+                mock_threading.Thread.return_value = mock_thread
+                result = await analyze_cluster(
+                    cluster_id="auto-cloud-001",
+                    source=None,
+                    user={"sub": "test"},
+                    cluster_manager=mgr,
+                )
+
+        assert result["source"] == "cloud"
+        mock_thread.start.assert_called_once()

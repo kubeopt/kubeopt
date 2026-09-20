@@ -94,6 +94,8 @@ def select_analysis_path(
         'cluster_id': cluster_id,
         'recommendations': [r.model_dump() for r in recs],
         'report_collected_at': report.collected_at.isoformat(),
+        'node_count': len(report.nodes) if report.nodes else 0,
+        'pod_count': len(report.pods) if report.pods else 0,
     }
 
 
@@ -118,22 +120,26 @@ def run_collector_analysis(
 
     result = select_analysis_path(cluster_id, collector_store=collector_store)
 
-    # Persist inventory results. total_savings is None: pricing is unknown
-    # from a single snapshot and must not be fabricated.
+    # Build persisted payload. total_cost/total_savings are None: pricing is
+    # unknown from a single snapshot and must not be fabricated. Include
+    # node/pod counts so the dashboard reader can surface inventory totals
+    # without needing total_cost > 0.
     analysis_data = {
         'source': 'collector',
         'recommendations': result['recommendations'],
         'report_collected_at': result['report_collected_at'],
         'total_savings': None,
         'total_cost': None,
+        'node_count': result.get('node_count', 0),
+        'pod_count': result.get('pod_count', 0),
     }
-    try:
-        cluster_manager.update_cluster_analysis(cluster_id, analysis_data)
-        cluster_manager.update_analysis_status(
-            cluster_id, 'completed', 100, 'Collector-backed analysis completed'
-        )
-    except Exception as e:
-        logger.warning(f"Could not persist collector analysis for {cluster_id}: {e}")
+
+    # Propagate persistence failures -- the caller must not report success
+    # when the results were never saved.
+    cluster_manager.update_cluster_analysis(cluster_id, analysis_data)
+    cluster_manager.update_analysis_status(
+        cluster_id, 'completed', 100, 'Collector-backed analysis completed'
+    )
 
     return result
 

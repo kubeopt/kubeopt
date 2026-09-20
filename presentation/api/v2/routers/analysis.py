@@ -86,10 +86,19 @@ def _append_collector_gpu_recommendations(cluster_id: str, recommendations: list
 @router.post("/clusters/{cluster_id:path}/analyze")
 async def analyze_cluster(
     cluster_id: str,
+    source: Optional[str] = Query(None, description="Analysis source: 'collector' or 'cloud'. "
+                                  "When omitted the route auto-selects: collector if a fresh "
+                                  "report is present, otherwise cloud."),
     user: Dict[str, Any] = Depends(get_current_user),
     cluster_manager=Depends(get_cluster_manager),
 ):
-    """Trigger analysis for a cluster. Returns session key for progress tracking."""
+    """Trigger analysis for a cluster. Returns session key for progress tracking.
+
+    source='collector': requires a fresh in-cluster CollectorReport; returns 422
+      if no fresh report exists. Never falls through to cloud.
+    source='cloud': always runs cloud-validated analysis; ignores any collector report.
+    source omitted: auto-selects collector when a fresh report is present, else cloud.
+    """
     if is_demo_mode() and get_demo_cluster(cluster_id):
         return {"session_key": cluster_id, "status": "completed", "message": "Demo analysis ready"}
 
@@ -99,31 +108,41 @@ async def analyze_cluster(
             run_collector_analysis,
             StaleReportError,
         )
-        from infrastructure.services.collector_store import get_collector_store
 
         cluster_info = cluster_manager.get_cluster(cluster_id)
         if not cluster_info:
             raise HTTPException(status_code=404, detail=f"Cluster {cluster_id} not found")
 
-        # Collector path: fresh in-cluster report present -- no cloud calls needed.
-        collector_store = get_collector_store()
-        if collector_store.has_fresh_report(cluster_id):
+        use_collector = False
+        if source == 'collector':
+            use_collector = True
+        elif source == 'cloud':
+            use_collector = False
+        else:
+            # Auto-select: prefer collector when a fresh report is available.
+            collector_store = get_collector_store()
+            use_collector = collector_store.has_fresh_report(cluster_id)
+
+        if use_collector:
+            # Collector path: no cloud calls. StaleReportError propagates as 422
+            # so the caller knows explicitly that the report is stale or absent.
             try:
                 run_collector_analysis(
                     cluster_id,
-                    collector_store=collector_store,
+                    collector_store=get_collector_store(),
                     cluster_manager=cluster_manager,
                 )
-                return {
-                    "session_key": cluster_id,
-                    "status": "completed",
-                    "source": "collector",
-                    "message": "Collector-backed analysis completed",
-                }
             except StaleReportError as e:
-                # has_fresh_report() raced with a report expiry between the check
-                # and the fetch. Fall through to the cloud path.
-                logger.warning(f"Collector report expired between check and fetch for {cluster_id}: {e}")
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Collector report not available: {e}",
+                )
+            return {
+                "session_key": cluster_id,
+                "status": "completed",
+                "source": "collector",
+                "message": "Collector-backed analysis completed",
+            }
 
         # Cloud path: validate credentials and run subscription-aware analysis.
         resource_group = cluster_info.get('resource_group', '')
