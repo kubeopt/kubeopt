@@ -55,6 +55,7 @@ export default function OverviewTab({ clusterId }: OverviewTabProps) {
     if (cdResult.status === 'fulfilled') {
       setChartData(cdResult.value as Record<string, unknown>)
     } else {
+      setChartData(null)
       setChartError(true)
     }
     if (csResult.status === 'fulfilled') setCollectorStatus(csResult.value)
