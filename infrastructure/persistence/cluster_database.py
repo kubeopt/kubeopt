@@ -1942,12 +1942,19 @@ class EnhancedMultiSubscriptionClusterManager:
             self.logger.info(f"🔍 DATABASE SAVE: Serializable data keys: {list(serializable_data.keys())}")
             
             # DEBUG: Check if monitoring_cost is being preserved
-            self.logger.info(f"🔍 DB SERIALIZE: monitoring_cost = ${serializable_data.get('monitoring_cost', 0):.2f}")
-            self.logger.info(f"🔍 DB SERIALIZE: compute_cost = ${serializable_data.get('compute_cost', 0):.2f}")
-            self.logger.info(f"🔍 DB SERIALIZE: total_cost = ${serializable_data.get('total_cost', 0):.2f}")
-            
-            total_cost = float(serializable_data.get('total_cost', 0))
-            total_savings = float(serializable_data.get('total_savings', 0))
+            _raw_monitoring = serializable_data.get('monitoring_cost')
+            _raw_compute = serializable_data.get('compute_cost')
+            _raw_total = serializable_data.get('total_cost')
+            self.logger.info(f"🔍 DB SERIALIZE: monitoring_cost = {f'${_raw_monitoring:.2f}' if _raw_monitoring is not None else 'None'}")
+            self.logger.info(f"🔍 DB SERIALIZE: compute_cost = {f'${_raw_compute:.2f}' if _raw_compute is not None else 'None'}")
+            self.logger.info(f"🔍 DB SERIALIZE: total_cost = {f'${_raw_total:.2f}' if _raw_total is not None else 'None'}")
+
+            # Collector results carry total_cost=None (pricing unknown from snapshot).
+            # Store NULL in the DB column; never substitute zero.
+            _raw_cost_val = serializable_data.get('total_cost')
+            _raw_savings_val = serializable_data.get('total_savings')
+            total_cost = None if _raw_cost_val is None else float(_raw_cost_val)
+            total_savings = None if _raw_savings_val is None else float(_raw_savings_val)
             confidence = float(serializable_data.get('optimization_score', serializable_data.get('analysis_confidence', 0)))
             
             # Prepare enhanced analysis data for storage
@@ -1972,7 +1979,7 @@ class EnhancedMultiSubscriptionClusterManager:
             with self._connect() as conn:
                 # Set cost_fetched_at timestamp only when cost data is actually present and updated
                 current_time = datetime.now().isoformat()
-                cost_fetched_time = current_time if total_cost > 0 else None
+                cost_fetched_time = current_time if (total_cost is not None and total_cost > 0) else None
                 
                 conn.execute('''
                     UPDATE clusters 

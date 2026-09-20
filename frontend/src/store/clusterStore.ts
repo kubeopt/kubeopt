@@ -9,8 +9,8 @@ export interface Cluster {
   resource_group?: string
   last_analysis?: string
   optimization_score?: number
-  total_cost?: number
-  potential_savings?: number
+  total_cost?: number | null
+  potential_savings?: number | null
   node_count?: number
   status: string
 }

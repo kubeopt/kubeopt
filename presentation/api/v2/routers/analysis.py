@@ -47,6 +47,25 @@ def _sanitize_numpy(obj):
 
 router = APIRouter(prefix="/api", tags=["analysis"])
 
+# Titles produced exclusively by CPU-proxy GPU rules that have been disabled.
+# Rules 1 (idle pod) and 4 (low occupancy) used CPU utilisation as a proxy for
+# GPU idleness, which is invalid for inference/serving workloads. Findings with
+# these titles are filtered from all API responses so stale DB records cannot
+# surface after the rules were disabled.
+_DISABLED_GPU_RULE_TITLES: frozenset[str] = frozenset({
+    "Idle GPU pod",              # rule 1 original title
+    "Low CPU on GPU pod",        # rule 1 intermediate title during fix
+    "Low GPU node pool occupancy",  # rule 4
+})
+
+
+def _filter_disabled_gpu_findings(recommendations: list[dict]) -> list[dict]:
+    """Remove stale findings from disabled CPU-proxy GPU rules by stable title prefix."""
+    return [
+        r for r in recommendations
+        if not any(r.get("title", "").startswith(t) for t in _DISABLED_GPU_RULE_TITLES)
+    ]
+
 
 def _append_collector_gpu_recommendations(cluster_id: str, recommendations: list[dict]) -> list[dict]:
     """Append deterministic GPU recommendations from the latest collector report."""
@@ -67,20 +86,65 @@ def _append_collector_gpu_recommendations(cluster_id: str, recommendations: list
 @router.post("/clusters/{cluster_id:path}/analyze")
 async def analyze_cluster(
     cluster_id: str,
+    source: Optional[str] = Query(None, description="Analysis source: 'collector' or 'cloud'. "
+                                  "When omitted the route auto-selects: collector if a fresh "
+                                  "report is present, otherwise cloud."),
     user: Dict[str, Any] = Depends(get_current_user),
     cluster_manager=Depends(get_cluster_manager),
 ):
-    """Trigger analysis for a cluster. Returns session key for progress tracking."""
+    """Trigger analysis for a cluster. Returns session key for progress tracking.
+
+    source='collector': requires a fresh in-cluster CollectorReport; returns 422
+      if no fresh report exists. Never falls through to cloud.
+    source='cloud': always runs cloud-validated analysis; ignores any collector report.
+    source omitted: auto-selects collector when a fresh report is present, else cloud.
+    """
     if is_demo_mode() and get_demo_cluster(cluster_id):
         return {"session_key": cluster_id, "status": "completed", "message": "Demo analysis ready"}
 
     try:
-        from infrastructure.services.background_processor import run_subscription_aware_background_analysis
+        from infrastructure.services.background_processor import (
+            run_subscription_aware_background_analysis,
+            run_collector_analysis,
+            StaleReportError,
+        )
 
         cluster_info = cluster_manager.get_cluster(cluster_id)
         if not cluster_info:
             raise HTTPException(status_code=404, detail=f"Cluster {cluster_id} not found")
 
+        use_collector = False
+        if source == 'collector':
+            use_collector = True
+        elif source == 'cloud':
+            use_collector = False
+        else:
+            # Auto-select: prefer collector when a fresh report is available.
+            collector_store = get_collector_store()
+            use_collector = collector_store.has_fresh_report(cluster_id)
+
+        if use_collector:
+            # Collector path: no cloud calls. StaleReportError propagates as 422
+            # so the caller knows explicitly that the report is stale or absent.
+            try:
+                run_collector_analysis(
+                    cluster_id,
+                    collector_store=get_collector_store(),
+                    cluster_manager=cluster_manager,
+                )
+            except StaleReportError as e:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Collector report not available: {e}",
+                )
+            return {
+                "session_key": cluster_id,
+                "status": "completed",
+                "source": "collector",
+                "message": "Collector-backed analysis completed",
+            }
+
+        # Cloud path: validate credentials and run subscription-aware analysis.
         resource_group = cluster_info.get('resource_group', '')
         cluster_name = cluster_info.get('name', '')
         subscription_id = cluster_info.get('subscription_id')
@@ -98,6 +162,7 @@ async def analyze_cluster(
         return {
             "session_key": cluster_id,
             "status": "started",
+            "source": "cloud",
             "message": f"Analysis started for {cluster_id}",
         }
     except HTTPException:
@@ -434,18 +499,50 @@ async def dashboard_overview(
         }
 
         if cluster_info:
-            overview['total_monthly_cost'] = float(cluster_info.get('last_cost', 0) or 0)
-            overview['potential_savings'] = float(cluster_info.get('last_savings', 0) or 0)
+            _last_cost = cluster_info.get('last_cost')
+            _last_savings = cluster_info.get('last_savings')
+            # Preserve None: a NULL last_cost means pricing is unknown (collector result).
+            # Do not substitute 0 -- the UI renders None as "Unavailable".
+            overview['total_monthly_cost'] = None if _last_cost is None else float(_last_cost or 0)
+            overview['potential_savings'] = None if _last_savings is None else float(_last_savings or 0)
             overview['optimization_score'] = float(cluster_info.get('last_confidence', 0) or 0)
 
         if analysis_data:
-            # Override with richer analysis data if available (only override if value > 0)
+            # Override with richer analysis data if available. For cost: only
+            # override when a concrete value exists; None means unknown pricing
+            # and must be passed through so the UI can render "Unavailable".
             cost_val = analysis_data.get('total_cost')
-            if cost_val is not None and float(cost_val or 0) > 0:
-                overview['total_monthly_cost'] = float(cost_val)
-            savings_val = analysis_data.get('total_savings')
-            if savings_val is not None and float(savings_val or 0) > 0:
-                overview['potential_savings'] = float(savings_val)
+            if 'total_cost' in analysis_data:
+                # Accept any non-None value including explicit 0.0 (authoritative zero
+                # from a confirmed-free cluster). None = unknown pricing = pass through.
+                if cost_val is not None:
+                    overview['total_monthly_cost'] = float(cost_val)
+                else:
+                    overview['total_monthly_cost'] = None
+            # Recompute savings from the FULL recommendations list only.
+            # top_recommendations is a truncated display list and cannot establish a total.
+            # Rules:
+            #   empty after filtering  -> 0.0  (confirmed: no active findings)
+            #   non-empty, all None    -> None (unknown: no pricing source available)
+            #   non-empty, some values -> sum of non-None values
+            # Falls back to stored aggregate only when the full list is absent entirely.
+            stored_recs = analysis_data.get('recommendations')
+            if isinstance(stored_recs, list):
+                active_recs = _filter_disabled_gpu_findings(stored_recs)
+                if not active_recs:
+                    overview['potential_savings'] = 0.0
+                else:
+                    known = [
+                        float(r['monthly_savings'])
+                        for r in active_recs
+                        if isinstance(r, dict) and r.get('monthly_savings') is not None
+                    ]
+                    overview['potential_savings'] = sum(known) if known else None
+            else:
+                # No full recommendations list; stored aggregate is all we have
+                savings_val = analysis_data.get('total_savings')
+                if savings_val is not None:
+                    overview['potential_savings'] = float(savings_val or 0)
             # optimization_score is computed by algorithmic_cost_analyzer (100 - savings%)
             opt_val = analysis_data.get('optimization_score', analysis_data.get('confidence_score'))
             if opt_val is not None and float(opt_val or 0) > 0:
@@ -453,16 +550,21 @@ async def dashboard_overview(
             health_val = analysis_data.get('current_health_score')
             overview['health_score'] = float(health_val or 0) if health_val else 0.0
             overview['node_count'] = int(analysis_data.get('current_node_count', analysis_data.get('node_count', 0)) or 0)
-            # Count pods from kubectl data if available
-            pods_data = analysis_data.get('pods', analysis_data.get('pod_data', []))
-            if isinstance(pods_data, list):
-                overview['pod_count'] = len(pods_data)
-            elif isinstance(pods_data, int):
-                overview['pod_count'] = pods_data
-            # Top recommendations
-            recs = analysis_data.get('recommendations', analysis_data.get('top_recommendations', []))
-            if isinstance(recs, list):
-                overview['top_recommendations'] = recs[:5]
+            # Count pods. Collector results store the integer directly; cloud
+            # results store the pod list under 'pods' or 'pod_data'.
+            pod_count_direct = analysis_data.get('pod_count')
+            if isinstance(pod_count_direct, int):
+                overview['pod_count'] = pod_count_direct
+            else:
+                pods_data = analysis_data.get('pods', analysis_data.get('pod_data', []))
+                if isinstance(pods_data, list):
+                    overview['pod_count'] = len(pods_data)
+                elif isinstance(pods_data, int):
+                    overview['pod_count'] = pods_data
+            # Top recommendations: display from full list when present, top list otherwise
+            display_recs = stored_recs if isinstance(stored_recs, list) else analysis_data.get('top_recommendations')
+            if isinstance(display_recs, list):
+                overview['top_recommendations'] = _filter_disabled_gpu_findings(display_recs)[:5]
 
         return _sanitize_numpy(overview)
     except Exception as e:
@@ -575,8 +677,11 @@ async def get_recommendations(
         raise HTTPException(status_code=404, detail="Cluster not found")
     analysis_data = cluster.get("analysis_data") or {}
     if "recommendations" in analysis_data:
-        return _append_collector_gpu_recommendations(cluster_id, list(analysis_data["recommendations"]))
-    recommendations = [r.model_dump() for r in generate_recommendations(analysis_data)]
+        recs = _filter_disabled_gpu_findings(list(analysis_data["recommendations"]))
+        return _append_collector_gpu_recommendations(cluster_id, recs)
+    recommendations = _filter_disabled_gpu_findings(
+        [r.model_dump() for r in generate_recommendations(analysis_data)]
+    )
     return _append_collector_gpu_recommendations(cluster_id, recommendations)
 
 

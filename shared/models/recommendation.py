@@ -24,7 +24,7 @@ class Recommendation(BaseModel):
     title: str
     resource_ref: str
     namespace: str
-    monthly_savings: float
+    monthly_savings: Optional[float] = None  # None when no pricing source is available
     confidence: float  # 0.0-1.0
     risk_level: RiskLevel
     priority_score: float  # monthly_savings * confidence * risk_weight
