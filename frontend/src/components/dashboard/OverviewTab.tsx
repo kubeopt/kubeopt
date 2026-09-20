@@ -40,18 +40,25 @@ export default function OverviewTab({ clusterId }: OverviewTabProps) {
   const [chartData, setChartData] = useState<Record<string, unknown> | null>(null)
   const [collectorStatus, setCollectorStatus] = useState<CollectorStatus | null>(null)
   const [loading, setLoading] = useState(true)
+  const [chartError, setChartError] = useState(false)
 
   const fetchData = useCallback(async () => {
-    try {
-      const [ov, cd, cs] = await Promise.all([
-        getDashboardOverview(clusterId),
-        getChartData(clusterId),
-        getCollectorStatus(clusterId),
-      ])
-      setOverview(ov as Record<string, unknown>)
-      setChartData(cd as Record<string, unknown>)
-      setCollectorStatus(cs)
-    } catch { /* empty */ } finally { setLoading(false) }
+    // Fetch independently so a chart or collector failure does not discard a
+    // successfully loaded overview response.
+    setChartError(false)
+    const [ovResult, cdResult, csResult] = await Promise.allSettled([
+      getDashboardOverview(clusterId),
+      getChartData(clusterId),
+      getCollectorStatus(clusterId),
+    ])
+    if (ovResult.status === 'fulfilled') setOverview(ovResult.value as Record<string, unknown>)
+    if (cdResult.status === 'fulfilled') {
+      setChartData(cdResult.value as Record<string, unknown>)
+    } else {
+      setChartError(true)
+    }
+    if (csResult.status === 'fulfilled') setCollectorStatus(csResult.value)
+    setLoading(false)
   }, [clusterId])
 
   useEffect(() => { fetchData() }, [fetchData])
@@ -60,9 +67,11 @@ export default function OverviewTab({ clusterId }: OverviewTabProps) {
   if (loading) return <OverviewSkeleton />
 
   const score = (overview?.optimization_score as number) || 0
-  const monthlyCost = (overview?.total_monthly_cost as number) || 0
-  // null means no pricing source was available; undefined/missing means not yet loaded.
-  // Do not coerce null to 0 -- that would fabricate $0 for unknown-cost findings.
+  // null means pricing is unknown (collector result); undefined means not yet loaded.
+  // Do not coerce null to 0 -- that would fabricate $0 for unknown-cost results.
+  const costRaw = overview !== null ? (overview?.total_monthly_cost as number | null | undefined) : undefined
+  const monthlyCost: number | null = costRaw !== undefined ? (costRaw ?? null) : null
+  const monthlyCostDisplay = monthlyCost === null ? 'Unavailable' : formatCurrency(monthlyCost, 2)
   const savingsRaw2 = overview !== null ? (overview?.potential_savings as number | null | undefined) : undefined
   const savings = savingsRaw2 !== undefined ? savingsRaw2 : null
   const savingsDisplay = savings === null ? 'Unavailable' : formatCurrency(savings, 2)
@@ -112,7 +121,7 @@ export default function OverviewTab({ clusterId }: OverviewTabProps) {
 
   // Key metrics (Optimization Score excluded — shown as gauge)
   const metrics = [
-    { icon: DollarSign, label: 'Monthly Cost', value: formatCurrency(monthlyCost, 2), color: 'var(--text-primary)', iconColor: 'text-blue-500' },
+    { icon: DollarSign, label: 'Monthly Cost', value: monthlyCostDisplay, color: monthlyCost === null ? 'var(--text-muted)' : 'var(--text-primary)', iconColor: 'text-blue-500' },
     { icon: TrendingDown, label: 'Savings', value: savingsDisplay, color: savings === null ? 'var(--text-muted)' : '#7FB069', iconColor: 'text-green-500' },
     { icon: Zap, label: 'HPA Efficiency', value: `${hpaEfficiency.toFixed(1)}%`, color: hpaEfficiency >= 60 ? '#7FB069' : hpaEfficiency >= 30 ? '#eab308' : '#ef4444', iconColor: 'text-purple-500' },
     { icon: Server, label: 'Nodes', value: formatNumber(nodeCount), color: 'var(--text-primary)', iconColor: 'text-indigo-500' },
@@ -172,7 +181,11 @@ export default function OverviewTab({ clusterId }: OverviewTabProps) {
       {/* ─── 2. COST TREND (full width) ─── */}
       <Card>
         <h3 className="mb-4 text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Cost Trend</h3>
-        <CostTrendChart data={trendData} />
+        {chartError ? (
+          <p className="py-6 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Chart data unavailable</p>
+        ) : (
+          <CostTrendChart data={trendData} />
+        )}
       </Card>
 
       {/* ─── 3. 2x2 GRID: Cost Distribution, Savings, CPU/Mem Gauge, Node Bars ─── */}

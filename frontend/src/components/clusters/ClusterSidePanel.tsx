@@ -71,10 +71,16 @@ export default function ClusterSidePanel({ cluster, onClose }: ClusterSidePanelP
   if (!cluster) return null
 
   const score = cluster.optimization_score ?? (overview?.optimization_score as number) ?? 0
-  const monthlyCost = cluster.total_cost ?? (overview?.total_monthly_cost as number) ?? 0
-  // Prefer the fetched overview value when present (it may be explicitly null).
-  // Fall back to the cluster row only when the overview field is absent.
+  // Prefer the fetched overview value when present (it may be explicitly null = unknown pricing).
+  // Fall back to the cluster row only when the overview field is absent entirely.
   // Do not coerce null to 0: null means no pricing source, not $0.
+  const overviewCost = overview !== null
+    ? (overview?.total_monthly_cost as number | null | undefined)
+    : undefined
+  const monthlyCost: number | null = overviewCost !== undefined
+    ? (overviewCost ?? null)
+    : (cluster.total_cost ?? null)
+  const monthlyCostDisplay = monthlyCost === null ? 'Unavailable' : formatCurrency(monthlyCost)
   const overviewSavings = overview !== null
     ? (overview?.potential_savings as number | null | undefined)
     : undefined
@@ -162,7 +168,7 @@ export default function ClusterSidePanel({ cluster, onClose }: ClusterSidePanelP
       {/* Metrics grid */}
       <div className="grid grid-cols-2 gap-px border-b" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--border-subtle)' }}>
         {[
-          { icon: DollarSign, label: 'Monthly Cost', value: formatCurrency(monthlyCost), color: 'var(--text-primary)' },
+          { icon: DollarSign, label: 'Monthly Cost', value: monthlyCostDisplay, color: monthlyCost === null ? 'var(--text-muted)' : 'var(--text-primary)' },
           { icon: TrendingDown, label: 'Savings', value: savingsDisplay, color: savings === null ? 'var(--text-muted)' : '#7FB069' },
           { icon: Server, label: 'Nodes', value: String(nodeCount), color: 'var(--text-primary)' },
           { icon: Activity, label: 'Health', value: `${healthScore.toFixed(0)}%`, color: healthScore >= 80 ? '#7FB069' : healthScore >= 60 ? '#eab308' : '#ef4444' },
@@ -178,7 +184,7 @@ export default function ClusterSidePanel({ cluster, onClose }: ClusterSidePanelP
       </div>
 
       {/* Savings bar */}
-      {monthlyCost > 0 && savings !== null && savings > 0 && (
+      {monthlyCost !== null && monthlyCost > 0 && savings !== null && savings > 0 && (
         <div className="border-b p-4" style={{ borderColor: 'var(--border-color)' }}>
           <div className="mb-1.5 flex items-center justify-between">
             <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Savings Opportunity</span>

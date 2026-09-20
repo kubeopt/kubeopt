@@ -39,7 +39,10 @@ function ScoreBadge({ score }: { score: number }) {
   return <Badge variant={color}>{score.toFixed(0)}%</Badge>
 }
 
-function CostBar({ cost, maxCost }: { cost: number; maxCost: number }) {
+function CostBar({ cost, maxCost }: { cost: number | null; maxCost: number }) {
+  if (cost === null) {
+    return <span className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Unavailable</span>
+  }
   const pct = maxCost > 0 ? Math.min((cost / maxCost) * 100, 100) : 0
   return (
     <div className="flex items-center gap-2">
@@ -104,7 +107,7 @@ export default function ClusterPortfolio() {
     return list
   }, [clusters, search, sortBy, providerFilter])
 
-  const maxCost = useMemo(() => Math.max(...clusters.map((c) => c.total_cost ?? 0), 1), [clusters])
+  const maxCost = useMemo(() => Math.max(...clusters.map((c) => c.total_cost ?? 0).filter((v) => v !== null) as number[], 1), [clusters])
 
   const handleDelete = async () => {
     if (!confirmDelete) return
@@ -347,7 +350,7 @@ export default function ClusterPortfolio() {
                     </td>
                     <td className="px-5 py-3.5 text-xs" style={{ color: 'var(--text-muted)' }}>{cluster.region || '—'}</td>
                     <td className="px-5 py-3.5">
-                      <CostBar cost={cluster.total_cost ?? 0} maxCost={maxCost} />
+                      <CostBar cost={cluster.total_cost ?? null} maxCost={maxCost} />
                     </td>
                     <td className="px-5 py-3.5">
                       <span className={`text-sm font-medium ${cluster.potential_savings == null ? '' : 'text-green-600 dark:text-green-400'}`} style={cluster.potential_savings == null ? { color: 'var(--text-muted)' } : undefined}>
@@ -441,7 +444,7 @@ export default function ClusterPortfolio() {
 
               {/* Cost bar */}
               <div className="mt-3">
-                <CostBar cost={cluster.total_cost ?? 0} maxCost={maxCost} />
+                <CostBar cost={cluster.total_cost ?? null} maxCost={maxCost} />
               </div>
 
               {/* Bottom row */}

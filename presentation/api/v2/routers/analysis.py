@@ -513,9 +513,11 @@ async def dashboard_overview(
             # and must be passed through so the UI can render "Unavailable".
             cost_val = analysis_data.get('total_cost')
             if 'total_cost' in analysis_data:
-                if cost_val is not None and float(cost_val or 0) > 0:
+                # Accept any non-None value including explicit 0.0 (authoritative zero
+                # from a confirmed-free cluster). None = unknown pricing = pass through.
+                if cost_val is not None:
                     overview['total_monthly_cost'] = float(cost_val)
-                elif cost_val is None:
+                else:
                     overview['total_monthly_cost'] = None
             # Recompute savings from the FULL recommendations list only.
             # top_recommendations is a truncated display list and cannot establish a total.
