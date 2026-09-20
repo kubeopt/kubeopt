@@ -4,11 +4,17 @@ GPU/AI Workload Cost Evaluator -- Sprint 3.
 Produces deterministic recommendations from a CollectorReport.
 No external dependencies, no cloud credentials, no AI required.
 
-Detection rules:
-  1. Idle GPU pod      -- GPU requested, CPU used < IDLE_CPU_THRESHOLD of request
+Active detection rules:
   2. No HPA on GPU     -- GPU Deployment with no HPA (training Jobs excluded)
   3. Missing limits    -- GPU pod with no CPU or memory limit alongside GPU limit
-  4. Low node occupancy -- GPU node pool with < OCCUPANCY_THRESHOLD CPU utilization
+
+Disabled rules (require direct GPU telemetry before re-enabling):
+  1. Idle GPU pod      -- disabled: low CPU is not evidence of GPU idleness.
+                         Inference/serving pods routinely run at <10% CPU while
+                         holding 80-100% GPU. Needs nvidia-smi / DCGM metrics.
+  4. Low node occupancy -- disabled: CPU occupancy on a GPU node is not GPU
+                         occupancy. A node at 5% CPU but 95% GPU would be
+                         incorrectly recommended for consolidation.
 """
 
 import hashlib
@@ -25,10 +31,10 @@ except ModuleNotFoundError:
 # Thresholds
 # ---------------------------------------------------------------------------
 
-# A GPU pod is "idle" when live CPU usage < this fraction of its CPU request
+# Thresholds retained for reference but the rules that use them are disabled.
+# Re-enable only when GPU utilisation metrics (nvidia-smi / DCGM exporter) are
+# available in the CollectorReport -- CPU is not a valid proxy for GPU idleness.
 _IDLE_CPU_THRESHOLD = 0.10
-
-# A GPU node pool is "low occupancy" when avg CPU requested < this fraction of allocatable
 _OCCUPANCY_THRESHOLD = 0.40
 
 # GPU resource identifiers (Kubernetes extended resource names)
@@ -87,41 +93,10 @@ def _hpa_targets(report: CollectorReport) -> set[str]:
 # ---------------------------------------------------------------------------
 
 def _idle_gpu_recs(report: CollectorReport) -> list[Recommendation]:
-    if not report.metrics_server_available:
-        return []
-
-    recs = []
-    for pod in _gpu_pods(report):
-        if pod.cpu_used_m is None or pod.cpu_request_m == 0:
-            continue
-        utilization = pod.cpu_used_m / pod.cpu_request_m
-        if utilization >= _IDLE_CPU_THRESHOLD:
-            continue
-
-        node = _node_for_pod(report, pod)
-        cost_per_gpu = _gpu_cost_per_unit(node.instance_type if node else "")
-        monthly_savings = cost_per_gpu * pod.gpu_request
-
-        recs.append(Recommendation(
-            id=_rec_id("idle", pod.namespace, pod.name),
-            category=RecommendationCategory.GPU_WORKLOAD,
-            title=f"Idle GPU pod -- {pod.workload or pod.name}",
-            resource_ref=f"{pod.workload_kind.lower()}/{pod.workload or pod.name}" if pod.workload else f"pod/{pod.name}",
-            namespace=pod.namespace,
-            monthly_savings=monthly_savings,
-            confidence=0.85,
-            risk_level=RiskLevel.LOW,
-            priority_score=_priority(monthly_savings, 0.85, RiskLevel.LOW),
-            evidence=(
-                f"Pod {pod.name} holds {pod.gpu_request}x GPU(s) but CPU usage is "
-                f"{pod.cpu_used_m}m / {pod.cpu_request_m}m ({utilization*100:.1f}% of request). "
-                f"GPU workloads with <{_IDLE_CPU_THRESHOLD*100:.0f}% CPU utilization are likely stale."
-            ),
-            command=f"kubectl delete pod {pod.name} -n {pod.namespace}",
-            rollback=None,
-            requires_ai=False,
-        ))
-    return recs
+    # Disabled: CPU utilisation is not a valid proxy for GPU idleness.
+    # GPU inference/serving pods routinely run at <10% CPU with full GPU utilisation.
+    # Re-enable when nvidia-smi / DCGM GPU utilisation metrics are in CollectorReport.
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -246,54 +221,10 @@ def _missing_limits_gpu_recs(report: CollectorReport) -> list[Recommendation]:
 # ---------------------------------------------------------------------------
 
 def _low_occupancy_gpu_recs(report: CollectorReport) -> list[Recommendation]:
-    # Group nodes by node_pool, only include pools that have GPU pods
-    gpu_pod_nodes: set[str] = {p.node for p in _gpu_pods(report)}
-    gpu_node_pools: dict[str, list[NodeSummary]] = {}
-    for node in report.nodes:
-        if node.name in gpu_pod_nodes or any(
-            p.node == node.name for p in _gpu_pods(report)
-        ):
-            pool = node.node_pool or node.instance_type or node.name
-            gpu_node_pools.setdefault(pool, []).append(node)
-
-    recs = []
-    for pool, nodes in gpu_node_pools.items():
-        total_allocatable = sum(n.cpu_allocatable_m for n in nodes)
-        total_requested = sum(n.cpu_requested_m for n in nodes)
-        if total_allocatable == 0:
-            continue
-        occupancy = total_requested / total_allocatable
-        if occupancy >= _OCCUPANCY_THRESHOLD:
-            continue
-
-        # Estimate savings: if occupancy < threshold, one node might be removable
-        sample_node = nodes[0]
-        cost_per_gpu = _gpu_cost_per_unit(sample_node.instance_type)
-        # Conservative: estimate 1 node could be consolidated
-        gpu_pods_on_pool = [p for p in _gpu_pods(report) if any(n.name == p.node for n in nodes)]
-        gpus_on_pool = sum(p.gpu_request for p in gpu_pods_on_pool)
-        monthly_savings = cost_per_gpu if len(nodes) > 1 else 0.0
-
-        recs.append(Recommendation(
-            id=_rec_id("low-occupancy", pool, "node-pool"),
-            category=RecommendationCategory.GPU_WORKLOAD,
-            title=f"Low GPU node pool occupancy -- {pool}",
-            resource_ref=f"nodepool/{pool}",
-            namespace="",
-            monthly_savings=monthly_savings,
-            confidence=0.70,
-            risk_level=RiskLevel.MEDIUM,
-            priority_score=_priority(monthly_savings, 0.70, RiskLevel.MEDIUM),
-            evidence=(
-                f"Node pool '{pool}' has {len(nodes)} node(s) with {occupancy*100:.1f}% CPU occupancy "
-                f"({total_requested}m / {total_allocatable}m requested). "
-                f"{gpus_on_pool} GPU unit(s) are spread across {len(nodes)} node(s). "
-                f"Consolidating to fewer nodes could save ~${monthly_savings:.0f}/mo."
-            ),
-            command=None,
-            requires_ai=False,
-        ))
-    return recs
+    # Disabled: CPU-requested/CPU-allocatable is not GPU occupancy.
+    # A GPU node at 5% CPU requested but 95% GPU utilisation would be incorrectly
+    # recommended for consolidation. Re-enable when GPU slot occupancy is available.
+    return []
 
 
 # ---------------------------------------------------------------------------
