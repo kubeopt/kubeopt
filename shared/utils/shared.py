@@ -170,7 +170,56 @@ def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, An
     subscription_id = cluster_info.get('subscription_id') if cluster_info else None
 
     try:
-        # 1. Fresh session data (in-memory, from recent analysis)
+        import sqlite3
+        import json
+        from infrastructure.persistence.cluster_database import deserialize_implementation_plan
+
+        # 0. Peek at the most-recent DB row's analysis_date so we can compare
+        #    it against in-memory session/cache timestamps. A collector write is
+        #    always newer than a prior cloud session, so DB must win when it has
+        #    a row that postdates whatever is in memory.
+        db_path = enhanced_cluster_manager.db_path
+        db_row_date = None
+        db_row_source = None
+        with sqlite3.connect(db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            peek = conn.execute(
+                'SELECT analysis_date, results FROM analysis_results '
+                'WHERE cluster_id = ? AND results IS NOT NULL '
+                'ORDER BY analysis_date DESC LIMIT 1',
+                (cluster_id,),
+            ).fetchone()
+            if peek:
+                db_row_date = peek['analysis_date']
+                try:
+                    _peek_raw = peek['results']
+                    _peek_parsed = json.loads(_peek_raw.decode('utf-8') if isinstance(_peek_raw, bytes) else _peek_raw)
+                    db_row_source = (_peek_parsed or {}).get('source')
+                except Exception:
+                    pass
+
+        # When the latest DB row is a collector result, it is always the
+        # authoritative answer -- skip session/cache so stale cloud data
+        # cannot hide it.
+        if db_row_source == 'collector':
+            with sqlite3.connect(db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    'SELECT results FROM analysis_results '
+                    'WHERE cluster_id = ? AND results IS NOT NULL '
+                    'ORDER BY analysis_date DESC LIMIT 1',
+                    (cluster_id,),
+                ).fetchone()
+            if row and row['results']:
+                raw = row['results']
+                serialized = json.loads(raw.decode('utf-8') if isinstance(raw, bytes) else raw)
+                db_data = deserialize_implementation_plan(serialized)
+                if db_data:
+                    logger.info(f"Using collector database data for {cluster_id}")
+                    return db_data, "analysis_results_table"
+
+        # 1. Fresh session data (in-memory, from recent analysis). Only used
+        #    when it is at least as recent as the latest DB row.
         with _analysis_lock:
             for session_id, session_info in _analysis_sessions.items():
                 if (session_info.get('cluster_id') == cluster_id and
@@ -180,44 +229,35 @@ def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, An
                     if isinstance(results, dict) and results.get('cluster_name') and results.get('resource_group'):
                         expected_id = f"{results['resource_group']}_{results['cluster_name']}"
                         if expected_id == cluster_id:
-                            logger.info(f"Using fresh session data for {cluster_id}")
-                            return results, "fresh_session"
+                            session_date = session_info.get('completed_at', '')
+                            if db_row_date is None or str(session_date) >= str(db_row_date):
+                                logger.info(f"Using fresh session data for {cluster_id}")
+                                return results, "fresh_session"
 
-        # 2. Cache (cloud results only -- collector results have total_cost=None
-        # and must not be cached here or they would be skipped on the next read)
+        # 2. Cache (cloud results only -- collector results have total_cost=None).
+        #    Only used when the cached row is at least as recent as the DB row.
         from infrastructure.services.cache_manager import load_from_cache
         cached_data = load_from_cache(cluster_id, subscription_id)
         if cached_data and cached_data.get('total_cost') is not None and cached_data.get('total_cost', 0) > 0:
-            logger.info(f"Using cached data for {cluster_id}")
-            return cached_data, "enterprise_cache"
+            cache_date = cached_data.get('analysis_date', cached_data.get('timestamp', ''))
+            if db_row_date is None or str(cache_date) >= str(db_row_date):
+                logger.info(f"Using cached data for {cluster_id}")
+                return cached_data, "enterprise_cache"
 
-        # 3. Database (most-recent row wins; collector rows have source='collector'
-        # and total_cost=None -- both are accepted here)
-        import sqlite3
-        import json
-        from infrastructure.persistence.cluster_database import deserialize_implementation_plan
-
-        db_path = enhanced_cluster_manager.db_path
-        with sqlite3.connect(db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.execute(
-                'SELECT results FROM analysis_results WHERE cluster_id = ? AND results IS NOT NULL ORDER BY analysis_date DESC LIMIT 1',
-                (cluster_id,),
-            )
-            row = cursor.fetchone()
-            if row and row['results']:
-                raw = row['results']
-                serialized = json.loads(raw.decode('utf-8') if isinstance(raw, bytes) else raw)
-                db_data = deserialize_implementation_plan(serialized)
-                if db_data:
-                    total_cost = db_data.get('total_cost')
-                    is_collector = db_data.get('source') == 'collector'
-                    if is_collector or (total_cost is not None and total_cost > 0):
-                        logger.info(f"Using database data for {cluster_id} (source={db_data.get('source', 'cloud')})")
-                        if not is_collector:
-                            from infrastructure.services.cache_manager import save_to_cache
-                            save_to_cache(cluster_id, db_data, subscription_id)
-                        return db_data, "analysis_results_table"
+        # 3. Database (most-recent row; cloud rows require total_cost > 0).
+        if peek and peek['results']:
+            raw = peek['results']
+            serialized = json.loads(raw.decode('utf-8') if isinstance(raw, bytes) else raw)
+            db_data = deserialize_implementation_plan(serialized)
+            if db_data:
+                total_cost = db_data.get('total_cost')
+                is_collector = db_data.get('source') == 'collector'
+                if is_collector or (total_cost is not None and total_cost > 0):
+                    logger.info(f"Using database data for {cluster_id} (source={db_data.get('source', 'cloud')})")
+                    if not is_collector:
+                        from infrastructure.services.cache_manager import save_to_cache
+                        save_to_cache(cluster_id, db_data, subscription_id)
+                    return db_data, "analysis_results_table"
 
     except Exception as e:
         logger.error(f"Analysis data fetch failed for {cluster_id}: {e}")

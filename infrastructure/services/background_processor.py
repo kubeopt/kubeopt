@@ -334,7 +334,10 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
                 resource_group=resource_group,
                 subscription_id=subscription_id,
             )
-        if should_validate_cluster_access(cluster_id):
+        # Cloud path always validates. Pass an empty store so a coincidentally
+        # fresh collector report cannot bypass cloud credential verification.
+        from infrastructure.services.collector_store import CollectorStore
+        if should_validate_cluster_access(cluster_id, collector_store=CollectorStore()):
             if not account_mgr.validate_cluster_access(cluster_ident):
                 raise Exception(f"Cluster validation failed for {cluster_name} in {subscription_id[:8]}")
         

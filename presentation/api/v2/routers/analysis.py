@@ -539,12 +539,17 @@ async def dashboard_overview(
             health_val = analysis_data.get('current_health_score')
             overview['health_score'] = float(health_val or 0) if health_val else 0.0
             overview['node_count'] = int(analysis_data.get('current_node_count', analysis_data.get('node_count', 0)) or 0)
-            # Count pods from kubectl data if available
-            pods_data = analysis_data.get('pods', analysis_data.get('pod_data', []))
-            if isinstance(pods_data, list):
-                overview['pod_count'] = len(pods_data)
-            elif isinstance(pods_data, int):
-                overview['pod_count'] = pods_data
+            # Count pods. Collector results store the integer directly; cloud
+            # results store the pod list under 'pods' or 'pod_data'.
+            pod_count_direct = analysis_data.get('pod_count')
+            if isinstance(pod_count_direct, int):
+                overview['pod_count'] = pod_count_direct
+            else:
+                pods_data = analysis_data.get('pods', analysis_data.get('pod_data', []))
+                if isinstance(pods_data, list):
+                    overview['pod_count'] = len(pods_data)
+                elif isinstance(pods_data, int):
+                    overview['pod_count'] = pods_data
             # Top recommendations: display from full list when present, top list otherwise
             display_recs = stored_recs if isinstance(stored_recs, list) else analysis_data.get('top_recommendations')
             if isinstance(display_recs, list):
