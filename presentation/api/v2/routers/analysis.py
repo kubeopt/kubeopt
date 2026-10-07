@@ -67,8 +67,18 @@ def _filter_disabled_gpu_findings(recommendations: list[dict]) -> list[dict]:
     ]
 
 
-def _append_collector_gpu_recommendations(cluster_id: str, recommendations: list[dict]) -> list[dict]:
-    """Append deterministic GPU recommendations from the latest collector report."""
+def _append_collector_gpu_recommendations(
+    cluster_id: str,
+    recommendations: list[dict],
+    has_pricing_source: bool = False,
+) -> list[dict]:
+    """Append deterministic GPU recommendations from the latest collector report.
+
+    When has_pricing_source is False (no node_monthly_cost and no cloud billing),
+    monthly_savings on every GPU finding is set to None so fabricated savings from
+    the GPU price table do not appear in the response. The finding itself is kept:
+    the operator should still know the HPA or limits gap exists.
+    """
     report = get_collector_store().get(cluster_id)
     if report is None:
         return recommendations
@@ -76,6 +86,10 @@ def _append_collector_gpu_recommendations(cluster_id: str, recommendations: list
     gpu_recommendations = [r.model_dump() for r in evaluate_gpu_workloads(report)]
     if not gpu_recommendations:
         return recommendations
+
+    if not has_pricing_source:
+        for rec in gpu_recommendations:
+            rec["monthly_savings"] = None
 
     existing_ids = {r.get("id") for r in recommendations if isinstance(r, dict)}
     recommendations.extend(r for r in gpu_recommendations if r.get("id") not in existing_ids)
@@ -675,14 +689,20 @@ async def get_recommendations(
     cluster = cluster_manager.get_cluster(cluster_id)
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
+    # A cluster has a pricing source when cloud billing is available (subscription_id
+    # present) or when the operator explicitly set node_monthly_cost for a self-hosted
+    # cluster. Without one, GPU savings derived from the price table are fabricated.
+    has_pricing = bool(
+        cluster.get("subscription_id") or cluster.get("node_monthly_cost") is not None
+    )
     analysis_data = cluster.get("analysis_data") or {}
     if "recommendations" in analysis_data:
         recs = _filter_disabled_gpu_findings(list(analysis_data["recommendations"]))
-        return _append_collector_gpu_recommendations(cluster_id, recs)
+        return _append_collector_gpu_recommendations(cluster_id, recs, has_pricing_source=has_pricing)
     recommendations = _filter_disabled_gpu_findings(
         [r.model_dump() for r in generate_recommendations(analysis_data)]
     )
-    return _append_collector_gpu_recommendations(cluster_id, recommendations)
+    return _append_collector_gpu_recommendations(cluster_id, recommendations, has_pricing_source=has_pricing)
 
 
 @router.get("/debug-analysis")
