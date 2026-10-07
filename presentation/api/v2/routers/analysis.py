@@ -133,9 +133,16 @@ async def analyze_cluster(
         elif source == 'cloud':
             use_collector = False
         else:
-            # Auto-select: prefer collector when a fresh report is available.
+            # Auto-select: prefer collector only when BOTH conditions hold:
+            #   1. a fresh in-cluster report exists, AND
+            #   2. no cloud credentials are configured (subscription_id absent).
+            # A cluster with cloud credentials should use the richer cloud path
+            # even when a collector report is present. Using the collector path
+            # for a credentialed cluster would silently replace billing-backed
+            # cost data with an unpriced snapshot.
             collector_store = get_collector_store()
-            use_collector = collector_store.has_fresh_report(cluster_id)
+            no_cloud_creds = not bool(cluster_info.get("subscription_id"))
+            use_collector = no_cloud_creds and collector_store.has_fresh_report(cluster_id)
 
         if use_collector:
             # Collector path: no cloud calls. StaleReportError propagates as 422

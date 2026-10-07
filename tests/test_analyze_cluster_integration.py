@@ -382,13 +382,27 @@ class TestCloudPath:
 
 class TestAutoSelect:
     @pytest.mark.asyncio
-    async def test_auto_select_with_fresh_report_uses_collector(self):
-        """When source is omitted and a fresh report exists, auto-selects collector."""
+    async def test_auto_select_with_fresh_report_and_no_credentials_uses_collector(self):
+        """Auto-selects collector when a fresh report exists AND no cloud credentials configured.
+
+        A cluster with a subscription_id has cloud credentials; auto-select must
+        not route it to the collector path even when a fresh report is present.
+        This test uses a cluster row without subscription_id to verify the happy path.
+        """
         from presentation.api.v2.routers.analysis import analyze_cluster
 
         report = _load("collector_report_small.json")
         store = _make_fresh_store(report)
-        mgr = _make_cluster_manager(_cluster_row(report.cluster_id))
+        # No subscription_id: this is the condition that allows auto-select to the collector path
+        uncredentialed_row = {
+            'cluster_id': report.cluster_id,
+            'name': 'test-cluster',
+            'resource_group': 'rg-test',
+            'subscription_id': None,
+            'cloud_provider': 'self-hosted',
+            'region': '',
+        }
+        mgr = _make_cluster_manager(uncredentialed_row)
 
         with patch("infrastructure.services.background_processor.run_subscription_aware_background_analysis",
                    side_effect=_cloud_sentinel):
@@ -402,6 +416,40 @@ class TestAutoSelect:
 
         assert result["source"] == "collector"
         assert result["status"] == "completed"
+
+    @pytest.mark.asyncio
+    async def test_auto_select_credentialed_cluster_with_fresh_report_uses_cloud(self):
+        """Credentialed cluster must use cloud path even when a fresh report is present.
+
+        The collector path is for clusters without cloud credentials. A cluster
+        with a subscription_id has access to richer billing-backed cost data;
+        routing it to the collector path would silently replace that with an
+        unpriced snapshot.
+        """
+        from presentation.api.v2.routers.analysis import analyze_cluster
+
+        report = _load("collector_report_small.json")
+        store = _make_fresh_store(report)
+        # subscription_id present: this cluster has cloud credentials
+        mgr = _make_cluster_manager(_cluster_row(report.cluster_id))
+
+        cloud_path_entered = []
+
+        with patch("presentation.api.v2.routers.analysis.get_collector_store", return_value=store):
+            with patch("presentation.api.v2.routers.analysis.threading") as mock_threading:
+                mock_thread = MagicMock()
+                mock_threading.Thread.return_value = mock_thread
+                result = await analyze_cluster(
+                    cluster_id=report.cluster_id,
+                    source=None,
+                    user={"sub": "test"},
+                    cluster_manager=mgr,
+                )
+
+        assert result["source"] == "cloud", (
+            "Credentialed cluster must use cloud path regardless of collector report presence"
+        )
+        mock_thread.start.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_auto_select_without_report_uses_cloud(self):
