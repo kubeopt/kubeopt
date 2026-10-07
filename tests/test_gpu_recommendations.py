@@ -130,6 +130,33 @@ class TestGPUEvaluator:
         recs2 = _recs(r)
         assert [rec.id for rec in recs1] == [rec.id for rec in recs2]
 
+    def test_no_hpa_recommendation_does_not_emit_cpu_hpa_yaml(self):
+        """Rule 2 must not generate CPU-metric HPA YAML for GPU workloads.
+
+        A CPU-utilisation HPA is an incorrect scaling signal for GPU inference:
+        the pod may be at <10% CPU while holding 100% GPU. The recommendation
+        must identify the missing HPA but leave yaml_patch=None, requiring the
+        operator to choose a GPU-appropriate scaling signal.
+        """
+        r = _load("collector_report_gpu_workloads.json")
+        recs = _recs(r)
+        hpa_recs = [
+            rec for rec in recs
+            if "autoscal" in rec.title.lower() or "hpa" in rec.title.lower()
+        ]
+        assert len(hpa_recs) >= 1, "Rule 2 should still fire on a GPU Deployment without HPA"
+
+        for rec in hpa_recs:
+            assert rec.yaml_patch is None, (
+                f"HPA recommendation for GPU workload must not emit a yaml_patch; "
+                f"got yaml_patch for '{rec.title}': {rec.yaml_patch!r}. "
+                f"A CPU-metric HPA is incorrect for GPU workloads -- the operator "
+                f"must choose a GPU-utilisation or request-rate scaling signal."
+            )
+            assert "cpu" not in (rec.yaml_patch or "").lower(), (
+                "yaml_patch must not reference CPU as an HPA metric for a GPU workload"
+            )
+
     def test_cpu_occupancy_on_gpu_nodes_produces_no_finding(self):
         """CPU-request occupancy on GPU nodes must not generate a consolidation recommendation."""
         r = _load("collector_report_gpu_workloads.json")

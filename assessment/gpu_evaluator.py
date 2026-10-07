@@ -137,27 +137,12 @@ def _no_hpa_gpu_recs(report: CollectorReport) -> list[Recommendation]:
                 f"pay for peak capacity 24/7 without autoscaling."
             ),
             command=None,
-            yaml_patch=(
-                f"apiVersion: autoscaling/v2\n"
-                f"kind: HorizontalPodAutoscaler\n"
-                f"metadata:\n"
-                f"  name: {pod.workload}-hpa\n"
-                f"  namespace: {pod.namespace}\n"
-                f"spec:\n"
-                f"  scaleTargetRef:\n"
-                f"    apiVersion: apps/v1\n"
-                f"    kind: Deployment\n"
-                f"    name: {pod.workload}\n"
-                f"  minReplicas: 1\n"
-                f"  maxReplicas: 4\n"
-                f"  metrics:\n"
-                f"  - type: Resource\n"
-                f"    resource:\n"
-                f"      name: cpu\n"
-                f"      target:\n"
-                f"        type: Utilization\n"
-                f"        averageUtilization: 70\n"
-            ),
+            # No HPA YAML is emitted here. GPU workloads require a workload-specific
+            # scaling signal (GPU utilisation %, inference queue depth, request rate).
+            # A CPU-utilisation HPA is incorrect: an inference pod serving at capacity
+            # may be at <10% CPU while holding 100% GPU. The operator must select a
+            # signal that reflects actual GPU demand before applying an HPA.
+            yaml_patch=None,
             requires_ai=False,
         ))
     return recs
