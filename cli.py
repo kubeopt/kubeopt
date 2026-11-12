@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""KubeOpt CLI — scan mode.
+"""KubeOpt CLI -- scan clusters or compare manifest resources.
 
 Run a savings report against a running KubeOpt server without the web UI.
 
 Usage:
     python cli.py scan [--cluster CLUSTER_ID] [--top N] [--json]
+    python cli.py diff --base BASE --head HEAD [--format json|markdown]
     python -m kubeopt scan [--cluster CLUSTER_ID] [--top N] [--json]
 
 Environment variables (override .env values):
@@ -60,26 +61,14 @@ def _load_dotenv(env_path: Optional[Path] = None) -> None:
                 os.environ[key] = value
 
 
-# Load .env early so that KubeOptAPIClient picks up credentials
-_load_dotenv()
-
-
 # ---------------------------------------------------------------------------
-# Import the existing API client (avoids reimplementing auth / HTTP logic)
+# Support execution from the checkout or as an installed console command.
 # ---------------------------------------------------------------------------
 
 # Allow both `python cli.py` (from repo root) and `python -m kubeopt`
 _repo_root = Path(__file__).parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
-
-try:
-    from mcp_server.api_client import KubeOptAPIClient
-except ImportError as exc:
-    print(f"ERROR: Could not import KubeOptAPIClient: {exc}", file=sys.stderr)
-    print("Make sure you are running from the kubeopt/ directory.", file=sys.stderr)
-    sys.exit(1)
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -133,6 +122,8 @@ async def _scan(
     as_json: bool,
 ) -> int:
     """Run the scan and print results.  Returns an exit code."""
+    from mcp_server.api_client import KubeOptAPIClient
+
     client = KubeOptAPIClient()
 
     # ---- connect / authenticate -------------------------------------------
@@ -220,7 +211,7 @@ async def _scan(
 
 
 async def _build_opportunities(
-    client: KubeOptAPIClient,
+    client: "KubeOptAPIClient",
     clusters: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
     """Fetch chart data for each cluster and extract savings opportunities."""
@@ -411,9 +402,18 @@ def _simulate_collector(fixture: str, api_url: str, token: str, repeat: int, int
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="kubeopt",
-        description="KubeOpt CLI — generate a savings report from the terminal.",
+        description="KubeOpt CLI -- cluster savings reports and offline manifest previews.",
     )
     sub = parser.add_subparsers(dest="command")
+
+    diff = sub.add_parser("diff", help="Preview resource changes between Git commits without cloud access.")
+    diff.add_argument("--base", required=True, help="Base Git commit or ref.")
+    diff.add_argument("--head", required=True, help="Head Git commit or ref.")
+    diff.add_argument("--repo", default=".", help="Git repository path (default: current directory).")
+    diff.add_argument("--format", choices=("json", "markdown"), default="json",
+                      help="Output format (default: JSON including rendered markdown).")
+    diff.add_argument("--node-monthly-cost", default=None,
+                      help="Optional operator-provided USD node price; capacity modeling is deferred.")
 
     scan = sub.add_parser("scan", help="Scan clusters and print a savings report.")
     scan.add_argument(
@@ -462,9 +462,22 @@ def _build_parser() -> argparse.ArgumentParser:
 # ---------------------------------------------------------------------------
 
 def main(argv: Optional[List[str]] = None) -> int:
-    _load_dotenv()
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    if args.command == "diff":
+        from manifest_diff.command import build_preview
+        from manifest_diff.parser import ManifestError
+
+        try:
+            preview = build_preview(args.base, args.head, args.repo, args.node_monthly_cost)
+        except ManifestError as exc:
+            _err(str(exc))
+            return 1
+        print(preview["markdown"] if args.format == "markdown" else json.dumps(preview, indent=2))
+        return 0
+
+    _load_dotenv()
 
     if args.command == "scan":
         return asyncio.run(_scan(
