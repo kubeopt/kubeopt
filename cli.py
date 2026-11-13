@@ -21,7 +21,10 @@ import os
 import sys
 from datetime import date
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from mcp_server.api_client import KubeOptAPIClient
 
 
 # ---------------------------------------------------------------------------
